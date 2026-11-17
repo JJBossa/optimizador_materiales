@@ -176,6 +176,7 @@ La base local y los archivos generados se excluyen del seguimiento de Git. Los c
 
 - [Nombres opcionales de los trabajos](docs/CAMBIOS_NOMBRES_OPTIMIZACIONES.md)
 
+- [Prueba de rendimiento RNF-03: 50 piezas y 20 ejecuciones locales](docs/rendimiento/RNF-03_2026-10-25/INFORME.md)
 - [Corrección de precisión dimensional RNF-09 y pruebas de regresión](docs/CAMBIOS_PRECISION_DIMENSIONAL_RNF09.md)
 
 - [Animación y escala de color del aprovechamiento](docs/CAMBIOS_ANIMACION_APROVECHAMIENTO.md)

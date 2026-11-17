@@ -1,0 +1,26 @@
+{
+  "algorithm_s": {
+    "mean": 0.0013279600301757456,
+    "maximum": 0.0023080999962985516,
+    "minimum": 0.0011366000398993492,
+    "median": 0.00121449981816113
+  },
+  "server_s": {
+    "mean": 0.5255051050335169,
+    "maximum": 0.6276231002993882,
+    "minimum": 0.49647430004552007,
+    "median": 0.5139900997746736
+  },
+  "perceived_s": {
+    "mean": 1.05051494140625,
+    "maximum": 3.0325,
+    "minimum": 0.7905,
+    "median": 0.8175999755859376
+  },
+  "repetitions": 20,
+  "completed": 20,
+  "within_10s": 20,
+  "required_successes": 19,
+  "limit_s": 10,
+  "passed": true
+}

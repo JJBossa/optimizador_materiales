@@ -1,0 +1,567 @@
+{
+  "metadata": {
+    "started_at": "2026-10-25T13:36:13.903136-03:00",
+    "revision": "f094d55609699596b576872e4bf8c1cd37a1550f",
+    "python": "3.13.12 | packaged by Anaconda, Inc. | (main, Feb 24 2026, 16:05:56) [MSC v.1942 64 bit (AMD64)]",
+    "django": "5.2.8",
+    "os": "Windows-10-10.0.19045-SP0",
+    "processor": "AMD64 Family 26 Model 68 Stepping 0, AuthenticAMD",
+    "logical_cpus": 16,
+    "debug": true,
+    "database": "SQLite aislada",
+    "pieces": [
+      [
+        30.0,
+        40.0,
+        20
+      ],
+      [
+        40.0,
+        50.0,
+        20
+      ],
+      [
+        20.0,
+        30.0,
+        10
+      ]
+    ],
+    "board_cm": [
+      122,
+      244
+    ],
+    "kerf_mm": 3,
+    "rotation": true,
+    "expected_repetitions": 20,
+    "limit_s": 10,
+    "method": "Clic real + load + fuentes/imágenes visibles + fin de animación inicial + dos requestAnimationFrame",
+    "algorithm_clock": "time.perf_counter",
+    "server_clock": "time.perf_counter",
+    "browser_clock": "performance.timeOrigin + performance.now",
+    "hardware": {
+      "cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+      "physical_cores": 8,
+      "logical_threads": 16,
+      "physical_memory_bytes": 16228818944
+    },
+    "packages": {
+      "Django": "5.2.8",
+      "matplotlib": "3.9.2",
+      "reportlab": "4.2.5",
+      "Pillow": "11.0.0"
+    },
+    "finished_at": "2026-10-25T13:45:19.020029-03:00",
+    "instrumentation_sha256": "2cae535c4a34669110c63f4e132934b387967091955e7793920f8c50fc1c3af5",
+    "board_preset": "OSB (122×244 cm)",
+    "isolation": "SQLite, usuario y MEDIA_ROOT independientes; no se modificaron los datos de la instalación habitual",
+    "persistence_audit": {
+      "optimizations": 20,
+      "boards": 60,
+      "pdf_files": 20,
+      "png_files": 80
+    },
+    "automation_note": "Las esperas del controlador agotaron su plazo al consultar el marcador de las ejecuciones 19 y 20. La página registró después sus tiempos propios; no se repitieron ni descartaron ejecuciones."
+  },
+  "runs": [
+    {
+      "run": 1,
+      "algorithm_s": 0.001196499913930893,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.627517799846828,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 1,
+        "perceived_s": 1.004300048828125,
+        "result_visible": true,
+        "navigation_s": 0.7375,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 2,
+      "algorithm_s": 0.0012238998897373676,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5139114996418357,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 2,
+        "perceived_s": 0.816800048828125,
+        "result_visible": true,
+        "navigation_s": 0.5905,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 3,
+      "algorithm_s": 0.0011624000035226345,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5211696000769734,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 3,
+        "perceived_s": 0.81839990234375,
+        "result_visible": true,
+        "navigation_s": 0.588300048828125,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 4,
+      "algorithm_s": 0.0011566998437047005,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.509364000055939,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 4,
+        "perceived_s": 0.798599853515625,
+        "result_visible": true,
+        "navigation_s": 0.575599853515625,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 5,
+      "algorithm_s": 0.001676300074905157,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5095416000112891,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 5,
+        "perceived_s": 0.798800048828125,
+        "result_visible": true,
+        "navigation_s": 0.573400146484375,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 6,
+      "algorithm_s": 0.0012964000925421715,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5162960002198815,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 6,
+        "perceived_s": 0.8322998046875,
+        "result_visible": true,
+        "navigation_s": 0.6067998046875,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 7,
+      "algorithm_s": 0.0015346999280154705,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5046589998528361,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 7,
+        "perceived_s": 0.80360009765625,
+        "result_visible": true,
+        "navigation_s": 0.579900146484375,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 8,
+      "algorithm_s": 0.0012862002477049828,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5169534999877214,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 8,
+        "perceived_s": 0.805499755859375,
+        "result_visible": true,
+        "navigation_s": 0.582099853515625,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 9,
+      "algorithm_s": 0.0011646002531051636,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5057894997298717,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 9,
+        "perceived_s": 0.8042998046875,
+        "result_visible": true,
+        "navigation_s": 0.5757998046875,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 10,
+      "algorithm_s": 0.0012063998728990555,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5123915998265147,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 10,
+        "perceived_s": 0.799,
+        "result_visible": true,
+        "navigation_s": 0.57639990234375,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 11,
+      "algorithm_s": 0.001209300011396408,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.6276231002993882,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 11,
+        "perceived_s": 0.936,
+        "result_visible": true,
+        "navigation_s": 0.711300048828125,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 12,
+      "algorithm_s": 0.001159400213509798,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5501477001234889,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 12,
+        "perceived_s": 0.860999755859375,
+        "result_visible": true,
+        "navigation_s": 0.634399658203125,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 13,
+      "algorithm_s": 0.0016858000308275223,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5338822999037802,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 13,
+        "perceived_s": 0.8305,
+        "result_visible": true,
+        "navigation_s": 0.60260009765625,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 14,
+      "algorithm_s": 0.0012196996249258518,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5338668003678322,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 14,
+        "perceived_s": 0.830699951171875,
+        "result_visible": true,
+        "navigation_s": 0.602699951171875,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 15,
+      "algorithm_s": 0.0012435000389814377,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5140686999075115,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 15,
+        "perceived_s": 0.8197998046875,
+        "result_visible": true,
+        "navigation_s": 0.593599853515625,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 16,
+      "algorithm_s": 0.0011887000873684883,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5149273001588881,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 16,
+        "perceived_s": 0.799000244140625,
+        "result_visible": true,
+        "navigation_s": 0.574400146484375,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 17,
+      "algorithm_s": 0.0023080999962985516,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.5047025000676513,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 17,
+        "perceived_s": 0.79769970703125,
+        "result_visible": true,
+        "navigation_s": 0.573899658203125,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 18,
+      "algorithm_s": 0.0013081002980470657,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.499354500323534,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 18,
+        "perceived_s": 0.7905,
+        "result_visible": true,
+        "navigation_s": 0.5635,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 19,
+      "algorithm_s": 0.0011366000398993492,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.4974608002230525,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 19,
+        "perceived_s": 3.031,
+        "result_visible": true,
+        "navigation_s": 0.62589990234375,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    },
+    {
+      "run": 20,
+      "algorithm_s": 0.0011959001421928406,
+      "algorithm_calls": 1,
+      "placed": 50,
+      "requested": 50,
+      "boards": 3,
+      "usage": 78.38,
+      "input_matches": true,
+      "server_s": 0.49647430004552007,
+      "http_status": 200,
+      "browser_measurement": {
+        "run": 20,
+        "perceived_s": 3.0325,
+        "result_visible": true,
+        "navigation_s": 0.631800048828125,
+        "browser": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Safari/537.36",
+        "viewport": [
+          1280,
+          720
+        ],
+        "device_pixel_ratio": 1,
+        "document_visibility": "visible"
+      }
+    }
+  ]
+}
