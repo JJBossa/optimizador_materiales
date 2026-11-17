@@ -211,7 +211,17 @@ def login_view(request):
 def configuracion_inicial(request):
     from .forms import ConfiguracionInicialForm
     perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
-    form = ConfiguracionInicialForm(request.POST if request.method == 'POST' else None, instance=perfil)
+    datos = None
+    if request.method == 'POST':
+        if request.POST.get('setup_action') == 'skip':
+            datos = {
+                'modo': 'esencial',
+                'tema_preferido': perfil.tema_preferido,
+                'tamanio_fuente': perfil.tamanio_fuente,
+            }
+        else:
+            datos = request.POST
+    form = ConfiguracionInicialForm(datos, instance=perfil)
     if request.method == 'POST' and form.is_valid():
         form.save()
         request.session.pop('mostrar_bienvenida_cutless', None)

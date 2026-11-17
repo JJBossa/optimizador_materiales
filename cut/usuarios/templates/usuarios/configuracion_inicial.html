@@ -3,12 +3,12 @@
 {% block title %}Tu espacio de trabajo · CutLess{% endblock %}
 {% block body_class %}setup-page{% endblock %}
 {% block navigation %}{% endblock %}
-{% block extra_css %}<link rel="stylesheet" href="{% static 'usuarios/css/configuracion-inicial.css' %}?v=2">{% endblock %}
+{% block extra_css %}<link rel="stylesheet" href="{% static 'usuarios/css/configuracion-inicial.css' %}?v=4">{% endblock %}
 {% block content %}
 <div class="setup-shell">
   <header class="setup-top">
-    <a class="setup-brand" href="{% url 'cutless:index' %}" aria-label="CutLess, ir al inicio">{% include 'cutless/includes/brand.html' %}</a>
-    {% if inicio_completado %}<a href="{% url 'cutless:index' %}" class="setup-back">Volver sin guardar</a>{% else %}<a href="{% url 'usuarios:logout' %}" class="setup-back">Cerrar sesión</a>{% endif %}
+    <div class="setup-brand" role="img" aria-label="CutLess, Planificación de cortes">{% include 'cutless/includes/brand.html' %}</div>
+    <button type="submit" form="setup-form" formnovalidate name="setup_action" value="skip" class="setup-skip">Omitir por ahora</button>
   </header>
   <div class="setup-heading">
     <p class="setup-eyebrow">TU ESPACIO DE TRABAJO</p>
@@ -19,7 +19,7 @@
     <li data-progress="0" aria-current="step"><span>1</span> Tus herramientas</li>
     <li data-progress="1"><span>2</span> Cómo quieres verlo</li>
   </ol>
-  <form method="post" id="setup-form">
+  <form method="post" id="setup-form" data-user-id="{{ request.user.pk }}" data-has-errors="{% if form.errors %}true{% else %}false{% endif %}">
     {% csrf_token %}
     {% if form.errors %}<div class="setup-errors" role="alert"><strong>Revisa las opciones antes de guardar.</strong>{{ form.non_field_errors }}{% for field in form %}{% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}{% endfor %}</div>{% endif %}
     <section data-step="0" aria-labelledby="tools-title">
@@ -34,14 +34,13 @@
         </label>
         {% endfor %}
       </fieldset>
-      <div class="setup-basics"><span class="setup-fixed">Siempre disponibles</span><strong>Optimización</strong><span>Prepara tu plan de corte.</span><strong>Historial</strong><span>Consulta y reutiliza tus cortes anteriores.</span></div>
       <div id="optional-tools">
         <div class="setup-grid-heading"><h3>Elige tus herramientas</h3><p id="tools-count" role="status" aria-live="polite"></p></div>
         <div class="setup-tools">
           {% for item in form.herramientas %}
           <label class="setup-choice setup-tool" for="{{ item.campo.id_for_label }}">
             {{ item.campo }}
-            <span class="setup-tool-content"><span class="setup-tool-art" aria-hidden="true"><svg width="64" height="48" viewBox="0 0 64 48"><rect x="7" y="5" width="50" height="38" rx="5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M37 6v36M8 28h28M38 19h18" stroke="currentColor" stroke-width="2" fill="none"/></svg></span><strong>{{ item.campo.label }}</strong><small>{{ item.descripcion }}</small><span class="setup-tool-state" aria-hidden="true">Seleccionar</span></span>
+            <span class="setup-tool-content"><span class="setup-tool-art" aria-hidden="true" data-tool-icon="{{ item.campo.name }}"></span><strong>{{ item.campo.label }}</strong><small>{{ item.descripcion }}</small><span class="setup-tool-state" aria-hidden="true">Seleccionar</span></span>
           </label>
           {% empty %}<p>No tienes herramientas adicionales disponibles en esta cuenta. Optimización e Historial siguen incluidos.</p>{% endfor %}
         </div>
@@ -73,4 +72,4 @@
   </form>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'usuarios/js/configuracion-inicial.js' %}?v=1"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'usuarios/js/configuracion-inicial.js' %}?v=3"></script>{% endblock %}
