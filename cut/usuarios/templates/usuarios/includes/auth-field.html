@@ -12,9 +12,9 @@
   <div id="{{ field.id_for_label }}_errors" class="login-field-errors auth-field-errors" aria-live="polite" data-field-errors {% if not field.errors %}hidden{% endif %}>
     {% for error in field.errors %}<p><span aria-hidden="true">!</span> {{ error }}</p>{% endfor %}
   </div>
-  <div id="{{ field.id_for_label }}_help" class="register-help auth-field-help">
+  <div id="{{ field.id_for_label }}_help" class="register-help auth-field-help"{% if registration and field.name == 'username' %} data-auth-help-permanent{% endif %}>
     {% if registration %}
-      {% if field.name == 'username' %}Hasta {{ field.field.max_length }} caracteres. Usa letras, números o @ . + - _
+      {% if field.name == 'username' %}Sin espacios. Usa letras, números o los símbolos @ . + - _. Máximo {{ field.field.max_length }} caracteres.
       {% elif field.name == 'email' %}Escribe un correo al que tengas acceso, por ejemplo nombre@correo.cl.
       {% elif field.name == 'password1' %}
         <div class="auth-password-guide">

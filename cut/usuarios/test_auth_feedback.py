@@ -36,6 +36,34 @@ class AuthFeedbackTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('Este nombre de usuario ya está en uso. Prueba con otro.', form.errors['username'])
 
+    def test_ayuda_permanente_explica_espacios_y_caracteres(self):
+        response = self.client.get(reverse('usuarios:registro'))
+        self.assertContains(response, 'data-auth-help-permanent', count=1)
+        self.assertContains(response, 'Sin espacios. Usa letras, números o los símbolos @ . + - _.')
+        self.assertContains(response, 'aria-describedby="id_username_help id_username_errors"')
+
+    def test_espacios_internos_conservan_usuario_y_correo_sin_devolver_contrasenas(self):
+        for username in ('Ana Pérez', 'Ana\u00a0Pérez', 'Ana\tPérez'):
+            with self.subTest(username=username):
+                data = self.data(username=username)
+                response = self.client.post(reverse('usuarios:registro'), data)
+                self.assertContains(response, 'El nombre de usuario no puede contener espacios.', count=2)
+                self.assertEqual(response.context['form']['username'].value(), username)
+                self.assertContains(response, 'value="persona@example.com"')
+                self.assertNotContains(response, data['password1'])
+                self.assertFalse(User.objects.exists())
+
+    def test_conserva_caracteres_validos_y_recorte_exterior_de_django(self):
+        form = RegistroForm(self.data(username='  José_27@equipo.+-  '))
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.cleaned_data['username'], 'José_27@equipo.+-')
+
+    def test_otros_caracteres_invalidos_mantienen_mensaje_de_caracteres(self):
+        form = RegistroForm(self.data(username='persona!nueva'))
+        self.assertFalse(form.is_valid())
+        self.assertIn('Usa letras, números o estos símbolos: @ . + - _', form.errors['username'])
+        self.assertNotIn('no puede contener espacios', str(form.errors['username']))
+
     def test_cuenta_creada_muestra_una_sola_confirmacion_en_panel_login(self):
         response = self.client.post(reverse('usuarios:registro'), self.data(), follow=True)
         self.assertEqual(response.status_code, 200)
