@@ -8,7 +8,7 @@
 <div class="setup-shell">
   <header class="setup-top">
     <div class="setup-brand" role="img" aria-label="CutLess, Planificación de cortes">{% include 'cutless/includes/brand.html' %}</div>
-    <button type="submit" form="setup-form" formnovalidate name="setup_action" value="skip" class="setup-skip">Omitir por ahora</button>
+    <button type="submit" form="setup-skip-form" class="setup-skip">Omitir por ahora</button>
   </header>
   <div class="setup-heading">
     <p class="setup-eyebrow">TU ESPACIO DE TRABAJO</p>
@@ -19,8 +19,9 @@
     <li data-progress="0" aria-current="step"><span>1</span> Tus herramientas</li>
     <li data-progress="1"><span>2</span> Cómo quieres verlo</li>
   </ol>
-  <form method="post" id="setup-form" data-user-id="{{ request.user.pk }}" data-has-errors="{% if form.errors %}true{% else %}false{% endif %}">
+  <form method="post" id="setup-form" data-user-id="{{ request.user.pk }}" data-confirmed-draft="{{ borrador_confirmado }}" data-has-errors="{% if form.errors %}true{% else %}false{% endif %}">
     {% csrf_token %}
+    <input type="hidden" name="setup_draft_id" id="setup-draft-id">
     {% if form.errors %}<div class="setup-errors" role="alert"><strong>Revisa las opciones antes de guardar.</strong>{{ form.non_field_errors }}{% for field in form %}{% for error in field.errors %}<p>{{ field.label }}: {{ error }}</p>{% endfor %}{% endfor %}</div>{% endif %}
     <section data-step="0" aria-labelledby="tools-title">
       <h2 id="tools-title" tabindex="-1">¿Con qué quieres empezar?</h2>
@@ -70,6 +71,11 @@
       <div class="setup-actions"><button type="button" class="btn setup-secondary btn-secondary" id="setup-prev" hidden data-action="secondary" data-icon="chevron-left">Anterior</button><button type="button" class="btn setup-primary btn-primary" id="setup-next" hidden data-action="primary" data-icon="chevron-right">Continuar</button><button type="submit" class="btn setup-primary btn-success" id="setup-save" data-action="success" data-icon="check">{% if inicio_completado %}Guardar mis preferencias{% else %}Empezar con mi espacio{% endif %}</button></div>
     </footer>
   </form>
+  <form method="post" id="setup-skip-form">
+    {% csrf_token %}
+    <input type="hidden" name="setup_action" value="skip">
+    <input type="hidden" name="setup_draft_id" id="setup-skip-draft-id">
+  </form>
 </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'usuarios/js/configuracion-inicial.js' %}?v=3"></script>{% endblock %}
+{% block extra_js %}<script src="{% static 'usuarios/js/configuracion-inicial.js' %}?v=4"></script>{% endblock %}

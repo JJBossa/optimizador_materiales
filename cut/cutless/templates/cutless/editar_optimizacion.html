@@ -101,6 +101,7 @@
       </div>
     </div>
 
+    {% if tablero_form.puede_editar_costos %}
     <!-- Sección: Costos (Opcional) -->
     <div class="card mb-4 fade-in">
       <div class="card-header card-header-step card-header-step-info text-white d-flex justify-content-between align-items-center">
@@ -171,6 +172,7 @@
       </div>
     </div>
 
+    {% endif %}
     <!-- Sección: Piezas a Cortar -->
     <div class="card mb-4 fade-in">
       <div class="card-header card-header-step card-header-step-success text-white">

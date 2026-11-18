@@ -1,0 +1,13 @@
+{% extends 'cutless/base.html' %}
+
+{% block content %}
+<header class="page-header">
+  <h1>Estado de {{ presupuesto.numero }}</h1>
+</header>
+<form method="post">
+  {% csrf_token %}
+  {{ form.as_p }}
+  <button type="submit" class="btn btn-success">Guardar estado</button>
+  <a class="btn btn-secondary" href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}">Cancelar</a>
+</form>
+{% endblock %}

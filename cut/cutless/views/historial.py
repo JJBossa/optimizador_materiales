@@ -2,7 +2,10 @@ from django.contrib import messages
 from django.db.models import Q
 import re
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.http import require_POST
 
+from ..pieces import parsear_piezas_desde_texto
 from ..models import Optimizacion
 from ..services.board_presentation import preparar_plano_horizontal
 from ..utils import convertir_desde_cm
@@ -111,24 +114,7 @@ def historial(request):
     optimizaciones_con_piezas = []
     for opt in optimizaciones_page:
         numero_mostrado = opt.pk
-        piezas_procesadas = []
-        for linea in opt.piezas.splitlines():
-            if linea.strip():
-                partes = linea.split(',')
-                if len(partes) == 4:
-                    piezas_procesadas.append({
-                        'nombre': partes[0].strip(),
-                        'ancho': partes[1].strip(),
-                        'alto': partes[2].strip(),
-                        'cantidad': partes[3].strip()
-                    })
-                elif len(partes) == 3:
-                    piezas_procesadas.append({
-                        'nombre': 'Pieza',
-                        'ancho': partes[0].strip(),
-                        'alto': partes[1].strip(),
-                        'cantidad': partes[2].strip()
-                    })
+        piezas_procesadas = parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
         unidad_opt = getattr(opt, 'unidad_medida', 'cm') or 'cm'
         ancho_mostrar = round(convertir_desde_cm(opt.ancho_tablero, unidad_opt), 2)
         alto_mostrar = round(convertir_desde_cm(opt.alto_tablero, unidad_opt), 2)
@@ -175,6 +161,7 @@ def borrar_optimizacion(request, pk):
             'numero_mostrado': optimizacion.pk,
         })
 
+@require_POST
 def toggle_favorito(request, pk):
     """
     Marca o desmarca una optimización como favorita.
@@ -182,7 +169,7 @@ def toggle_favorito(request, pk):
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
     optimizacion.favorito = not optimizacion.favorito
-    optimizacion.save()
+    optimizacion.save(update_fields=['favorito'])
     
     # Si es una petición AJAX, devolver JSON
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.GET.get('ajax') == 'true':
@@ -200,5 +187,8 @@ def toggle_favorito(request, pk):
         messages.info(request, f"Optimización {optimizacion.codigo} eliminada de favoritos.")
     
     # Redirigir de vuelta a historial, manteniendo los filtros (solo si no es AJAX)
-    return redirect(request.META.get('HTTP_REFERER', 'cutless:historial'))
+    retorno = request.headers.get('Referer')
+    if url_has_allowed_host_and_scheme(retorno, {request.get_host()}, require_https=request.is_secure()):
+        return redirect(retorno)
+    return redirect('cutless:historial')
 

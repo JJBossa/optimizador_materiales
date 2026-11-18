@@ -1,18 +1,18 @@
-﻿from django.shortcuts import render, redirect, get_object_or_404
+﻿import re
+
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.forms import PasswordResetForm, SetPasswordForm
-from django.contrib.auth.tokens import default_token_generator
+from django.contrib.auth.forms import PasswordResetForm
+from django.contrib.auth.views import PasswordResetConfirmView
 from django.contrib.auth.models import User
 from django.contrib import messages
-from django.http import JsonResponse
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes, force_str
-from django.core.mail import send_mail
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
+from django.http import HttpResponseBadRequest, JsonResponse
 from django.core.paginator import Paginator
 from django.conf import settings
-from django.template.loader import render_to_string
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
 from django.views.decorators.http import require_POST
 from django.views.decorators.cache import never_cache
 from .forms import AccesoForm, RegistroForm, UsuarioEdicionForm, PermisosUsuarioForm, CambiarPasswordForm
@@ -53,6 +53,20 @@ def es_admin(usuario):
         return False
 
 
+def puede_administrar_cuenta(actor, cuenta):
+    return actor != cuenta and (
+        actor.is_superuser or not (cuenta.is_superuser or cuenta.is_staff or es_admin(cuenta))
+    )
+
+
+def comprobar_rol(actor, rol):
+    if rol not in dict(PerfilUsuario.ROL_CHOICES):
+        return HttpResponseBadRequest('Rol desconocido.')
+    if rol == 'admin' and not actor.is_superuser:
+        raise PermissionDenied
+    return None
+
+
 @login_required
 @user_passes_test(es_admin)
 def admin_dashboard(request):
@@ -76,16 +90,17 @@ def admin_dashboard(request):
     if request.method == 'POST' and 'crear_usuario' in request.POST:
         form = RegistroForm(request.POST)
         rol = request.POST.get('rol', 'usuario')
+        error = comprobar_rol(request.user, rol)
+        if error is not None:
+            return error
         if form.is_valid():
-            user = form.save(commit=False)
-            user.is_staff = (rol == 'admin')
-            user.save()
-            perfil, creado = PerfilUsuario.objects.get_or_create(usuario=user)
-            if not creado:
+            with transaction.atomic():
+                user = form.save(commit=False)
+                user.is_staff = rol == 'admin'
+                user.save()
+                perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
                 perfil.rol = rol
-            else:
-                perfil.rol = rol
-            perfil.save()
+                perfil.save(update_fields=['rol'])
             messages.success(request, f"Usuario '{user.username}' creado con rol '{rol}'.")
             return redirect('usuarios:admin_dashboard')
         else:
@@ -100,17 +115,18 @@ def admin_dashboard(request):
         'form': form,
         'busqueda': busqueda,
         'total_usuarios': total_usuarios,
+        'cuentas_administrables': {u.pk for u in page_obj.object_list if puede_administrar_cuenta(request.user, u)},
     })
 
 
 @login_required
 @user_passes_test(es_admin)
 @require_POST
+@transaction.atomic
 def eliminar_usuario(request, pk):
-    usuario = get_object_or_404(User, pk=pk)
-    if usuario == request.user:
-        messages.error(request, 'No puedes eliminar tu propia cuenta desde aquí.')
-        return redirect('usuarios:admin_dashboard')
+    usuario = get_object_or_404(User.objects.select_for_update(), pk=pk)
+    if not puede_administrar_cuenta(request.user, usuario):
+        raise PermissionDenied
 
     usuario.delete()
     messages.success(request, f"Usuario {usuario.username} eliminado.")
@@ -119,30 +135,32 @@ def eliminar_usuario(request, pk):
 
 @login_required
 @user_passes_test(es_admin)
+@transaction.atomic
 def editar_usuario(request, pk):
-    usuario = get_object_or_404(User, pk=pk)
-    
-    # Obtener o crear el perfil del usuario
+    cuentas = User.objects
+    if request.method == 'POST':
+        cuentas = cuentas.select_for_update()
+    usuario = get_object_or_404(cuentas, pk=pk)
+    if not puede_administrar_cuenta(request.user, usuario):
+        raise PermissionDenied
+
     try:
         perfil = usuario.perfil
     except PerfilUsuario.DoesNotExist:
-        perfil = PerfilUsuario.objects.create(usuario=usuario)
+        perfil = PerfilUsuario(usuario=usuario)
 
     if request.method == 'POST':
         form = UsuarioEdicionForm(request.POST, instance=usuario)
         permisos_form = PermisosUsuarioForm(request.POST, instance=perfil)
-        
         if form.is_valid() and permisos_form.is_valid():
-            form.save()
-            permisos_form.save()
             password = form.cleaned_data.get('password1')
             if password:
                 usuario.set_password(password)
-                usuario.save()
+            form.save()
+            permisos_form.save()
             messages.success(request, f"Usuario '{usuario.username}' actualizado correctamente.")
             return redirect('usuarios:admin_dashboard')
-        else:
-            messages.error(request, 'Por favor corrige los errores del formulario.')
+        messages.error(request, 'Por favor corrige los errores del formulario.')
     else:
         form = UsuarioEdicionForm(instance=usuario)
         permisos_form = PermisosUsuarioForm(instance=perfil)
@@ -157,19 +175,22 @@ def editar_usuario(request, pk):
 
 @login_required
 @user_passes_test(es_admin)
+@require_POST
+@transaction.atomic
 def actualizar_rol(request, pk):
-    if request.method == 'POST':
-        usuario = get_object_or_404(User, pk=pk)
-        rol = request.POST.get('rol', 'usuario')
-        perfil, _ = PerfilUsuario.objects.get_or_create(usuario=usuario)
-        perfil.rol = rol
-        perfil.save()
-        if rol == 'admin':
-            usuario.is_staff = True
-        else:
-            usuario.is_staff = False
-        usuario.save()
-        messages.success(request, f"Rol del usuario {usuario.username} actualizado a {rol}.")
+    usuario = get_object_or_404(User.objects.select_for_update(), pk=pk)
+    if not puede_administrar_cuenta(request.user, usuario):
+        raise PermissionDenied
+    rol = request.POST.get('rol', 'usuario')
+    error = comprobar_rol(request.user, rol)
+    if error is not None:
+        return error
+    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=usuario)
+    perfil.rol = rol
+    perfil.save(update_fields=['rol'])
+    usuario.is_staff = rol == 'admin' or usuario.is_superuser
+    usuario.save(update_fields=['is_staff'])
+    messages.success(request, f"Rol del usuario {usuario.username} actualizado a {rol}.")
     return redirect('usuarios:admin_dashboard')
 
 
@@ -208,32 +229,44 @@ def login_view(request):
     return render(request, 'usuarios/login.html', {'form': form})
 
 @login_required
+@never_cache
+@transaction.atomic
 def configuracion_inicial(request):
     from .forms import ConfiguracionInicialForm
-    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
-    datos = None
-    if request.method == 'POST':
-        if request.POST.get('setup_action') == 'skip':
-            datos = {
-                'modo': 'esencial',
-                'tema_preferido': perfil.tema_preferido,
-                'tamanio_fuente': perfil.tamanio_fuente,
-            }
-        else:
-            datos = request.POST
+
+    perfiles = PerfilUsuario.objects
+    enviado = request.method == 'POST'
+    if enviado:
+        perfiles = perfiles.select_for_update()
+    perfil, _ = perfiles.get_or_create(usuario=request.user)
+    omitir = enviado and request.POST.get('setup_action') == 'skip'
+    datos = request.POST if enviado else None
+    if omitir:
+        datos = None if perfil.inicio_personalizado else {
+            'modo': 'esencial',
+            'tema_preferido': perfil.tema_preferido,
+            'tamanio_fuente': perfil.tamanio_fuente,
+        }
+
     form = ConfiguracionInicialForm(datos, instance=perfil)
-    if request.method == 'POST' and form.is_valid():
-        form.save()
+    if enviado and ((omitir and perfil.inicio_personalizado) or form.is_valid()):
+        if form.is_bound:
+            form.save()
+        borrador = request.POST.get('setup_draft_id', '')
+        if re.fullmatch(r'[a-zA-Z0-9-]{1,64}', borrador):
+            request.session['setup_draft_confirmado'] = borrador
         request.session.pop('mostrar_bienvenida_cutless', None)
         messages.success(request, 'Tu espacio está listo. Puedes cambiar estas preferencias desde Cuenta.')
         return redirect('cutless:index')
     return render(request, 'usuarios/configuracion_inicial.html', {
         'form': form, 'inicio_completado': perfil.inicio_personalizado,
+        'borrador_confirmado': request.session.get('setup_draft_confirmado', ''),
         'ocultar_tutorial': True,
     })
 
 
 @never_cache
+@require_POST
 def logout_view(request):
     logout(request)
     request.session.flush()
@@ -380,113 +413,50 @@ def configuracion_sistema(request):
 
 
 @login_required
+@require_POST
 def completar_tutorial(request):
-    """
-    Marca el tutorial como completado para el usuario actual.
-    """
-    try:
-        perfil = request.user.perfil
-        perfil.tutorial_completado = True
-        perfil.save()
-        return JsonResponse({'success': True, 'message': 'Tutorial marcado como completado'})
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': str(e)}, status=400)
+    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=request.user)
+    perfil.tutorial_completado = True
+    perfil.save(update_fields=['tutorial_completado'])
+    return JsonResponse({'success': True, 'message': 'Tutorial marcado como completado'})
 
 
+@never_cache
 def recuperar_password(request):
-    """
-    Vista para solicitar recuperación de contraseña.
-    """
-    if request.method == "POST":
-        form = PasswordResetForm(request.POST)
-        if form.is_valid():
-            email = form.cleaned_data['email']
-            try:
-                user = User.objects.get(email=email)
-                # Generar token
-                token = default_token_generator.make_token(user)
-                uid = urlsafe_base64_encode(force_bytes(user.pk))
-                
-                # Crear URL de reset
-                reset_url = request.build_absolute_uri(
-                    f'/usuarios/reset-password/{uid}/{token}/'
-                )
-                
-                # Enviar email
-                subject = 'Recuperación de contraseña - CutLess'
-                message = render_to_string('usuarios/email_reset_password.html', {
-                    'user': user,
-                    'reset_url': reset_url,
-                    'site_name': 'CutLess'
-                })
-                
-                # Intentar enviar email
-                try:
-                    send_mail(
-                        subject,
-                        message,
-                        settings.DEFAULT_FROM_EMAIL if hasattr(settings, 'DEFAULT_FROM_EMAIL') else 'noreply@CutLess.com',
-                        [email],
-                        html_message=message,
-                        fail_silently=False,
-                    )
-                    messages.success(
-                        request, 
-                        'Se ha enviado un correo electrónico con las instrucciones para recuperar tu contraseña. '
-                        'Por favor revisa tu bandeja de entrada.'
-                    )
-                except Exception as e:
-                    # Si no hay configuración de email, mostrar el link directamente (solo en desarrollo)
-                    if settings.DEBUG:
-                        messages.warning(
-                            request,
-                            f'⚠️ Configuración de email no disponible. En producción, configura SMTP. '
-                            f'Link de reset: {reset_url}'
-                        )
-                    else:
-                        messages.error(
-                            request,
-                            'Error al enviar el correo. Por favor contacta al administrador.'
-                        )
-                
-                return redirect('usuarios:login')
-            except User.DoesNotExist:
-                # Por seguridad, no revelar si el email existe o no
-                messages.success(
-                    request,
-                    'Si el correo existe en nuestro sistema, recibirás las instrucciones para recuperar tu contraseña.'
-                )
-                return redirect('usuarios:login')
-    else:
-        form = PasswordResetForm()
-    
+    form = PasswordResetForm(request.POST if request.method == 'POST' else None)
+    if request.method == 'POST' and form.is_valid():
+        form.save(
+            request=request,
+            use_https=request.is_secure(),
+            subject_template_name='usuarios/reset_password_subject.txt',
+            email_template_name='usuarios/reset_password_email.txt',
+            html_email_template_name='usuarios/email_reset_password.html',
+        )
+        messages.success(
+            request, 'Si el correo existe en nuestro sistema, recibirás las instrucciones para recuperar tu contraseña.'
+        )
+        return redirect('usuarios:login')
     return render(request, 'usuarios/recuperar_password.html', {'form': form})
 
 
-def reset_password_confirm(request, uidb64, token):
-    """
-    Vista para confirmar y establecer nueva contraseña.
-    """
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-        user = None
-    
-    if user is not None and default_token_generator.check_token(user, token):
-        if request.method == "POST":
-            form = SetPasswordForm(user, request.POST)
-            if form.is_valid():
-                form.save()
-                messages.success(request, 'Tu contraseña ha sido restablecida exitosamente. Puedes iniciar sesión ahora.')
-                return redirect('usuarios:login')
-        else:
-            form = SetPasswordForm(user)
-        
-        return render(request, 'usuarios/reset_password_confirm.html', {'form': form})
-    else:
-        messages.error(request, 'El enlace de recuperación no es válido o ha expirado. Por favor solicita uno nuevo.')
-        return redirect('usuarios:recuperar_password')
+class ConfirmarRecuperacionView(PasswordResetConfirmView):
+    template_name = 'usuarios/reset_password_confirm.html'
+    success_url = reverse_lazy('usuarios:login')
+
+    def get_user(self, uidb64):
+        usuario = super().get_user(uidb64)
+        return usuario if usuario and usuario.is_active else None
+
+    def render_to_response(self, context, **response_kwargs):
+        if not self.validlink:
+            messages.error(self.request, 'El enlace de recuperación no es válido o ha expirado. Por favor solicita uno nuevo.')
+            return redirect('usuarios:recuperar_password')
+        return super().render_to_response(context, **response_kwargs)
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        messages.success(self.request, 'Tu contraseña ha sido restablecida. Puedes iniciar sesión ahora.')
+        return response
 
 
 @never_cache

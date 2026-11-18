@@ -1,5 +1,5 @@
 """
-Motor de empaquetado 2D — FFD + BSSF con kerf y rotación opcional.
+Motor de empaquetado 2D por área decreciente y rectángulos libres.
 
 Sin dependencias de Django, matplotlib ni exports. Todas las medidas en cm.
 """
@@ -23,7 +23,7 @@ def pieza_cabe_en_tablero(pieza_ancho_cm, pieza_alto_cm, tablero_ancho_cm, table
     return False
 
 
-def _kern_block(w, h, x, y, W, H, m):
+def reserva_sierra(w, h, x, y, W, H, m):
     """Reserva la sierra sin prolongarla fuera del perímetro del tablero.
 
     Solo se recorta la reserva en el borde exterior; nunca las dimensiones
@@ -133,7 +133,10 @@ def optimizar_corte(
     nombres_piezas=None,
 ):
     """
-    Coloca piezas en tableros con FFD + BSSF.
+    Ordena por área decreciente, de forma estable. En un tablero, compara
+    el ancho libre restante y después el alto, usando y/x para desempatar.
+    Entre tableros elige el de menor área restante después de colocar la
+    pieza, prefiere la orientación original y luego el tablero más antiguo.
 
     Args:
         piezas: lista de (ancho_cm, alto_cm, cantidad)
@@ -162,8 +165,6 @@ def optimizar_corte(
                 'ancho': w,
                 'alto': h,
                 'area': w * h,
-                'original': (w, h),
-                'rotada': False,
                 'nombre': nombre_base,
             })
 
@@ -173,30 +174,18 @@ def optimizar_corte(
     h_bin = float(alto_tablero)
     kerf = float(margen_corte)
 
-    def _calcular_desperdicio(tablero):
-        area_usada = 0
-        for pos in tablero['posiciones']:
-            if len(pos) >= 5:
-                _, _, wg, hg, _ = pos[:5]
-                area_usada += wg * hg
-        return area_tablero - area_usada
-
-    def _tb_clonar(tb):
-        return {
-            'posiciones': list(tb['posiciones']),
-            'free_rects': [(float(a), float(b), float(fw), float(fh)) for a, b, fw, fh in tb['free_rects']],
-        }
+    areas_por_tablero = []
 
     def _tb_vacio():
         return {'posiciones': [], 'free_rects': [(0.0, 0.0, w_bin, h_bin)]}
 
-    def _mejor_ancla_bssf(tablero, wg, hg):
+    def _mejor_ancla(tablero, wg, hg):
         best_key = None
         anchor = None
         for fx, fy, fw, fh in tablero['free_rects']:
             if fx + wg > w_bin + EPS or fy + hg > h_bin + EPS:
                 continue
-            bw, bh = _kern_block(wg, hg, fx, fy, w_bin, h_bin, kerf)
+            bw, bh = reserva_sierra(wg, hg, fx, fy, w_bin, h_bin, kerf)
             if bw > fw + EPS or bh > fh + EPS:
                 continue
             key = (fw - bw, fh - bh, fy, fx)
@@ -211,18 +200,6 @@ def optimizar_corte(
         for fx, fy, fw, fh in tablero['free_rects']:
             nueva.extend(_subtract_rect(fx, fy, fw, fh, gx, gy, bw, bh))
         tablero['free_rects'] = _normalizar_rects_libres(nueva)
-
-    def _intentar_colocacion(tb_orig, pieza, wg, hg, rotada):
-        cand = _tb_clonar(tb_orig)
-        pack = _mejor_ancla_bssf(cand, wg, hg)
-        if pack is None:
-            return None
-        gx, gy, bw, bh = pack
-        _aplicar_pieza(
-            cand, gx, gy, bw, bh, wg, hg, rotada,
-            pieza['ancho'], pieza['alto'], pieza.get('nombre', 'Pieza'),
-        )
-        return cand
 
     def _considerar(best, nuevo_key, payload):
         if best is None or nuevo_key < best[0]:
@@ -243,20 +220,20 @@ def optimizar_corte(
             if wg > w_bin + EPS or hg > h_bin + EPS:
                 continue
 
+            area_pieza = wg * hg
             for tbi, tb in enumerate(tableros):
-                prob = _intentar_colocacion(tb, pieza, wg, hg, rot)
-                if prob is None:
+                ancla = _mejor_ancla(tb, wg, hg)
+                if ancla is None:
                     continue
-                desp = _calcular_desperdicio(prob)
-                k = (desp, 1 if rot else 0, tbi)
-                mejor = _considerar(mejor, k, ('existe', tbi, prob, rot))
+                area = areas_por_tablero[tbi] + area_pieza
+                clave = (area_tablero - area, 1 if rot else 0, tbi)
+                mejor = _considerar(mejor, clave, (tbi, ancla, wg, hg, rot, area))
 
-            nueva_hoja = _intentar_colocacion(_tb_vacio(), pieza, wg, hg, rot)
-            if nueva_hoja is None:
-                continue
-            desp_n = _calcular_desperdicio(nueva_hoja)
-            k_n = (desp_n, 1 if rot else 0, len(tableros) + 1)
-            mejor = _considerar(mejor, k_n, ('nuevo', nueva_hoja, rot))
+            nueva = _tb_vacio()
+            ancla = _mejor_ancla(nueva, wg, hg)
+            if ancla is not None:
+                clave = (area_tablero - area_pieza, 1 if rot else 0, len(tableros) + 1)
+                mejor = _considerar(mejor, clave, (len(tableros), ancla, wg, hg, rot, area_pieza))
 
         if mejor is None:
             piezas_no_colocadas.append({
@@ -266,15 +243,13 @@ def optimizar_corte(
             })
             continue
 
-        _, payload = mejor
-        if payload[0] == 'existe':
-            _, tbi, nueva_tb, rot = payload
-            tableros[tbi] = nueva_tb
-            pieza['rotada'] = rot
+        _, (indice, ancla, wg, hg, rotada, area) = mejor
+        if indice == len(tableros):
+            tableros.append(_tb_vacio())
+            areas_por_tablero.append(area)
         else:
-            _, nueva_tb, rot = payload
-            tableros.append(nueva_tb)
-            pieza['rotada'] = rot
+            areas_por_tablero[indice] = area
+        _aplicar_pieza(tableros[indice], *ancla, wg, hg, rotada, w_original, h_original, pieza['nombre'])
         area_usada_total += w_original * h_original
 
     num_tableros = len(tableros)

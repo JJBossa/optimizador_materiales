@@ -34,6 +34,7 @@ body[data-app-shell="true"] .navbar-custom :is(.nav-link,.nav-sub-link).active {
 body[data-app-shell="true"] .navbar-custom :is(.nav-link,.nav-sub-link):focus-visible {
   outline:2px solid var(--accent)!important; outline-offset:2px;
 }
+body[data-app-shell="true"] .navbar-custom .nav-logout { width:100%; cursor:pointer; }
 body[data-app-shell="true"] .navbar-custom .nav-help { cursor:pointer; }
 .nav-group-divider { border:0; border-top:1px solid var(--cl-border); margin:8px 0; opacity:1; }
 @media(prefers-reduced-motion:reduce) {

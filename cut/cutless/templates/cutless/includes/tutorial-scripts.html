@@ -105,7 +105,7 @@
                     {
                         title: 'Agregar Piezas',
                         intro: 'Agrega las piezas que necesitas cortar. Puedes darle un nombre a cada pieza para identificarla mejor. Haz clic en "Añadir otro tipo de pieza" para añadir más.',
-                        element: document.querySelector('input[name$="-nombre"]') || document.querySelector('.formset')
+                        element: document.querySelector('textarea[name$="-nombre"]') || document.querySelector('.formset')
                     },
                     {
                         title: 'Generar plan de corte',
@@ -216,7 +216,7 @@
                     {
                         title: 'Piezas a Cortar',
                         intro: 'Agrega las piezas que necesitas cortar del tablero. Para cada pieza, ingresa un nombre (opcional), ancho, alto y cantidad. Puedes agregar hasta 20 piezas diferentes.',
-                        element: document.querySelector('input[name$="-nombre"]') || document.querySelector('.pieza-form')
+                        element: document.querySelector('textarea[name$="-nombre"]') || document.querySelector('.pieza-form')
                     },
                     {
                         title: 'Agregar Más Piezas',

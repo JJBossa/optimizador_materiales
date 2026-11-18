@@ -1,101 +1,39 @@
 """Conversiones de unidades y simbolos para medidas."""
 
+UNIDADES_CHOICES = [
+    ('cm', 'Centímetros (cm)'),
+    ('m', 'Metros (m)'),
+    ('mm', 'Milímetros (mm)'),
+    ('in', 'Pulgadas (in)'),
+    ('ft', 'Pies (ft)'),
+]
+_CENTIMETROS_POR_UNIDAD = {'cm': 1.0, 'm': 100.0, 'mm': 0.1, 'in': 2.54, 'ft': 30.48}
+
+
+def _factor_cm(unidad):
+    return _CENTIMETROS_POR_UNIDAD.get('in' if unidad == 'pulgadas' else unidad, 1.0)
+
+
 def convertir_a_cm(valor, unidad):
-    """
-    Convierte un valor de cualquier unidad a centímetros.
-    
-    Args:
-        valor: Valor numérico a convertir
-        unidad: Unidad de origen ('cm', 'm', 'mm', 'in', 'ft', 'pulgadas')
-    
-    Returns:
-        Valor convertido a centímetros
-    """
-    # Normalizar 'pulgadas' a 'in' para compatibilidad
-    if unidad == 'pulgadas':
-        unidad = 'in'
-    
-    conversiones = {
-        'cm': 1.0,           # 1 cm = 1 cm
-        'm': 100.0,          # 1 m = 100 cm
-        'mm': 0.1,           # 1 mm = 0.1 cm
-        'in': 2.54,          # 1 pulgada = 2.54 cm
-        'ft': 30.48,         # 1 pie = 30.48 cm
-    }
-    factor = conversiones.get(unidad, 1.0)
-    # Seis decimales conservan la tolerancia de 0,01 cm en todas las unidades.
-    return round(valor * factor, 6)
+    """Convierte a cm, conservando seis decimales para cálculos internos."""
+    return round(valor * _factor_cm(unidad), 6)
+
 
 def convertir_desde_cm(valor_cm, unidad_destino):
-    """
-    Convierte un valor en centímetros a otra unidad.
-    
-    Args:
-        valor_cm: Valor en centímetros
-        unidad_destino: Unidad de destino ('cm', 'm', 'mm', 'in', 'ft', 'pulgadas')
-    
-    Returns:
-        Valor convertido a la unidad destino
-    """
-    # Normalizar 'pulgadas' a 'in' para compatibilidad
-    if unidad_destino == 'pulgadas':
-        unidad_destino = 'in'
-    
-    conversiones = {
-        'cm': 1.0,           # 1 cm = 1 cm
-        'm': 0.01,           # 1 cm = 0.01 m
-        'mm': 10.0,          # 1 cm = 10 mm
-        'in': 1/2.54,        # 1 cm = 1/2.54 pulgadas
-        'ft': 1/30.48,       # 1 cm = 1/30.48 pies
-    }
-    factor = conversiones.get(unidad_destino, 1.0)
-    return round(valor_cm * factor, 6)
+    """Convierte centímetros a la unidad solicitada."""
+    return round(valor_cm * (1.0 / _factor_cm(unidad_destino)), 6)
+
 
 def obtener_factor_area_desde_cm2(unidad):
     """Factor de cm² a la unidad², sin redondear el factor lineal."""
-    if unidad == 'pulgadas':
-        unidad = 'in'
-    centimetros_por_unidad = {
-        'cm': 1.0,
-        'm': 100.0,
-        'mm': 0.1,
-        'in': 2.54,
-        'ft': 30.48,
-    }
-    longitud_cm = centimetros_por_unidad.get(unidad, 1.0)
-    return 1.0 / (longitud_cm ** 2)
+    return 1.0 / (_factor_cm(unidad) ** 2)
 
 
 def obtener_simbolo_unidad(unidad):
-    """
-    Retorna el símbolo de la unidad para mostrar.
-    """
-    # Normalizar 'pulgadas' a 'in' para compatibilidad
     if unidad == 'pulgadas':
         unidad = 'in'
-    
-    simbolos = {
-        'cm': 'cm',
-        'm': 'm',
-        'mm': 'mm',
-        'in': 'in',
-        'ft': 'ft',
-    }
-    return simbolos.get(unidad, 'cm')
+    return unidad if unidad in _CENTIMETROS_POR_UNIDAD else 'cm'
+
 
 def obtener_simbolo_area(unidad):
-    """
-    Retorna el símbolo de unidad al cuadrado para áreas.
-    """
-    # Normalizar 'pulgadas' a 'in' para compatibilidad
-    if unidad == 'pulgadas':
-        unidad = 'in'
-    
-    simbolos = {
-        'cm': 'cm²',
-        'm': 'm²',
-        'mm': 'mm²',
-        'in': 'in²',
-        'ft': 'ft²',
-    }
-    return simbolos.get(unidad, 'cm²')
+    return f'{obtener_simbolo_unidad(unidad)}²'

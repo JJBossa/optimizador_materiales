@@ -82,3 +82,43 @@ class ConfiguracionInicialTests(TestCase):
         cliente.force_login(self.usuario)
         self.assertEqual(cliente.post(self.url, self.datos).status_code, 403)
 
+
+    def test_omitir_usa_un_formulario_independiente(self):
+        self.client.force_login(self.usuario)
+        respuesta = self.client.get(self.url)
+        self.assertContains(respuesta, 'form="setup-skip-form"')
+        self.assertContains(respuesta, '<input type="hidden" name="setup_action" value="skip">', html=True)
+
+    def test_omitir_primera_vez_guarda_modo_esencial_y_apariencia_existente(self):
+        self.client.force_login(self.usuario)
+        self.perfil.tema_preferido = 'dark'
+        self.perfil.tamanio_fuente = 'large'
+        self.perfil.save()
+        self.assertRedirects(self.client.post(self.url, {'setup_action': 'skip'}), reverse('cutless:index'))
+        self.perfil.refresh_from_db()
+        self.assertTrue(self.perfil.inicio_personalizado)
+        self.assertFalse(self.perfil.menu_visible['gestion'])
+        self.assertEqual((self.perfil.tema_preferido, self.perfil.tamanio_fuente), ('dark', 'large'))
+
+    def test_omitir_al_reabrir_conserva_preferencias_existentes(self):
+        self.client.force_login(self.usuario)
+        self.client.post(self.url, {**self.datos, 'modo': 'personalizado', 'clientes': 'on'})
+        self.perfil.refresh_from_db()
+        anterior = (self.perfil.preferencias_menu, self.perfil.tema_preferido, self.perfil.tamanio_fuente)
+        self.assertRedirects(
+            self.client.post(self.url, {'setup_action': 'skip', 'tema_preferido': 'light'}),
+            reverse('cutless:index'),
+        )
+        self.perfil.refresh_from_db()
+        self.assertEqual(anterior, (self.perfil.preferencias_menu, self.perfil.tema_preferido, self.perfil.tamanio_fuente))
+        self.assertTrue(self.perfil.menu_visible['clientes'])
+
+    def test_confirmacion_del_borrador_solo_se_publica_tras_guardado_valido(self):
+        self.client.force_login(self.usuario)
+        token = 'borrador-local'
+        error = self.client.post(self.url, {**self.datos, 'tema_preferido': 'invalido', 'setup_draft_id': token})
+        self.assertContains(error, 'data-has-errors="true"')
+        self.assertNotIn('setup_draft_confirmado', self.client.session)
+        self.assertContains(error, 'value="large"')
+        self.assertRedirects(self.client.post(self.url, {**self.datos, 'setup_draft_id': token}), reverse('cutless:index'))
+        self.assertContains(self.client.get(self.url), 'data-confirmed-draft="borrador-local"')

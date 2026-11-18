@@ -141,6 +141,7 @@
               {{ form.piezas.label }} <span class="text-danger">*</span>
             </label>
             {{ form.piezas }}
+            {% if form.piezas.help_text %}<p class="text-warning">{{ form.piezas.help_text }}</p>{% endif %}
             {% if form.piezas.errors %}
               <div class="text-danger small">{{ form.piezas.errors }}</div>
             {% endif %}

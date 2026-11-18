@@ -15,8 +15,10 @@ from ..utils import (
     generar_excel,
     parsear_piezas_desde_texto,
 )
+from .common import exigir_piezas_completas
 
 
+@exigir_piezas_completas
 def descargar_excel(request, pk):
     """
     Descarga un archivo Excel con la información detallada de la optimización.
@@ -26,7 +28,7 @@ def descargar_excel(request, pk):
     numero_lista = calcular_numero_lista(request.user, optimizacion.id, ordenar_por)
 
     unidad_opt = getattr(optimizacion, 'unidad_medida', 'cm') or 'cm'
-    piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad_opt)
+    piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad_opt, estricto=True)
     piezas_con_nombre = [
         {
             'nombre': p['nombre'],
@@ -41,6 +43,7 @@ def descargar_excel(request, pk):
         optimizacion,
         numero_lista=numero_lista,
         persistir_si_falta=True,
+        generar_imagenes=False,
     )
 
     info_desperdicio_convertida = convertir_info_desperdicio_unidad(
@@ -58,6 +61,7 @@ def descargar_excel(request, pk):
     return response
 
 
+@exigir_piezas_completas
 def api_tableros_optimizacion(request, pk):
     """
     Imágenes generadas en memoria y presentación web de la geometría guardada.
@@ -106,12 +110,14 @@ def api_tableros_optimizacion(request, pk):
         ]
     return JsonResponse(respuesta)
 
+@exigir_piezas_completas
 def descargar_pdf(request, pk):
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
     ordenar_por = request.GET.get('ordenar_por', 'fecha_desc')
     numero_lista = calcular_numero_lista(request.user, optimizacion.id, ordenar_por)
     return respuesta_pdf_optimizacion(optimizacion, numero_lista=numero_lista)
 
+@exigir_piezas_completas
 def imprimir_plan_corte(request, pk):
     """
     Vista para imprimir el plan de corte de una optimización.
@@ -119,12 +125,13 @@ def imprimir_plan_corte(request, pk):
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
     
-    imagenes, _, info = obtener_resultado_optimizacion(optimizacion, persistir_si_falta=True)
+    imagenes, _, info = obtener_resultado_optimizacion(optimizacion, persistir_si_falta=True, generar_imagenes=False)
     contexto = preparar_contexto_resultado(optimizacion, imagenes, info)
     contexto['numero_lista'] = calcular_numero_lista(request.user, optimizacion.id, 'fecha_desc')
     return render(request, 'cutless/imprimir_plan_corte.html', contexto)
 
 
+@exigir_piezas_completas
 def descargar_png(request, pk, tablero_num=None):
     """
     Descarga una imagen PNG de un tablero específico de una optimización.

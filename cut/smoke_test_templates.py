@@ -1,116 +1,46 @@
-import os
+"""Comprobación de plantillas usando una cuenta y una base temporales."""
+from tempfile import TemporaryDirectory
 
-import django
-from django.test import Client, override_settings
-
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cutless_project.settings")
-django.setup()
-
-from django.contrib.auth import get_user_model
-from django.urls import get_resolver, reverse
+from cutless_project.standalone import django_aislado
 
 
-User = get_user_model()
-
-
-def ensure_test_user():
-    user, _ = User.objects.get_or_create(
-        username="tpl_check_user",
-        defaults={"email": "tpl@test.com", "is_active": True},
-    )
-    user.set_password("test1234")
-    user.is_active = True
-    user.save()
-
-    from usuarios.models import PerfilUsuario
-
-    perfil, _ = PerfilUsuario.objects.get_or_create(usuario=user)
-    for field in PerfilUsuario._meta.fields:
-        name = field.name
-        if name.startswith("puede_") and isinstance(field.get_internal_type(), str):
-            if field.get_internal_type() == "BooleanField":
-                setattr(perfil, name, True)
-    perfil.rol = "admin"
-    perfil.save()
-    return user
-
-
-def collect_paths():
-    paths = set()
-    resolver = get_resolver()
-    for name in resolver.reverse_dict:
-        if not isinstance(name, str):
-            continue
-        if not (name.startswith("cutless:") or name.startswith("usuarios:")):
-            continue
-        try:
-            paths.add((name, reverse(name)))
-        except Exception:
-            pass
-
-    # common detail routes
-    extras = [
-        ("cutless:resultado", {"pk": 1}),
-        ("cutless:editar_optimizacion", {"pk": 1}),
-        ("cutless:detalle_proyecto", {"pk": 1}),
-        ("cutless:detalle_presupuesto", {"pk": 1}),
-        ("cutless:editar_material", {"pk": 1}),
-        ("cutless:editar_cliente", {"pk": 1}),
-        ("cutless:editar_proyecto", {"pk": 1}),
-        ("cutless:editar_presupuesto", {"pk": 1}),
-        ("cutless:editar_plantilla", {"pk": 1}),
-        ("cutless:calcular_tiempo", {"pk": 1}),
-        ("cutless:historial_cliente", {"pk": 1}),
-        ("cutless:eliminar_material", {"pk": 1}),
-        ("cutless:eliminar_cliente", {"pk": 1}),
-        ("cutless:eliminar_proyecto", {"pk": 1}),
-        ("cutless:eliminar_plantilla", {"pk": 1}),
-        ("cutless:eliminar_optimizacion", {"pk": 1}),
-        ("cutless:agregar_optimizaciones_proyecto", {"pk": 1}),
-        ("cutless:agregar_optimizaciones_presupuesto", {"pk": 1}),
-        ("usuarios:editar_usuario", {"pk": 1}),
-    ]
-    for name, kwargs in extras:
-        try:
-            paths.add((name, reverse(name, kwargs=kwargs)))
-        except Exception:
-            pass
-    return sorted(paths, key=lambda x: x[1])
+def comprobar_respuestas(cliente, rutas):
+    fallos = []
+    for ruta in rutas:
+        respuesta = cliente.get(ruta)
+        if respuesta.status_code != 200:
+            fallos.append(f'{respuesta.status_code} {ruta}')
+    if fallos:
+        raise RuntimeError('Respuestas inesperadas:\n' + '\n'.join(fallos))
+    return len(rutas)
 
 
 def main():
-    user = ensure_test_user()
-    client = Client()
+    with TemporaryDirectory(prefix='cutless-smoke-') as tmp, django_aislado(tmp, ':memory:'):
+        from django.contrib.auth import get_user_model
+        from django.core.management import call_command
+        from django.test import Client
+        from django.urls import reverse
 
-    with override_settings(ALLOWED_HOSTS=["testserver", "localhost", "127.0.0.1"]):
-        assert client.login(username=user.username, password="test1234")
-
-        template_errors = []
-        server_errors = []
-        ok = 0
-
-        for name, path in collect_paths():
-            response = client.get(path)
-            body = response.content.decode("utf-8", errors="ignore")
-            if response.status_code >= 500:
-                server_errors.append((name, path, response.status_code))
-            elif "TemplateSyntaxError" in body or "Invalid block tag" in body:
-                template_errors.append((name, path))
-            elif response.status_code < 400:
-                ok += 1
-
-    print(f"OK responses: {ok}")
-    print(f"Template errors: {len(template_errors)}")
-    print(f"HTTP 5xx: {len(server_errors)}")
-
-    for name, path in template_errors:
-        print(f"  TPL  {name} -> {path}")
-    for name, path, code in server_errors:
-        print(f"  {code}  {name} -> {path}")
-
-    if template_errors:
-        raise SystemExit(1)
+        call_command('migrate', verbosity=0, interactive=False)
+        cliente = Client(raise_request_exception=False)
+        total = comprobar_respuestas(cliente, [reverse(nombre) for nombre in (
+            'usuarios:login', 'usuarios:registro', 'usuarios:recuperar_password',
+        )])
+        usuario = get_user_model().objects.create_user('smoke-local')
+        usuario.perfil.rol = 'admin'
+        usuario.perfil.preferencias_menu = {'_inicio_completado': True}
+        usuario.perfil.save(update_fields=['rol', 'preferencias_menu'])
+        cliente.force_login(usuario)
+        total += comprobar_respuestas(cliente, [reverse(nombre) for nombre in (
+            'usuarios:perfil', 'usuarios:configuracion_inicial', 'usuarios:configuracion_sistema',
+            'usuarios:admin_dashboard', 'cutless:index', 'cutless:historial',
+            'cutless:lista_materiales', 'cutless:lista_clientes', 'cutless:lista_proyectos',
+            'cutless:lista_presupuestos', 'cutless:lista_plantillas', 'cutless:estadisticas',
+            'cutless:historial_costos',
+        )])
+        print(f'{total} plantillas respondieron con HTTP 200.')
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

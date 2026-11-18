@@ -10,7 +10,6 @@ import csv
 import getpass
 import io
 import json
-import os
 from pathlib import Path
 import platform
 import statistics
@@ -136,7 +135,7 @@ class MeasurementMiddleware:
 
 
 def main():
-    global OUTPUT, METADATA
+    global OUTPUT
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--work-dir', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
@@ -148,16 +147,18 @@ def main():
     if database.exists():
         parser.error('La carpeta ya contiene benchmark.sqlite3. Usa otra carpeta para una campaña nueva.')
     OUTPUT = args.output.resolve()
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE','cutless_project.settings')
-    os.environ['MPLCONFIGDIR'] = str(work/'matplotlib')
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]/'cut'))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'cut'))
+    from cutless_project.standalone import django_aislado
+
+    with django_aislado(work, database):
+        ejecutar_campana(args.port)
+
+
+def ejecutar_campana(puerto):
+    global METADATA
     from django.conf import settings
-    settings.DATABASES['default']['NAME'] = str(database)
-    settings.MEDIA_ROOT = str(work/'media')
-    settings.ALLOWED_HOSTS = ['127.0.0.1','localhost','testserver']
-    settings.MIDDLEWARE = [__name__+'.MeasurementMiddleware', *settings.MIDDLEWARE]
-    import django
-    django.setup()
+
+    settings.MIDDLEWARE = [__name__ + '.MeasurementMiddleware', *settings.MIDDLEWARE]
     from django.core.management import call_command
     call_command('migrate', verbosity=0)
     from django.contrib.auth.models import User
@@ -196,8 +197,8 @@ def main():
         'browser_clock':'performance.timeOrigin + performance.now',
     }
     write_reports()
-    print(f'RNF-03 listo: http://127.0.0.1:{args.port}/cutless/ (usuario desechable rnf03)', flush=True)
-    call_command('runserver',f'127.0.0.1:{args.port}',use_reloader=False)
+    print(f'RNF-03 listo: http://127.0.0.1:{puerto}/cutless/ (usuario desechable rnf03)', flush=True)
+    call_command('runserver',f'127.0.0.1:{puerto}',use_reloader=False)
 
 
 if __name__ == '__main__':

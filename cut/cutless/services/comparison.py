@@ -1,7 +1,7 @@
 """Comparación de datos guardados; no ejecuta el optimizador ni escribe registros."""
 from collections import Counter
 from decimal import Decimal, InvalidOperation
-from ..units import convertir_a_cm
+from ..pieces import parsear_piezas_desde_texto
 from ..board_presets import descripcion_material
 
 
@@ -10,21 +10,10 @@ def piezas_normalizadas(opt):
         return None
     piezas = Counter()
     try:
-        for linea in opt.piezas.splitlines():
-            if not linea.strip():
-                continue
-            partes = [parte.strip() for parte in linea.split(',')]
-            if len(partes) == 3:
-                partes.insert(0, 'Pieza')
-            if len(partes) != 4:
-                return None
-            nombre, ancho, alto, cantidad = partes
-            w, h = Decimal(ancho), Decimal(alto)
-            n = int(cantidad)
-            if not nombre or not w.is_finite() or not h.is_finite() or w <= 0 or h <= 0 or n <= 0:
-                return None
-            w = Decimal(str(convertir_a_cm(float(w), opt.unidad_medida))).quantize(Decimal('.01'))
-            h = Decimal(str(convertir_a_cm(float(h), opt.unidad_medida))).quantize(Decimal('.01'))
+        for pieza in parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida, estricto=True):
+            nombre, n = pieza['nombre'], pieza['cantidad']
+            w = Decimal(str(pieza['ancho_cm'])).quantize(Decimal('.01'))
+            h = Decimal(str(pieza['alto_cm'])).quantize(Decimal('.01'))
             if w <= 0 or h <= 0:
                 return None
             piezas[(' '.join(nombre.casefold().split()), w, h)] += n

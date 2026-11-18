@@ -218,3 +218,7 @@ La base local y los archivos generados se excluyen del seguimiento de Git. Los c
 - [Carga estable de tipografía](docs/CAMBIOS_CARGA_TIPOGRAFIA.md)
 
 - [Texto e iconos presentes desde el HTML inicial](docs/CAMBIOS_ICONOS_TEXTO_INICIAL.md)
+
+## Método de distribución
+
+El motor recorre las piezas en orden decreciente de área. Para cada orientación admisible, compara los rectángulos libres de cada tablero por el ancho restante, luego el alto y la posición. Entre tableros elige el que deja menos área libre tras colocar la pieza y prefiere la orientación original en caso de empate. Si el empate continúa, prioriza el tablero más antiguo. La reserva de sierra se limita a los bordes del tablero. El plano muestra los sobrantes geométricos descontando esa reserva. La distribución es determinista con las mismas entradas y el mismo orden de los tipos de pieza.

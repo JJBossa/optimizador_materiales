@@ -64,3 +64,28 @@ class PlantillasTests(TestCase):
         for ruta in ('editar_plantilla', 'usar_plantilla'):
             self.assertRedirects(self.client.get(reverse('cutless:' + ruta, args=[plantilla.pk])),
                                  reverse('cutless:lista_plantillas'))
+
+    def test_plantilla_historica_con_prefijo_se_carga_y_edita_sin_cambiar_piezas(self):
+        original = 'piezas:v1:Puerta, norte,0.5,1,2\nCajón,0.2,0.3,3'
+        plantilla = Plantilla.objects.create(
+            usuario=self.usuario, nombre='Legada', ancho_tablero=122, alto_tablero=244,
+            unidad_medida='m', piezas=original,
+        )
+        usar = reverse('cutless:usar_plantilla', args=[plantilla.pk])
+        editar = reverse('cutless:editar_plantilla', args=[plantilla.pk])
+        esperados = ['piezas:v1:Puerta, norte', 'Cajón']
+        self.assertEqual([p['nombre'] for p in self.client.get(usar).context['pieza_formset'].initial], esperados)
+        texto = self.client.get(editar).context['form']['piezas'].value()
+        self.assertEqual(self.client.post(editar, {**self.datos, 'nombre': plantilla.nombre, 'piezas': texto}).status_code, 302)
+        plantilla.refresh_from_db()
+        self.assertEqual([p['nombre'] for p in plantilla.get_piezas_list()], esperados)
+
+        ambiguo = original + '\nfragmento sin medidas'
+        plantilla.piezas = ambiguo
+        plantilla.save(update_fields=['piezas'])
+        respuesta = self.client.get(editar)
+        self.assertContains(respuesta, 'El listado guardado necesita revisión')
+        self.assertEqual(respuesta.context['form']['piezas'].value(), ambiguo)
+        self.assertEqual(self.client.get(usar).status_code, 422)
+        plantilla.refresh_from_db()
+        self.assertEqual(plantilla.piezas, ambiguo)

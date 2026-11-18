@@ -4,6 +4,7 @@ from django.db.models import Avg, Q
 from django.shortcuts import render, redirect, get_object_or_404
 
 from ..forms import ProyectoForm
+from ..pieces import parsear_piezas_desde_texto
 from ..models import Proyecto, Optimizacion
 from ..services import enviar_notificacion
 
@@ -60,19 +61,11 @@ def crear_proyecto(request):
             numero_lista = opt.pk
             
             # Extraer nombres de piezas
-            nombres_piezas = []
-            if opt.piezas:
-                for linea in opt.piezas.splitlines():
-                    if linea.strip():
-                        partes = linea.split(',')
-                        if len(partes) == 4:  # Formato con nombre: nombre,ancho,alto,cantidad
-                            nombre = partes[0].strip()
-                            cantidad = int(partes[3].strip())
-                            nombres_piezas.append(f"{nombre} (x{cantidad})")
-                        elif len(partes) == 3:  # Formato sin nombre: ancho,alto,cantidad
-                            cantidad = int(partes[2].strip())
-                            nombres_piezas.append(f"Pieza (x{cantidad})")
-            
+            nombres_piezas = [
+                f"{pieza['nombre']} (x{pieza['cantidad']})"
+                for pieza in parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
+            ]
+
             optimizaciones_info.append({
                 'optimizacion': opt,
                 'numero_lista': numero_lista,
@@ -290,19 +283,11 @@ def editar_proyecto(request, pk):
             numero_lista = opt.pk
             
             # Extraer nombres de piezas
-            nombres_piezas = []
-            if opt.piezas:
-                for linea in opt.piezas.splitlines():
-                    if linea.strip():
-                        partes = linea.split(',')
-                        if len(partes) == 4:  # Formato con nombre: nombre,ancho,alto,cantidad
-                            nombre = partes[0].strip()
-                            cantidad = int(partes[3].strip())
-                            nombres_piezas.append(f"{nombre} (x{cantidad})")
-                        elif len(partes) == 3:  # Formato sin nombre: ancho,alto,cantidad
-                            cantidad = int(partes[2].strip())
-                            nombres_piezas.append(f"Pieza (x{cantidad})")
-            
+            nombres_piezas = [
+                f"{pieza['nombre']} (x{pieza['cantidad']})"
+                for pieza in parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
+            ]
+
             optimizaciones_info.append({
                 'optimizacion': opt,
                 'numero_lista': numero_lista,

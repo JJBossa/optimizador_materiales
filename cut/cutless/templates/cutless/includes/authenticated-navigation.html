@@ -35,6 +35,6 @@
                                 <li><a class="nav-sub-link{% if nav_state.item == 'admin_dashboard' %} active{% endif %}"{% if nav_state.item == 'admin_dashboard' %} aria-current="page"{% endif %} href="{% url 'usuarios:admin_dashboard' %}">Administrar usuarios</a></li>
                                 {% endif %}
                                 <li><hr class="nav-group-divider"></li>
-                                <li><a class="nav-sub-link nav-logout" href="{% url 'usuarios:logout' %}">Cerrar sesión</a></li>
+                                <li><form method="post" action="{% url 'usuarios:logout' %}">{% csrf_token %}<button type="submit" class="nav-sub-link nav-logout">Cerrar sesión</button></form></li>
                             </ul>
                         </details>

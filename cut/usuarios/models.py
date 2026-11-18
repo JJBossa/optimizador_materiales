@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from decimal import Decimal
+from cutless.units import UNIDADES_CHOICES
 
 class PerfilUsuario(models.Model):
     """
@@ -56,13 +57,7 @@ class PerfilUsuario(models.Model):
     # Unidad de medida predeterminada
     unidad_medida_predeterminada = models.CharField(
         max_length=10,
-        choices=[
-            ('cm', 'Centímetros (cm)'),
-            ('m', 'Metros (m)'),
-            ('mm', 'Milímetros (mm)'),
-            ('in', 'Pulgadas (in)'),
-            ('ft', 'Pies (ft)'),
-        ],
+        choices=UNIDADES_CHOICES,
         default='cm',
         help_text="Unidad de medida que se usará por defecto en nuevas optimizaciones"
     )

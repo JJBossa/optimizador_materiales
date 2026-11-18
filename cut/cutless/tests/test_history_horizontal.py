@@ -104,3 +104,14 @@ class HistorialHorizontalTests(TestCase):
         self.assertContains(response, 'preview-antigua.png')
         self.assertNotContains(response, 'chart-thumbnail-horizontal')
         self.assertIsNone(response.context['optimizaciones_con_piezas'][0]['miniatura'])
+
+    def test_favorito_exige_post_y_valida_retorno(self):
+        url = reverse('cutless:toggle_favorito', args=[self.opt.pk])
+        anterior = self.opt.favorito
+        self.assertEqual(self.client.get(url).status_code, 405)
+        self.opt.refresh_from_db()
+        self.assertEqual(self.opt.favorito, anterior)
+        externo = self.client.post(url, HTTP_REFERER='https://externo.example.test/')
+        self.assertEqual(externo.url, reverse('cutless:historial'))
+        interno = reverse('cutless:historial') + '?solo_favoritos=true'
+        self.assertEqual(self.client.post(url, HTTP_REFERER=interno).url, interno)

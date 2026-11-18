@@ -1,10 +1,11 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, PasswordChangeForm
-from django.contrib.auth.password_validation import get_default_password_validators, MinimumLengthValidator, NumericPasswordValidator
+from django.contrib.auth.password_validation import get_default_password_validators, MinimumLengthValidator, NumericPasswordValidator, validate_password
 from django.core.exceptions import ValidationError
 from decimal import Decimal, InvalidOperation
 from .models import PerfilUsuario
+from cutless.units import UNIDADES_CHOICES
 
 class MensajesAccesoMixin:
     """Presentación accesible de errores, conservando las validaciones de Django."""
@@ -106,10 +107,18 @@ class UsuarioEdicionForm(forms.ModelForm):
         if p1 or p2:
             if p1 != p2:
                 raise forms.ValidationError('Las contraseñas no coinciden')
-            if len(p1) < 8:
-                raise forms.ValidationError('La contraseña debe tener al menos 8 caracteres')
 
         return cleaned_data
+
+
+    def _post_clean(self):
+        super()._post_clean()
+        password = self.cleaned_data.get('password1')
+        if password and not self.errors:
+            try:
+                validate_password(password, self.instance)
+            except ValidationError as error:
+                self.add_error('password1', error)
 
 
 class PermisosUsuarioForm(forms.ModelForm):
@@ -220,13 +229,7 @@ class PerfilForm(forms.ModelForm):
     # ===== CONFIGURACIÓN DE OPTIMIZACIÓN =====
     unidad_medida_predeterminada = forms.ChoiceField(
         label="Unidad de medida predeterminada",
-        choices=[
-            ('cm', 'Centímetros (cm)'),
-            ('m', 'Metros (m)'),
-            ('mm', 'Milímetros (mm)'),
-            ('in', 'Pulgadas (in)'),
-            ('ft', 'Pies (ft)'),
-        ],
+        choices=UNIDADES_CHOICES,
         required=True,
         help_text="Unidad de medida que se usará por defecto en nuevas optimizaciones",
         widget=forms.Select(attrs={'class': 'form-control', 'data-pref-key': 'unidad_medida_predeterminada'})

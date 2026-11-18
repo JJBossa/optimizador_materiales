@@ -2,15 +2,38 @@ from django.db import transaction
 from decimal import Decimal
 
 
+from django import forms
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.db.models import Q
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.shortcuts import render, redirect, get_object_or_404
 
 from ..exports.pdf import generar_pdf_presupuesto as construir_pdf_presupuesto
 from ..forms import PresupuestoForm
+from ..pieces import parsear_piezas_desde_texto
 from ..models import Presupuesto, Optimizacion, Cliente
 from ..services import enviar_notificacion
+from .common import exigir_piezas_completas
+from .media import media_privada
+
+
+class EstadoPresupuestoEmitidoForm(forms.ModelForm):
+    estado = forms.ChoiceField(
+        choices=[(valor, etiqueta) for valor, etiqueta in Presupuesto.ESTADOS_CHOICES if valor != 'borrador'],
+        label='Estado',
+    )
+
+    class Meta:
+        model = Presupuesto
+        fields = ('estado',)
+
+
+def guardar_detalle_presupuesto(presupuesto):
+    presupuesto.costo_total = presupuesto.calcular_costo_total_multiple()
+    if presupuesto.estado != 'borrador':
+        presupuesto.cerrar_detalle()
+    presupuesto.save(update_fields=['costo_total', 'detalle_emitido', 'fecha_actualizacion'])
 
 
 def lista_presupuestos(request):
@@ -20,7 +43,7 @@ def lista_presupuestos(request):
     # Filtrar presupuestos del usuario
     presupuestos = Presupuesto.objects.filter(
         usuario=request.user
-    ).prefetch_related('optimizaciones').select_related('cliente', 'proyecto').order_by('-fecha_creacion')
+    ).prefetch_related('optimizaciones__material').select_related('cliente', 'proyecto').order_by('-fecha_creacion')
     
     # Filtros
     estado_filtro = request.GET.get('estado', '')
@@ -55,6 +78,8 @@ def crear_presupuesto(request):
     if request.method == "POST":
         form = PresupuestoForm(request.POST, user=request.user)
         if form.is_valid():
+            # El usuario existe antes de su primer presupuesto y serializa todas sus altas.
+            get_user_model().objects.select_for_update().get(pk=request.user.pk)
             presupuesto = form.save(commit=False)
             presupuesto.usuario = request.user
             
@@ -78,16 +103,11 @@ def crear_presupuesto(request):
             # Generar número único
             presupuesto.numero = Presupuesto.generar_numero_presupuesto(usuario=request.user)
             
-            # Calcular costo_total inicial antes del primer guardado
-            # Usar las optimizaciones del formulario para calcular
             optimizaciones_seleccionadas = form.cleaned_data['optimizaciones']
-            costo_total_inicial = Decimal('0.00')
-            for optimizacion in optimizaciones_seleccionadas:
-                num_tableros = optimizacion.num_tableros or 0
-                costo_material = presupuesto.precio_tablero * Decimal(str(num_tableros))
-                costo_total_inicial += costo_material
-            costo_total_inicial += presupuesto.mano_obra
-            presupuesto.costo_total = costo_total_inicial
+            presupuesto.costo_total = (
+                presupuesto.precio_tablero * sum(opt.num_tableros or 0 for opt in optimizaciones_seleccionadas)
+                + presupuesto.mano_obra
+            )
             
             # Guardar primero para poder asignar las optimizaciones ManyToMany
             presupuesto.save()
@@ -96,10 +116,7 @@ def crear_presupuesto(request):
             presupuesto.optimizaciones.set(optimizaciones_seleccionadas)
             
             # Recalcular costo total (por si acaso) y guardar de nuevo
-            presupuesto.costo_total = presupuesto.calcular_costo_total_multiple()
-            presupuesto.save()
-            
-            num_optimizaciones = presupuesto.optimizaciones.count()
+            guardar_detalle_presupuesto(presupuesto)
             
             # Enviar notificación de presupuesto creado (esto mostrará el mensaje según la configuración)
             enviar_notificacion(
@@ -137,19 +154,11 @@ def crear_presupuesto(request):
             numero_lista = opt.pk
             
             # Extraer nombres de piezas
-            nombres_piezas = []
-            if opt.piezas:
-                for linea in opt.piezas.splitlines():
-                    if linea.strip():
-                        partes = linea.split(',')
-                        if len(partes) == 4:  # Formato con nombre: nombre,ancho,alto,cantidad
-                            nombre = partes[0].strip()
-                            cantidad = int(partes[3].strip())
-                            nombres_piezas.append(f"{nombre} (x{cantidad})")
-                        elif len(partes) == 3:  # Formato sin nombre: ancho,alto,cantidad
-                            cantidad = int(partes[2].strip())
-                            nombres_piezas.append(f"Pieza (x{cantidad})")
-            
+            nombres_piezas = [
+                f"{pieza['nombre']} (x{pieza['cantidad']})"
+                for pieza in parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
+            ]
+
             optimizaciones_info.append({
                 'optimizacion': opt,
                 'numero_lista': numero_lista,
@@ -164,12 +173,13 @@ def crear_presupuesto(request):
         'optimizaciones_info': optimizaciones_info,
     })
 
+@exigir_piezas_completas
 def generar_pdf_presupuesto(request, pk):
     """
     Genera el PDF del presupuesto.
     """
     try:
-        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones').select_related('cliente').get(
+        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones__material').select_related('cliente').get(
             pk=pk,
             usuario=request.user
         )
@@ -177,6 +187,12 @@ def generar_pdf_presupuesto(request, pk):
         messages.error(request, "Presupuesto no encontrado.")
         return redirect('cutless:lista_presupuestos')
     
+    if presupuesto.es_historico and presupuesto.pdf:
+        try:
+            return media_privada(request, presupuesto.pdf.name)
+        except Http404:
+            pass
+
     import io
     buffer = io.BytesIO()
     construir_pdf_presupuesto(presupuesto, archivo_salida=buffer)
@@ -189,7 +205,7 @@ def detalle_presupuesto(request, pk):
     Muestra el detalle de un presupuesto y permite generar PDF.
     """
     try:
-        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones').select_related('cliente', 'proyecto').get(
+        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones__material').select_related('cliente', 'proyecto').get(
             pk=pk,
             usuario=request.user
         )
@@ -201,7 +217,7 @@ def detalle_presupuesto(request, pk):
     # Obtener todas las optimizaciones del usuario ordenadas por fecha descendente (igual que en historial)
     
     optimizaciones_con_costos = []
-    for opt in presupuesto.optimizaciones.all():
+    for opt in presupuesto.lineas_cotizadas:
         num_tableros = opt.num_tableros or 0
         costo_tableros = presupuesto.precio_tablero * Decimal(str(num_tableros))
         
@@ -226,16 +242,28 @@ def editar_presupuesto(request, pk):
     """
     Edita un presupuesto existente.
     """
+    queryset = Presupuesto.objects.prefetch_related('optimizaciones__material')
+    if request.method == 'POST':
+        queryset = queryset.select_for_update()
     try:
-        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones').select_related('cliente', 'proyecto').get(
-            pk=pk,
-            usuario=request.user
-        )
+        presupuesto = queryset.get(pk=pk, usuario=request.user)
     except Presupuesto.DoesNotExist:
-        messages.error(request, "Presupuesto no encontrado.")
+        messages.error(request, 'Presupuesto no encontrado.')
         return redirect('cutless:lista_presupuestos')
-    
-    if request.method == "POST":
+
+    if presupuesto.estado != 'borrador':
+        estado_form = EstadoPresupuestoEmitidoForm(
+            request.POST if request.method == 'POST' else None, instance=presupuesto,
+        )
+        if request.method == 'POST' and estado_form.is_valid():
+            presupuesto.save(update_fields=['estado', 'fecha_actualizacion'])
+            messages.success(request, 'Estado del presupuesto actualizado.')
+            return redirect('cutless:detalle_presupuesto', pk=pk)
+        return render(request, 'cutless/editar_estado_presupuesto.html', {
+            'presupuesto': presupuesto, 'form': estado_form,
+        })
+
+    if request.method == 'POST':
         form = PresupuestoForm(request.POST, instance=presupuesto, user=request.user)
         if form.is_valid():
             presupuesto = form.save(commit=False)
@@ -261,8 +289,7 @@ def editar_presupuesto(request, pk):
             presupuesto.optimizaciones.set(optimizaciones_seleccionadas)
             
             # Recalcular costo total y guardar de nuevo
-            presupuesto.costo_total = presupuesto.calcular_costo_total_multiple()
-            presupuesto.save()
+            guardar_detalle_presupuesto(presupuesto)
             
             num_optimizaciones = presupuesto.optimizaciones.count()
             messages.success(request, f'✅ Presupuesto "{presupuesto.numero}" actualizado exitosamente con {num_optimizaciones} optimización(es).')
@@ -281,19 +308,11 @@ def editar_presupuesto(request, pk):
             numero_lista = opt.pk
             
             # Extraer nombres de piezas
-            nombres_piezas = []
-            if opt.piezas:
-                for linea in opt.piezas.splitlines():
-                    if linea.strip():
-                        partes = linea.split(',')
-                        if len(partes) == 4:  # Formato con nombre: nombre,ancho,alto,cantidad
-                            nombre = partes[0].strip()
-                            cantidad = int(partes[3].strip())
-                            nombres_piezas.append(f"{nombre} (x{cantidad})")
-                        elif len(partes) == 3:  # Formato sin nombre: ancho,alto,cantidad
-                            cantidad = int(partes[2].strip())
-                            nombres_piezas.append(f"Pieza (x{cantidad})")
-            
+            nombres_piezas = [
+                f"{pieza['nombre']} (x{pieza['cantidad']})"
+                for pieza in parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
+            ]
+
             optimizaciones_info.append({
                 'optimizacion': opt,
                 'numero_lista': numero_lista,
@@ -313,15 +332,19 @@ def agregar_optimizaciones_presupuesto(request, pk):
     """
     Permite agregar múltiples optimizaciones a un presupuesto existente.
     """
+    queryset = Presupuesto.objects.all()
+    if request.method == 'POST':
+        queryset = queryset.select_for_update()
     try:
-        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones').get(
-            pk=pk,
-            usuario=request.user
-        )
+        presupuesto = queryset.get(pk=pk, usuario=request.user)
     except Presupuesto.DoesNotExist:
         messages.error(request, "Presupuesto no encontrado.")
         return redirect('cutless:lista_presupuestos')
     
+    if presupuesto.estado != 'borrador':
+        messages.error(request, 'Solo se pueden agregar optimizaciones a un borrador.')
+        return redirect('cutless:detalle_presupuesto', pk=pk)
+
     # Obtener optimizaciones que aún no están en el presupuesto
     optimizaciones_en_presupuesto = presupuesto.optimizaciones.values_list('pk', flat=True)
     optimizaciones_disponibles = Optimizacion.objects.filter(
