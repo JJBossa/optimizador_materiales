@@ -7,13 +7,23 @@
   const summary = form.querySelector('[data-auth-summary]');
   const password = form.elements.namedItem('password1');
   const confirmation = form.elements.namedItem('password2');
+  const username = form.dataset.authFeedback === 'register' ? form.elements.namedItem('username') : null;
+  let rejectedUsername = username?.getAttribute('aria-invalid') === 'true' ? username.value : null;
   const minimum = Number(form.dataset.minPassword || 0);
   let submitAttempted = inputs.some(input => input.getAttribute('aria-invalid') === 'true');
   form.classList.add('auth-feedback-ready');
   document.documentElement.classList.remove('auth-feedback-pending');
 
+  function hasInternalSpaces(input) {
+    // Django recorta el espacio exterior. Se comprueba el contenido sin cambiar lo escrito.
+    return /[\p{White_Space}\u001c-\u001f]/u.test(
+      input.value.replace(/^[\p{White_Space}\u001c-\u001f]+|[\p{White_Space}\u001c-\u001f]+$/gu, '')
+    );
+  }
+
   function localError(input) {
     if (!input.value) return 'Completa este campo para continuar.';
+    if (input === username && hasInternalSpaces(input)) return username.dataset.usernameSpaceError;
     if (input.type === 'email' && input.validity.typeMismatch) return 'Escribe un correo válido, por ejemplo nombre@correo.cl.';
     if (input.validity.tooLong) return `Usa como máximo ${input.maxLength} caracteres.`;
     if (input === password) {
@@ -27,6 +37,8 @@
     const wrapper = input.closest('[data-auth-field]');
     const errors = wrapper.querySelector('[data-field-errors]');
     const message = localError(input);
+    // Los errores de servidor, como un nombre duplicado, siguen visibles hasta editar.
+    if (input === username && input.value === rejectedUsername && !message) return true;
     if (errors.dataset.message !== message) {
       errors.replaceChildren();
       if (message) {
@@ -61,7 +73,9 @@
       guide();
     });
     input.addEventListener('input', () => {
-      if (submitAttempted || input.closest('[data-auth-field]').dataset.touched) check(input);
+      if (input === username && input.value !== rejectedUsername) rejectedUsername = null;
+      if (submitAttempted || input.closest('[data-auth-field]').dataset.touched ||
+          (input === username && hasInternalSpaces(input))) check(input);
       if (input === password && confirmation.closest('[data-auth-field]').dataset.touched) check(confirmation);
       guide();
     });

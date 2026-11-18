@@ -36,6 +36,12 @@ class MensajesAccesoMixin:
                     message = 'Este nombre de usuario ya está en uso. Prueba con otro.'
                 if name == 'username' and error.code == 'invalid':
                     message = 'Usa letras, números o estos símbolos: @ . + - _'
+                    campo = self.fields[name]
+                    mensaje_espacios = campo.widget.attrs.get('data-username-space-error')
+                    if mensaje_espacios:
+                        usuario = campo.to_python(self.data.get(self.add_prefix(name)))
+                        if any(caracter.isspace() for caracter in usuario):
+                            message = mensaje_espacios
                 friendly.append(ValidationError(message, code=error.code, params=error.params) if message else error)
             self._errors[name] = self.error_class(friendly)
             if name in self.fields:
@@ -61,6 +67,9 @@ class RegistroForm(MensajesAccesoMixin, UserCreationForm):
         for name, label in {'username':'Nombre de usuario', 'email':'Correo electrónico',
                             'password1':'Contraseña', 'password2':'Repite la contraseña'}.items():
             self.fields[name].label = label
+        self.fields['username'].widget.attrs['data-username-space-error'] = (
+            'El nombre de usuario no puede contener espacios. Quítalos para continuar.'
+        )
 
     @property
     def password_rejects_numeric(self):
