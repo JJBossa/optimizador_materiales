@@ -80,3 +80,14 @@ class PlanoHorizontalTests(SimpleTestCase):
         labels=root.findall('.//s:text',ns)
         self.assertTrue(any(''.join(t.itertext())=='P4' and t.get('clip-path') for t in labels))
         self.assertFalse(any('Puerta' in ''.join(t.itertext()) for t in labels))
+
+    def test_sobrante_descontando_reserva_antes_de_girar(self):
+        self.vista['piezas'][0].update(x=0, y=0, ancho=100, alto=244)
+        for sierra in (0, .3, 1):
+            with self.subTest(sierra=sierra):
+                plano = preparar_plano_horizontal(self.vista, 'mm', sierra)
+                resto, = plano['sobrantes']
+                self.assertEqual(resto['y'], 100 + sierra)
+                self.assertAlmostEqual(resto['medida_alto'], 10 * (22 - sierra))
+                self.assertAlmostEqual(plano['area_reservada_sierra_cm2'], 244 * sierra)
+                self.assertAlmostEqual(plano['area_sobrante_cm2'], 244 * (22 - sierra))

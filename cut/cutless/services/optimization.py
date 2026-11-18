@@ -105,9 +105,9 @@ def _info_desperdicio_desde_modelo(optimizacion):
     })
 
 
-def _regenerar_grafico(optimizacion):
+def _regenerar_grafico(optimizacion, *, generar_imagenes=True):
     unidad = getattr(optimizacion, 'unidad_medida', 'cm') or 'cm'
-    piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad)
+    piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad, estricto=True)
     piezas = [(p['ancho_cm'], p['alto_cm'], p['cantidad']) for p in piezas_parseadas]
     nombres = [p['nombre'] for p in piezas_parseadas]
     margen = getattr(optimizacion, 'margen_corte', 0.3)
@@ -123,18 +123,19 @@ def _regenerar_grafico(optimizacion):
         permitir_rotacion=rotacion,
         margen_corte=margen,
         nombres_piezas=nombres or None,
+        incluir_png=generar_imagenes,
     )
 
 
 def persistir_resultado_optimizacion(optimizacion, imagenes_base64, info_desperdicio, aprovechamiento, numero_lista=None, medida_habitual=None):
     """Reemplaza el resultado completo; conserva el anterior si la operación falla."""
     info = normalizar_info_desperdicio(info_desperdicio)
-    if not imagenes_base64 or len(imagenes_base64) != len(info['info_tableros']):
-        raise ValueError("Las imágenes no coinciden con los tableros del resultado.")
-    # Las imágenes se validan, pero no se guardan: la geometría es el resultado durable.
-    for imagen in imagenes_base64:
-        base64.b64decode(imagen, validate=True)
-    if any(not datos.get('vista_web') for datos in info['info_tableros']):
+    if imagenes_base64 is not None:
+        if not imagenes_base64 or len(imagenes_base64) != len(info['info_tableros']):
+            raise ValueError("Las imágenes no coinciden con los tableros del resultado.")
+        for imagen in imagenes_base64:
+            base64.b64decode(imagen, validate=True)
+    if not info['info_tableros'] or any(not datos.get('vista_web') for datos in info['info_tableros']):
         raise ValueError('El resultado requiere las coordenadas de todos los tableros.')
     pk_original = optimizacion.pk
     try:
@@ -221,9 +222,9 @@ def obtener_resultado_optimizacion(optimizacion, numero_lista=None, persistir_si
             return imagenes, optimizacion.aprovechamiento_total, info
         raise ValueError('El resultado guardado no tiene coordenadas ni imágenes disponibles.')
 
-    imagenes, aprovechamiento, info = _regenerar_grafico(optimizacion)
+    imagenes, aprovechamiento, info = _regenerar_grafico(optimizacion, generar_imagenes=generar_imagenes)
     info = normalizar_info_desperdicio(info)
-    if persistir_si_falta and imagenes:
+    if persistir_si_falta and info['info_tableros']:
         persistir_resultado_optimizacion(
             optimizacion,
             imagenes,
@@ -231,7 +232,7 @@ def obtener_resultado_optimizacion(optimizacion, numero_lista=None, persistir_si
             aprovechamiento,
             numero_lista=numero_lista,
         )
-    return imagenes, aprovechamiento, info
+    return imagenes if imagenes is not None else [None] * len(info['info_tableros']), aprovechamiento, info
 
 
 def convertir_info_desperdicio_unidad(info_desperdicio, unidad, optimizacion=None):
@@ -263,7 +264,7 @@ def preparar_contexto_resultado(optimizacion, imagenes_base64, info_desperdicio,
     simbolo_area = obtener_simbolo_area(unidad)
 
     if piezas_parseadas is None:
-        piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad)
+        piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad, estricto=True)
 
     piezas_con_nombre = [
         {
@@ -335,7 +336,7 @@ def respuesta_pdf_optimizacion(optimizacion, numero_lista=None):
     nombre_descarga = nombre_descarga_pdf(numero_lista, optimizacion)
     # Exportar la presentación actual también para resultados con PDF antiguo.
     # No sustituir los archivos previos ni volver a ejecutar el algoritmo.
-    imagenes, _, info = obtener_resultado_optimizacion(optimizacion, numero_lista=numero_lista, persistir_si_falta=False)
+    imagenes, _, info = obtener_resultado_optimizacion(optimizacion, numero_lista=numero_lista, persistir_si_falta=False, generar_imagenes=False)
     buffer = io.BytesIO()
     generar_pdf(optimizacion, imagenes, numero_lista=numero_lista,
                 info_desperdicio=info, archivo_salida=buffer)
@@ -347,7 +348,7 @@ def respuesta_png_tablero(optimizacion, tablero_num, numero_lista=None):
     """Exporta el plano actual, compartido por todas las rutas de descarga PNG."""
     nombre = nombre_descarga_png_tablero(numero_lista, optimizacion, tablero_num)
     imagenes, _, info = obtener_resultado_optimizacion(
-        optimizacion, numero_lista=numero_lista, persistir_si_falta=False,
+        optimizacion, numero_lista=numero_lista, persistir_si_falta=False, generar_imagenes=False,
     )
     if tablero_num < 1 or tablero_num > len(imagenes):
         return None

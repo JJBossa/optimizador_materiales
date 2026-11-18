@@ -133,9 +133,9 @@ def _numero_interior_pieza(num_tipo, w_placed_cm, h_placed_cm, ancho_tb_cm, alto
     fs = max(6, min(15, min_tab / 8 + rel * 48))
     return str(num_tipo), fs
 
-def generar_grafico(piezas, ancho_tablero, alto_tablero, unidad='cm', permitir_rotacion=True, margen_corte=0.3, nombres_piezas=None, modo_plan_corte=False):
+def generar_grafico(piezas, ancho_tablero, alto_tablero, unidad='cm', permitir_rotacion=True, margen_corte=0.3, nombres_piezas=None, modo_plan_corte=False, *, incluir_png=True):
     """
-    Ejecuta el motor de corte (FFD + BSSF) y genera imágenes PNG en base64.
+    Ejecuta el motor de corte y genera geometría, con PNG opcionales.
 
     Args:
         piezas: Lista de tuplas (ancho, alto, cantidad) en cm
@@ -164,7 +164,7 @@ def generar_grafico(piezas, ancho_tablero, alto_tablero, unidad='cm', permitir_r
     color_por_tipo = {k: paleta_visual[j] for j, k in enumerate(catalogo_ord)}
 
     # Generar imágenes
-    imagenes_base64 = []
+    imagenes_base64 = [] if incluir_png else None
 
     for i, tablero in enumerate(tableros, start=1):
         posiciones = tablero['posiciones']
@@ -191,6 +191,9 @@ def generar_grafico(piezas, ancho_tablero, alto_tablero, unidad='cm', permitir_r
                           'cantidad': cantidades_web[clave]}
                          for clave in catalogo_ord if clave in cantidades_web],
         }
+
+        if not incluir_png:
+            continue
 
         cantidades_leyenda = cantidades_web
         filas_leyenda = _filas_leyenda(catalogo_ord, numero_por_tipo, unidad, cantidades_leyenda)
@@ -223,7 +226,7 @@ def generar_grafico(piezas, ancho_tablero, alto_tablero, unidad='cm', permitir_r
             ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.5, color='gray')
         else:
             # Modo normal: con información completa
-            ax.set_title(f"Tablero {i} de {num_tableros} - FFD + rect. libres\n"
+            ax.set_title(f"Tablero {i} de {num_tableros} - Rectángulos libres\n"
                         f"Uso: {info_tablero['porcentaje_uso']}% | Desperdicio: {desperdicio_mostrar} {simbolo_area}",
                         fontsize=15, fontweight='bold', pad=16)
             ax.set_xlabel(f"Ancho ({simbolo})", fontsize=11)
@@ -302,11 +305,12 @@ def generar_grafico(piezas, ancho_tablero, alto_tablero, unidad='cm', permitir_r
                         transform=ax_leg.transAxes, fontsize=11, color='#5A4535',
                         va='top', linespacing=1.5)
 
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", dpi=160, bbox_inches='tight', facecolor='white')
-        plt.close(fig)
-        buf.seek(0)
-        imagenes_base64.append(base64.b64encode(buf.read()).decode("utf-8"))
+        try:
+            with io.BytesIO() as buf:
+                fig.savefig(buf, format="png", dpi=160, bbox_inches='tight', facecolor='white')
+                imagenes_base64.append(base64.b64encode(buf.getbuffer()).decode('ascii'))
+        finally:
+            plt.close(fig)
 
     return imagenes_base64, aprovechamiento_total, normalizar_info_desperdicio(info_desperdicio)
 

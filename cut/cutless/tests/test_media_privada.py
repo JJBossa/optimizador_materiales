@@ -37,7 +37,6 @@ class MediaPrivadaTests(TestCase):
                 self.assertIn('private', response['Cache-Control'])
                 self.assertIn('no-store', response['Cache-Control'])
                 self.assertEqual(response['X-Content-Type-Options'], 'nosniff')
-                response.close()
 
     def test_otro_usuario_y_admin_no_acceden(self):
         self.client.force_login(self.otro)
@@ -70,7 +69,7 @@ class MediaPrivadaTests(TestCase):
         self.client.force_login(self.usuario)
         response = self.client.get(self.url)
         self.assertEqual(response.status_code, 200)
-        response.close()
+        self.assertTrue(b''.join(response.streaming_content))
 
     def test_presupuestos_mismo_numero_tienen_archivos_distintos(self):
         presupuestos = [Presupuesto.objects.create(usuario=usuario, numero='PRE-2026-0001', precio_tablero=100, costo_total=100, fecha_validez=date(2026, 12, 31)) for usuario in (self.usuario, self.otro)]
@@ -85,7 +84,7 @@ class MediaPrivadaTests(TestCase):
         self.client.force_login(self.usuario)
         response = self.client.get(reverse('media_privada', args=[presupuestos[0].pdf.name]))
         self.assertEqual(response.status_code, 200)
-        response.close()
+        self.assertTrue(b''.join(response.streaming_content))
         self.client.force_login(self.otro)
         self.assertEqual(self.client.get(reverse('media_privada', args=[presupuestos[0].pdf.name])).status_code, 404)
 
@@ -97,7 +96,6 @@ class MediaPrivadaTests(TestCase):
         response = self.client.get(reverse('cutless:generar_pdf_presupuesto', args=[presupuesto.pk]))
         self.assertEqual(response.status_code, 200)
         contenido = b''.join(response.streaming_content)
-        response.close()
         presupuesto.refresh_from_db()
         self.assertFalse(presupuesto.pdf)
         self.assertTrue(contenido.startswith(b'%PDF'))
@@ -111,13 +109,9 @@ class MediaPrivadaTests(TestCase):
                 self.assertEqual(self.client.get(self.url).status_code, 404)
 
     def test_pdf_estadisticas_no_crea_archivos(self):
-        from cutless.views.analytics import exportar_pdf_desperdicio
-        from django.test import RequestFactory
-        request = RequestFactory().get('/estadisticas/exportar-pdf-desperdicio/')
-        request.user = self.usuario
+        self.client.force_login(self.usuario)
         antes = {str(p): p.read_bytes() for p in Path(settings.MEDIA_ROOT).rglob('*') if p.is_file()}
-        response = exportar_pdf_desperdicio(request)
+        response = self.client.get(reverse('cutless:exportar_pdf_desperdicio'))
         self.assertEqual(response.status_code, 200)
         self.assertTrue(b''.join(response.streaming_content).startswith(b'%PDF'))
-        response.close()
         self.assertEqual(antes, {str(p): p.read_bytes() for p in Path(settings.MEDIA_ROOT).rglob('*') if p.is_file()})

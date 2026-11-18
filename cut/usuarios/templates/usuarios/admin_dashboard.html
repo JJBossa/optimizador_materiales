@@ -87,11 +87,11 @@
             <span class="admin-mobile-label">Rol</span>
             <form method="post" action="{% url 'usuarios:actualizar_rol' u.pk %}" class="admin-role-form" data-admin-role-form data-saved-role="{{ current_role }}" data-user-name="{{ u.username }}">
               {% csrf_token %}
-              <select name="rol" class="form-select admin-role-select" aria-label="Rol de {{ u.username }}"{% if u == request.user %} disabled{% endif %}>
+              <select name="rol" class="form-select admin-role-select" aria-label="Rol de {{ u.username }}"{% if u.pk not in cuentas_administrables or not request.user.is_superuser %} disabled{% endif %}>
                 <option value="usuario" {% if current_role == 'usuario' %}selected{% endif %}>Usuario</option>
                 <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Admin</option>
               </select>
-              {% if u != request.user %}
+              {% if u.pk in cuentas_administrables and request.user.is_superuser %}
                 <button type="submit" class="btn btn-success admin-role-save" data-action="success" data-icon="check" aria-label="Actualizar rol de {{ u.username }}" hidden disabled>Actualizar rol</button>
               {% endif %}
             </form>
@@ -113,7 +113,7 @@
           </td>
           <td class="admin-user-actions-cell">
             <div class="admin-user-actions">
-              {% if u != request.user %}
+              {% if u.pk in cuentas_administrables %}
                 <a href="{% url 'usuarios:editar_usuario' u.pk %}" class="btn btn-sm btn-secondary admin-action-btn" data-action="secondary" data-icon="edit" aria-label="Editar a {{ u.username }}">Editar</a>
                 <form method="post" action="{% url 'usuarios:eliminar_usuario' u.pk %}" class="admin-delete-form action-delete-holder" data-cutless-mensaje="¿Eliminar al usuario «{{ u.username }}»? Esta acción no se puede deshacer." data-confirm-delete="true">
                   {% csrf_token %}
@@ -227,7 +227,7 @@
             <label for="id_rol" class="form-label">Rol</label>
             <select id="id_rol" name="rol" class="form-select" aria-label="Rol para el nuevo usuario">
               <option value="usuario">Usuario</option>
-              <option value="admin">Administrador</option>
+              {% if request.user.is_superuser %}<option value="admin">Administrador</option>{% endif %}
             </select>
           </div>
         </div>

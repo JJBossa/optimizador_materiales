@@ -5,7 +5,9 @@ from django.shortcuts import render, redirect, get_object_or_404
 
 from ..forms import PlantillaForm, TableroForm, PiezaForm
 from ..models import Plantilla, Optimizacion, Material
+from ..pieces import piezas_como_csv
 from ..utils import convertir_desde_cm
+from .common import exigir_piezas_completas
 
 
 def editar_plantilla(request, pk):
@@ -40,6 +42,7 @@ def editar_plantilla(request, pk):
         'plantilla': plantilla,
     })
 
+@exigir_piezas_completas
 def crear_plantilla(request):
     """
     Crea una nueva plantilla desde una optimización o desde cero.
@@ -72,7 +75,7 @@ def crear_plantilla(request):
             form.initial['ancho_tablero'] = ancho_mostrar
             form.initial['alto_tablero'] = alto_mostrar
             form.initial['unidad_medida'] = unidad_opt
-            form.initial['piezas'] = optimizacion.piezas
+            form.initial['piezas'] = piezas_como_csv(optimizacion.piezas)
             form.initial['permitir_rotacion'] = optimizacion.permitir_rotacion
             form.initial['margen_corte'] = margen_mm
     
@@ -126,6 +129,7 @@ def eliminar_plantilla(request, pk):
         'plantilla': plantilla,
     })
 
+@exigir_piezas_completas
 def usar_plantilla(request, pk):
     """
     Carga una plantilla en el formulario de optimización.
@@ -144,7 +148,7 @@ def usar_plantilla(request, pk):
         'ancho_tablero': convertir_desde_cm(plantilla.ancho_tablero, plantilla.unidad_medida),
         'alto_tablero': convertir_desde_cm(plantilla.alto_tablero, plantilla.unidad_medida),
         'margen_corte': plantilla.margen_corte * 10,
-        'permitir_rotacion': plantilla.permitir_rotacion, 'piezas': plantilla.piezas,
+        'permitir_rotacion': plantilla.permitir_rotacion, 'piezas': piezas_como_csv(plantilla.piezas),
     }, instance=plantilla)
     if not validacion.is_valid():
         messages.error(request, 'Esta plantilla contiene datos incompatibles. Corrige los campos indicados antes de usarla.')

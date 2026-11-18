@@ -3,7 +3,6 @@ import base64
 import io
 import os
 from uuid import uuid4
-from decimal import Decimal
 
 from reportlab.lib.pagesizes import A4, letter
 from reportlab.lib.units import cm
@@ -13,7 +12,8 @@ from django.conf import settings
 
 from ..packing import normalizar_info_desperdicio
 from ..render import _info_desperdicio_desde_optimizacion
-from ..units import convertir_a_cm, convertir_desde_cm, obtener_factor_area_desde_cm2, obtener_simbolo_area, obtener_simbolo_unidad
+from ..pieces import parsear_piezas_desde_texto
+from ..units import convertir_desde_cm, obtener_factor_area_desde_cm2, obtener_simbolo_area, obtener_simbolo_unidad
 
 def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdicio=None, archivo_salida=None):
     """
@@ -45,7 +45,7 @@ def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdic
     c.setFont("Helvetica-Bold", 18)
     c.drawCentredString(width / 2, height - 50, f"Reporte {optimizacion.codigo} - CutLess")
     c.setFont("Helvetica-Oblique", 10)
-    c.drawCentredString(width / 2, height - 70, "Algoritmo: First Fit Decreasing (FFD)")
+    c.drawCentredString(width / 2, height - 70, "Método: Área decreciente y rectángulos libres")
     if optimizacion.nombre:
         nombre = optimizacion.nombre
         c.setFont('Helvetica', 11)
@@ -135,8 +135,16 @@ def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdic
     total_area_piezas = 0
     total_cantidad_piezas = 0
     
-    for linea in optimizacion.piezas.splitlines():
-        if y_pos < 120:  # Más espacio para tabla
+    from xml.sax.saxutils import escape
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.platypus import Paragraph
+
+    estilo_pieza = ParagraphStyle('Nombre de pieza', fontName='Helvetica', fontSize=9, leading=11)
+    for pieza in parsear_piezas_desde_texto(optimizacion.piezas, optimizacion.unidad_medida, estricto=True):
+        nombre = Paragraph(escape(pieza['nombre']).replace('\n', '<br/>'), estilo_pieza)
+        _, alto_nombre = nombre.wrap(4.8*cm, height)
+        alto_fila = max(15, alto_nombre + 4)
+        if y_pos - alto_fila < 120:
             c.showPage()
             y_pos = height - 50
             # Reimprimir encabezados si hay nueva página
@@ -151,54 +159,34 @@ def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdic
             y_pos -= 15
             c.setFont("Helvetica", 9)
         
-        try:
-            partes = linea.split(',')
-            if len(partes) == 4:
-                nombre, ancho_str, alto_str, cantidad_str = partes
-                nombre = nombre.strip()
-                ancho = float(ancho_str.strip())
-                alto = float(alto_str.strip())
-                cantidad = int(cantidad_str.strip())
-            else:
-                ancho_str, alto_str, cantidad_str = partes
-                nombre = "Pieza"
-                ancho = float(ancho_str.strip())
-                alto = float(alto_str.strip())
-                cantidad = int(cantidad_str.strip())
-            
-            # Convertir a cm si es necesario
-            ancho_cm = convertir_a_cm(ancho, optimizacion.unidad_medida)
-            alto_cm = convertir_a_cm(alto, optimizacion.unidad_medida)
-            
-            # Calcular áreas
-            area_unit_cm2 = ancho_cm * alto_cm
-            area_total_cm2 = area_unit_cm2 * cantidad
-            
-            # Convertir para mostrar
-            simbolo_area = obtener_simbolo_area(optimizacion.unidad_medida)
-            factor_area = obtener_factor_area_desde_cm2(optimizacion.unidad_medida)
-            
-            area_unit_mostrar = round(area_unit_cm2 * factor_area, 2)
-            area_total_mostrar = round(area_total_cm2 * factor_area, 2)
-            
-            ancho_mostrar = convertir_desde_cm(ancho_cm, optimizacion.unidad_medida)
-            alto_mostrar = convertir_desde_cm(alto_cm, optimizacion.unidad_medida)
-            
-            # Dibujar fila
-            c.drawString(2.5*cm, y_pos, str(cantidad))
-            c.drawString(4*cm, y_pos, nombre[:20])  # Limitar longitud
-            c.drawString(9*cm, y_pos, f"{ancho_mostrar} × {alto_mostrar} {obtener_simbolo_unidad(optimizacion.unidad_medida)}")
-            c.drawString(14*cm, y_pos, f"{area_unit_mostrar} {simbolo_area}")
-            c.drawString(17.5*cm, y_pos, f"{area_total_mostrar} {simbolo_area}")
-            
-            total_area_piezas += area_total_cm2
-            total_cantidad_piezas += cantidad
-            
-        except Exception as e:
-            c.drawString(2.5*cm, y_pos, f"Error: {linea}")
-        
-        y_pos -= 15
-    
+        cantidad = pieza['cantidad']
+        ancho_cm, alto_cm = pieza['ancho_cm'], pieza['alto_cm']
+        # Calcular áreas
+        area_unit_cm2 = ancho_cm * alto_cm
+        area_total_cm2 = area_unit_cm2 * cantidad
+
+        # Convertir para mostrar
+        simbolo_area = obtener_simbolo_area(optimizacion.unidad_medida)
+        factor_area = obtener_factor_area_desde_cm2(optimizacion.unidad_medida)
+
+        area_unit_mostrar = round(area_unit_cm2 * factor_area, 2)
+        area_total_mostrar = round(area_total_cm2 * factor_area, 2)
+
+        ancho_mostrar = convertir_desde_cm(ancho_cm, optimizacion.unidad_medida)
+        alto_mostrar = convertir_desde_cm(alto_cm, optimizacion.unidad_medida)
+
+        # Dibujar fila
+        c.drawString(2.5*cm, y_pos, str(cantidad))
+        nombre.drawOn(c, 4*cm, y_pos + 9 - alto_nombre)
+        c.drawString(9*cm, y_pos, f"{ancho_mostrar} × {alto_mostrar} {obtener_simbolo_unidad(optimizacion.unidad_medida)}")
+        c.drawString(14*cm, y_pos, f"{area_unit_mostrar} {simbolo_area}")
+        c.drawString(17.5*cm, y_pos, f"{area_total_mostrar} {simbolo_area}")
+
+        total_area_piezas += area_total_cm2
+        total_cantidad_piezas += cantidad
+
+        y_pos -= alto_fila
+
     # Resumen de piezas
     y_pos -= 10
     c.line(2*cm, y_pos, width - 2*cm, y_pos)
@@ -291,7 +279,7 @@ def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdic
     c.setStrokeColorRGB(0.3, 0.3, 0.3)
     c.line(2*cm, 1*cm, width - 2*cm, 1*cm)
     c.setFont("Helvetica", 8)
-    c.drawCentredString(width / 2, 0.7*cm, "CutLess - Optimización de Recursos en Carpintería | Algoritmo FFD")
+    c.drawCentredString(width / 2, 0.7*cm, "CutLess - Optimización de Recursos en Carpintería")
     
     c.save()
     
@@ -300,252 +288,100 @@ def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdic
     return os.path.join("pdfs", filename)
 
 def generar_pdf_presupuesto(presupuesto, archivo_salida=None):
-    """
-    Genera un PDF profesional del presupuesto.
-    
-    Args:
-        presupuesto: Objeto Presupuesto
-        
-    Returns:
-        str: Ruta del archivo PDF generado
-    """
-    from reportlab.lib.pagesizes import A4, letter
-    from reportlab.lib.units import cm
-    from reportlab.pdfgen import canvas
+    """Genera una cotización paginada con el mismo detalle que la vista."""
+    from xml.sax.saxutils import escape
+
     from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.platypus import Paragraph, Spacer, Table, TableStyle
-    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
-    from django.utils import timezone
-    
-    filename = f"presupuesto_{presupuesto.pk}_{uuid4().hex}.pdf"
-    filepath = os.path.join(settings.MEDIA_ROOT, "presupuestos", filename)
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import LongTable, Paragraph, SimpleDocTemplate, Spacer, TableStyle
+
     if archivo_salida is None:
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    
-    c = canvas.Canvas(archivo_salida if archivo_salida is not None else filepath, pagesize=A4)
-    width, height = A4
-    
-    # === ENCABEZADO ===
-    c.setFont("Helvetica-Bold", 24)
-    c.setFillColorRGB(0, 0.3, 0.6)
-    c.drawCentredString(width / 2, height - 50, "PRESUPUESTO")
-    
-    c.setFont("Helvetica-Bold", 14)
-    c.setFillColorRGB(0, 0, 0)
-    c.drawCentredString(width / 2, height - 75, f"Número: {presupuesto.numero}")
-    
-    # === INFORMACIÓN DEL CLIENTE ===
-    y_pos = height - 120
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2*cm, y_pos, "Cliente:")
-    c.setFont("Helvetica", 11)
-    y_pos -= 20
-    
-    if presupuesto.cliente:
-        cliente = presupuesto.cliente
-        c.drawString(2.5*cm, y_pos, f"• Nombre: {cliente.nombre}")
-        y_pos -= 15
-        if cliente.rut:
-            c.drawString(2.5*cm, y_pos, f"• RUT: {cliente.rut}")
-            y_pos -= 15
-        if cliente.email:
-            c.drawString(2.5*cm, y_pos, f"• Email: {cliente.email}")
-            y_pos -= 15
-        if cliente.telefono:
-            c.drawString(2.5*cm, y_pos, f"• Teléfono: {cliente.telefono}")
-            y_pos -= 15
-        if cliente.direccion:
-            c.drawString(2.5*cm, y_pos, f"• Dirección: {cliente.direccion}")
-            y_pos -= 15
+        archivo_salida = os.path.join(settings.MEDIA_ROOT, 'presupuestos', f'presupuesto_{presupuesto.pk}_{uuid4().hex}.pdf')
+        os.makedirs(os.path.dirname(archivo_salida), exist_ok=True)
+
+    doc = SimpleDocTemplate(
+        archivo_salida, pagesize=A4, leftMargin=2*cm, rightMargin=2*cm,
+        topMargin=2.5*cm, bottomMargin=2*cm, title=f'Presupuesto {presupuesto.numero}',
+    )
+    estilos = getSampleStyleSheet()
+    flujo = []
+
+    def parrafo(texto, estilo='BodyText'):
+        seguro = escape(str(texto)).replace('\n', '<br/>')
+        flujo.append(Paragraph(seguro, estilos[estilo]))
+
+    def encabezado_y_pie(lienzo, documento):
+        lienzo.saveState()
+        lienzo.setFont('Helvetica-Bold', 10)
+        lienzo.setFillColorRGB(0, .3, .6)
+        lienzo.drawString(documento.leftMargin, A4[1] - 1.5*cm, f'Presupuesto {presupuesto.numero}')
+        lienzo.setFont('Helvetica', 9)
+        lienzo.drawRightString(A4[0] - documento.rightMargin, cm, f'CutLess · Página {documento.page}')
+        lienzo.restoreState()
+
+    parrafo(f'Presupuesto {presupuesto.numero}', 'Title')
+    cliente = presupuesto.cliente_cotizado
+    if cliente:
+        parrafo(f'Cliente: {cliente.nombre}', 'Heading2')
+        for campo, etiqueta in (('rut', 'RUT'), ('email', 'Correo'), ('telefono', 'Teléfono'), ('direccion', 'Dirección')):
+            valor = getattr(cliente, campo)
+            if valor:
+                parrafo(f'{etiqueta}: {valor}')
     else:
-        c.drawString(2.5*cm, y_pos, "• Sin cliente asignado")
-        y_pos -= 15
-    
-    y_pos -= 10
-    
-    # === INFORMACIÓN DEL PRESUPUESTO ===
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2*cm, y_pos, "Información del Presupuesto:")
-    c.setFont("Helvetica", 11)
-    y_pos -= 20
-    
-    c.drawString(2.5*cm, y_pos, f"• Fecha de creación: {presupuesto.fecha_creacion.strftime('%d/%m/%Y %H:%M')}")
-    y_pos -= 15
-    c.drawString(2.5*cm, y_pos, f"• Válido hasta: {presupuesto.fecha_validez.strftime('%d/%m/%Y')}")
-    y_pos -= 15
-    c.drawString(2.5*cm, y_pos, f"• Estado: {presupuesto.get_estado_display()}")
-    y_pos -= 15
-    
-    # === DETALLES DE LAS OPTIMIZACIONES ===
-    optimizaciones = presupuesto.optimizaciones.all()
-    y_pos -= 20
-    c.setFont("Helvetica-Bold", 12)
-    c.drawString(2*cm, y_pos, f"Detalles de las Optimizaciones ({optimizaciones.count()}):")
-    c.setFont("Helvetica", 11)
-    y_pos -= 20
-    
-    for idx, optimizacion in enumerate(optimizaciones, start=1):
-        unidad = getattr(optimizacion, 'unidad_medida', 'cm') or 'cm'
-        ancho_mostrar = convertir_desde_cm(optimizacion.ancho_tablero, unidad)
-        alto_mostrar = convertir_desde_cm(optimizacion.alto_tablero, unidad)
-        simbolo = obtener_simbolo_unidad(unidad)
-        
-        c.drawString(2.5*cm, y_pos, f"Optimización {optimizacion.codigo}:")
-        y_pos -= 15
-        c.drawString(3*cm, y_pos, f"• Dimensiones: {ancho_mostrar:g} × {alto_mostrar:g} {simbolo}")
-        y_pos -= 15
-        c.drawString(3*cm, y_pos, f"• Tableros: {optimizacion.num_tableros or 0}")
-        y_pos -= 15
-        c.drawString(3*cm, y_pos, f"• Aprovechamiento: {optimizacion.aprovechamiento_total:.2f}%")
-        y_pos -= 15
-        
-        if optimizacion.material:
-            c.drawString(3*cm, y_pos, f"• Material: {optimizacion.material.nombre}")
-            y_pos -= 15
-        
-        # Agregar lista de piezas con nombres
-        if optimizacion.piezas:
-            c.setFont("Helvetica-Bold", 10)
-            c.drawString(3*cm, y_pos, "• Piezas:")
-            y_pos -= 12
-            c.setFont("Helvetica", 9)
-            
-            # Parsear piezas
-            piezas_list = []
-            for linea in optimizacion.piezas.splitlines():
-                if linea.strip():
-                    partes = linea.split(',')
-                    if len(partes) == 4:  # Formato con nombre: nombre,ancho,alto,cantidad
-                        nombre = partes[0].strip()
-                        ancho_pieza = float(partes[1].strip())
-                        alto_pieza = float(partes[2].strip())
-                        cantidad = int(partes[3].strip())
-                        # Las piezas ya están expresadas en la unidad original.
-                        ancho_mostrar_pieza = ancho_pieza
-                        alto_mostrar_pieza = alto_pieza
-                        piezas_list.append({
-                            'nombre': nombre,
-                            'ancho': ancho_mostrar_pieza,
-                            'alto': alto_mostrar_pieza,
-                            'cantidad': cantidad
-                        })
-                    elif len(partes) == 3:  # Formato sin nombre: ancho,alto,cantidad
-                        ancho_pieza = float(partes[0].strip())
-                        alto_pieza = float(partes[1].strip())
-                        cantidad = int(partes[2].strip())
-                        ancho_mostrar_pieza = ancho_pieza
-                        alto_mostrar_pieza = alto_pieza
-                        piezas_list.append({
-                            'nombre': f"Pieza {len(piezas_list) + 1}",
-                            'ancho': ancho_mostrar_pieza,
-                            'alto': alto_mostrar_pieza,
-                            'cantidad': cantidad
-                        })
-            
-            # Mostrar piezas (máximo 5 para no ocupar mucho espacio)
-            for pieza in piezas_list[:5]:
-                if y_pos < 150:  # Si se acerca al final de la página, salir
-                    break
-                texto_pieza = f"  - {pieza['nombre']}: {pieza['ancho']:g} × {pieza['alto']:g} {simbolo} (x{pieza['cantidad']})"
-                # Truncar si es muy largo
-                if len(texto_pieza) > 70:
-                    texto_pieza = texto_pieza[:67] + "..."
-                c.drawString(3.5*cm, y_pos, texto_pieza)
-                y_pos -= 11
-            
-            # Si hay más de 5 piezas, indicarlo
-            if len(piezas_list) > 5:
-                c.drawString(3.5*cm, y_pos, f"  ... y {len(piezas_list) - 5} pieza(s) más")
-                y_pos -= 11
-            
-            c.setFont("Helvetica", 11)  # Volver al tamaño normal
-        
-        y_pos -= 5  # Espacio entre optimizaciones
-    
-    # === DESGLOSE DE COSTOS ===
-    y_pos -= 20
-    c.setFont("Helvetica-Bold", 12)
-    c.setFillColorRGB(0, 0.5, 0.8)
-    c.drawString(2*cm, y_pos, "Desglose de Costos:")
-    c.setFillColorRGB(0, 0, 0)
-    c.setFont("Helvetica", 11)
-    y_pos -= 20
-    
-    # Tabla de costos - considerar todas las optimizaciones
-    data = [['Concepto', 'Cantidad', 'Precio Unitario', 'Subtotal']]
-    
-    # Calcular número de lista para cada optimización (basado en orden por fecha descendente)
-    
-    # Agregar fila por cada optimización
-    total_tableros = 0
+        parrafo('Sin cliente asignado', 'Heading2')
+
+    parrafo(f'Fecha de creación: {presupuesto.fecha_creacion:%d/%m/%Y %H:%M}')
+    parrafo(f'Válido hasta: {presupuesto.fecha_validez:%d/%m/%Y}')
+    parrafo(f'Estado: {presupuesto.get_estado_display()}')
+    if presupuesto.es_historico:
+        parrafo('Cotización histórica. Se conserva el total emitido y los planes se muestran con sus datos actuales.')
+
+    optimizaciones = presupuesto.lineas_cotizadas
+    parrafo(f'Detalles de las optimizaciones ({len(optimizaciones)})', 'Heading2')
     for optimizacion in optimizaciones:
-        num_tableros = optimizacion.num_tableros or 0
-        total_tableros += num_tableros
-        costo_tableros = presupuesto.precio_tablero * Decimal(str(num_tableros))
-        
-        # Calcular el número de lista (basado en orden por fecha descendente)
-        data.append([
-            f'Tableros ({optimizacion.codigo})',
-            str(num_tableros),
-            f"${presupuesto.precio_tablero:,.0f}",
-            f"${costo_tableros:,.0f}"
-        ])
-    
-    # Agregar mano de obra (una sola vez, no por optimización)
-    if optimizaciones.count() > 0:
-        data.append([
-            'Mano de Obra',
-            '1',
-            f"${presupuesto.mano_obra:,.0f}",
-            f"${presupuesto.mano_obra:,.0f}"
-        ])
-    
-    tabla = Table(data, colWidths=[6*cm, 3*cm, 4*cm, 4*cm])
-    tabla.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 11),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('FONTSIZE', (0, 1), (-1, -1), 10),
-    ]))
-    
-    tabla.wrapOn(c, width - 4*cm, height)
-    tabla.drawOn(c, 2*cm, y_pos - 80)
-    
-    # === TOTAL ===
-    y_pos_total = y_pos - 120
-    c.setFont("Helvetica-Bold", 14)
-    c.setFillColorRGB(0.8, 0.2, 0)
-    c.drawString(12*cm, y_pos_total, f"TOTAL: ${presupuesto.costo_total:,.0f}")
-    c.setFillColorRGB(0, 0, 0)
-    
-    # === NOTAS ===
+        unidad = optimizacion.unidad_medida or 'cm'
+        simbolo = obtener_simbolo_unidad(unidad)
+        ancho = convertir_desde_cm(optimizacion.ancho_tablero, unidad)
+        alto = convertir_desde_cm(optimizacion.alto_tablero, unidad)
+        parrafo(optimizacion.etiqueta, 'Heading3')
+        parrafo(f'Dimensiones: {ancho:g} × {alto:g} {simbolo} · Tableros: {optimizacion.num_tableros or 0}')
+        parrafo(f'Aprovechamiento: {optimizacion.aprovechamiento_total:.2f}%')
+        if optimizacion.material:
+            parrafo(f'Material: {optimizacion.material.nombre}')
+        for pieza in parsear_piezas_desde_texto(optimizacion.piezas, unidad, estricto=True):
+            parrafo(f"{pieza['nombre']}: {pieza['ancho']:g} × {pieza['alto']:g} {simbolo} (×{pieza['cantidad']})")
+
+    if not presupuesto.es_historico:
+        parrafo('Desglose de costos', 'Heading2')
+        filas = [['Concepto', 'Cantidad', 'Precio unitario', 'Subtotal']]
+        for optimizacion in optimizaciones:
+            cantidad = optimizacion.num_tableros or 0
+            precio = presupuesto.precio_tablero
+            filas.append([f'Tableros ({optimizacion.codigo})', cantidad, f'${precio:,.2f}', f'${precio * cantidad:,.2f}'])
+        if presupuesto.mano_obra:
+            importe = f'${presupuesto.mano_obra:,.2f}'
+            filas.append(['Mano de obra', 1, importe, importe])
+        if len(filas) > 1:
+            tabla = LongTable(filas, colWidths=[6*cm, 2.5*cm, 4*cm, 4*cm], repeatRows=1)
+            tabla.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#315175')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('ALIGN', (1, 0), (-1, -1), 'RIGHT'),
+                ('LINEBELOW', (0, 0), (-1, -1), .25, colors.lightgrey),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            flujo.append(tabla)
+            flujo.append(Spacer(1, .4*cm))
+
+    parrafo(f'TOTAL: ${presupuesto.total_vigente:,.2f}', 'Heading2')
     if presupuesto.notas:
-        y_pos_notas = y_pos_total - 40
-        c.setFont("Helvetica-Bold", 11)
-        c.drawString(2*cm, y_pos_notas, "Notas:")
-        c.setFont("Helvetica", 10)
-        # Dividir notas en líneas
-        notas_lines = presupuesto.notas.split('\n')
-        y_pos_notas -= 15
-        for line in notas_lines[:10]:  # Máximo 10 líneas
-            if y_pos_notas < 100:
-                break
-            c.drawString(2.5*cm, y_pos_notas, line[:80])  # Máximo 80 caracteres por línea
-            y_pos_notas -= 12
-    
-    # === PIE DE PÁGINA ===
-    c.setFont("Helvetica", 8)
-    c.setFillColorRGB(0.5, 0.5, 0.5)
-    c.drawCentredString(width / 2, 30, f"Generado el {timezone.now().strftime('%d/%m/%Y %H:%M')} - CutLess")
-    
-    c.save()
-    return archivo_salida if archivo_salida is not None else filepath
+        parrafo('Notas', 'Heading3')
+        parrafo(presupuesto.notas)
+    doc.build(flujo, onFirstPage=encabezado_y_pie, onLaterPages=encabezado_y_pie)
+    return archivo_salida
+
 
 def generar_pdf_resumen_desperdicio(optimizaciones, estadisticas, periodo='todos', archivo_salida=None):
     """

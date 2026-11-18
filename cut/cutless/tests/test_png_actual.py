@@ -30,7 +30,7 @@ class DescargaPngActualTests(TestCase):
                     return_value=(self.imagenes,16.12,self.info)) as result:
                 response = self.client.get(reverse('cutless:'+route,args=args))
                 self.assertEqual(response['Content-Type'], 'image/png')
-                data = b''.join(response.streaming_content); response.close()
+                data = b''.join(response.streaming_content)
                 with Image.open(io.BytesIO(data)) as image:
                     self.assertGreater(image.width, image.height)
                     self.assertGreaterEqual(image.width, 2000)

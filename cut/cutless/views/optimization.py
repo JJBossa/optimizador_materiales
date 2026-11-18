@@ -2,14 +2,14 @@ from decimal import Decimal
 
 from django.conf import settings
 from django.contrib import messages
-from django.db.models import Q
 from django.forms import formset_factory
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from ..forms import TableroForm, PiezaForm, NombreOptimizacionForm
-from ..models import Optimizacion, Material
+from ..models import Optimizacion
+from ..pieces import parsear_piezas_desde_texto, serializar_piezas
 from ..services import (
     calcular_numero_lista,
     enviar_notificacion,
@@ -25,7 +25,7 @@ from ..utils import (
     obtener_simbolo_unidad,
     pieza_cabe_en_tablero,
 )
-from .common import _materiales_data_index
+from .common import _materiales_data_index, exigir_piezas_completas
 
 
 def _avisar_errores_medidas(request, tablero_form, pieza_formset):
@@ -72,18 +72,20 @@ def _avisar_sin_piezas(request, mensaje):
                         mostrar_en_pantalla=False)
 
 
+@exigir_piezas_completas
 def editar_optimizacion(request, pk):
     """
     Permite editar una optimización existente.
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
+    piezas_data = parsear_piezas_desde_texto(optimizacion.piezas, optimizacion.unidad_medida, estricto=True)
     materiales_data = _materiales_data_index(request.user)
     
     # Crear formset con solo 1 formulario extra vacío para edición
-    PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True)
+    PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True, absolute_max=20)
     
     if request.method == "POST":
-        tablero_form = TableroForm(request.POST)
+        tablero_form = TableroForm(request.POST, user=request.user)
         pieza_formset = PiezaFormSet(request.POST)
         
         if tablero_form.is_valid() and pieza_formset.is_valid():
@@ -165,19 +167,6 @@ def editar_optimizacion(request, pk):
                 margen_corte_mm = 3  # Valor por defecto solo si el campo está vacío
             margen_corte_cm = margen_corte_mm / 10.0
             
-            # Obtener datos de costos
-            material_seleccionado = tablero_form.cleaned_data.get('material')
-            precio_tablero = tablero_form.cleaned_data.get('precio_tablero')
-            mano_obra = tablero_form.cleaned_data.get('mano_obra') or 0
-            
-            # Si se seleccionó un material y no hay precio manual, usar el del material
-            if material_seleccionado and precio_tablero is None:
-                precio_tablero = material_seleccionado.precio
-            
-            # Obtener cliente y proyecto si se seleccionaron
-            cliente_seleccionado = tablero_form.cleaned_data.get('cliente')
-            proyecto_seleccionado = tablero_form.cleaned_data.get('proyecto')
-
             # Extraer nombres de piezas para colores consistentes
             nombres_piezas = [p['nombre'] for p in piezas_con_nombre]
             
@@ -186,7 +175,7 @@ def editar_optimizacion(request, pk):
                 piezas, ancho, alto, unidad, 
                 permitir_rotacion=permitir_rotacion, 
                 margen_corte=margen_corte_cm,
-                nombres_piezas=nombres_piezas
+                nombres_piezas=nombres_piezas, incluir_png=False,
             )
 
             ncol = info_desperdicio.get('num_piezas_colocadas') or 0
@@ -207,13 +196,10 @@ def editar_optimizacion(request, pk):
             
             
             # Obtener número de tableros
-            num_tableros = len(imagenes_base64)
+            num_tableros = len(info_desperdicio['info_tableros'])
             
             # Actualizar la optimización
-            piezas_texto = "\n".join([
-                f"{p['nombre']},{p['ancho']},{p['alto']},{p['cantidad']}" 
-                for p in piezas_con_nombre
-            ])
+            piezas_texto = serializar_piezas(piezas_con_nombre)
             
             optimizacion.nombre = tablero_form.cleaned_data['nombre_optimizacion']
             optimizacion.ancho_tablero = ancho
@@ -223,12 +209,10 @@ def editar_optimizacion(request, pk):
             optimizacion.aprovechamiento_total = aprovechamiento
             optimizacion.permitir_rotacion = permitir_rotacion
             optimizacion.margen_corte = margen_corte_cm
-            optimizacion.material = material_seleccionado
-            optimizacion.precio_tablero = precio_tablero
-            optimizacion.mano_obra = mano_obra
             optimizacion.num_tableros = num_tableros
-            optimizacion.cliente = tablero_form.cleaned_data.get('cliente')
-            optimizacion.proyecto = tablero_form.cleaned_data.get('proyecto')
+            if tablero_form.puede_editar_costos:
+                for campo, valor in tablero_form.datos_costos().items():
+                    setattr(optimizacion, campo, valor)
             numero_lista = calcular_numero_lista(request.user, optimizacion.id)
             _ejecutar_con_aviso_error(request, persistir_resultado_optimizacion,
                 optimizacion,
@@ -268,23 +252,6 @@ def editar_optimizacion(request, pk):
         }
         tablero_form = TableroForm(initial=initial_tablero, user=request.user)
         
-        # Cargar piezas existentes
-        piezas_data = []
-        for linea in optimizacion.piezas.splitlines():
-            if linea.strip():
-                partes = linea.split(',')
-                if len(partes) == 4:
-                    nombre, ancho, alto, cantidad = partes
-                    # Las piezas se guardan en la unidad original; solo el tablero está en cm.
-                    ancho_mostrar = float(ancho.strip())
-                    alto_mostrar = float(alto.strip())
-                    piezas_data.append({
-                        'nombre': nombre.strip(),
-                        'ancho': ancho_mostrar,
-                        'alto': alto_mostrar,
-                        'cantidad': int(cantidad.strip())
-                    })
-        
         # Crear formset con datos iniciales
         # El formset ya tiene extra=1, así que solo pasamos las piezas existentes
         # El formset automáticamente agregará 1 formulario vacío adicional
@@ -306,7 +273,7 @@ def index(request):
         storage = messages.get_messages(request)
         storage.used = True
     
-    PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True)
+    PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True, absolute_max=20)
 
     if request.method == "POST":
         tablero_form = TableroForm(request.POST, user=request.user)
@@ -385,19 +352,10 @@ def index(request):
             # Validar que haya al menos una pieza
             if not piezas:
                 messages.error(request, "❌ Debes agregar al menos una pieza con dimensiones válidas.")
-                # Preparar datos de materiales para JavaScript
-                materiales_data = {}
-                for material in Material.objects.filter(
-                    Q(usuario=request.user) | Q(es_predefinido=True)
-                ):
-                    materiales_data[str(material.pk)] = {
-                        'precio': float(material.precio) if material.precio is not None else None,
-                        'nombre': material.nombre
-                    }
                 return render(request, "cutless/index.html", {
                     "tablero_form": TableroForm(user=request.user),
                     "pieza_formset": pieza_formset,
-                    "materiales_data": materiales_data
+                    "materiales_data": _materiales_data_index(request.user)
                 })
 
             margen_corte_mm = tablero_form.cleaned_data.get('margen_corte')
@@ -406,25 +364,7 @@ def index(request):
             # Convertir margen de corte de mm a cm (el sistema trabaja en cm)
             margen_corte_cm = margen_corte_mm / 10.0
 
-            # Obtener datos de costos
-            material_seleccionado = tablero_form.cleaned_data.get('material')
-            precio_tablero = tablero_form.cleaned_data.get('precio_tablero')
-            mano_obra = tablero_form.cleaned_data.get('mano_obra') or 0
-
-            # Limitar acceso a la sección de costos según el permiso del usuario
-            tiene_permiso_costos = (request.user.is_authenticated and hasattr(request.user, 'perfil') and request.user.perfil.puede_ver_historial_costos)
-            if not tiene_permiso_costos:
-                material_seleccionado = None
-                precio_tablero = None
-                mano_obra = 0
-                cliente_seleccionado = None
-                proyecto_seleccionado = None
-            else:
-                # Si se seleccionó un material y no hay precio manual, usar el del material
-                if material_seleccionado and precio_tablero is None:
-                    precio_tablero = material_seleccionado.precio
-                cliente_seleccionado = tablero_form.cleaned_data.get('cliente')
-                proyecto_seleccionado = tablero_form.cleaned_data.get('proyecto')
+            costos = tablero_form.datos_costos()
 
             # Extraer nombres de piezas para colores consistentes
             nombres_piezas = [p['nombre'] for p in piezas_con_nombre]
@@ -434,7 +374,7 @@ def index(request):
                 piezas, ancho, alto, unidad, 
                 permitir_rotacion=permitir_rotacion, 
                 margen_corte=margen_corte_cm,
-                nombres_piezas=nombres_piezas
+                nombres_piezas=nombres_piezas, incluir_png=False,
             )
 
             ncol = info_desperdicio.get('num_piezas_colocadas') or 0
@@ -454,13 +394,10 @@ def index(request):
             
             
             # Obtener número de tableros
-            num_tableros = len(imagenes_base64)
+            num_tableros = len(info_desperdicio['info_tableros'])
 
             # Guardar en BD (ahora con nombres y costos)
-            piezas_texto = "\n".join([
-                f"{p['nombre']},{p['ancho']},{p['alto']},{p['cantidad']}" 
-                for p in piezas_con_nombre
-            ])
+            piezas_texto = serializar_piezas(piezas_con_nombre)
             
             optimizacion = Optimizacion(
                 usuario=request.user,
@@ -469,15 +406,11 @@ def index(request):
                 alto_tablero=alto,  # Guardado en cm
                 unidad_medida=unidad,  # Guardar unidad original
                 piezas=piezas_texto,
+                **costos,
                 aprovechamiento_total=aprovechamiento,
                 permitir_rotacion=permitir_rotacion,
                 margen_corte=margen_corte_cm,
-                material=material_seleccionado,
-                precio_tablero=precio_tablero,
-                mano_obra=mano_obra,
                 num_tableros=num_tableros,
-                cliente=cliente_seleccionado,
-                proyecto=proyecto_seleccionado
             )
 
             numero_lista = optimizacion.pk
@@ -504,15 +437,6 @@ def index(request):
             # Mostrar errores de validación
             _avisar_errores_medidas(request, tablero_form, pieza_formset)
             
-            # Preparar datos de materiales para JavaScript (necesario cuando hay errores)
-            materiales_data = {}
-            for material in Material.objects.filter(
-                Q(usuario=request.user) | Q(es_predefinido=True)
-            ):
-                materiales_data[str(material.pk)] = {
-                    'precio': float(material.precio) if material.precio is not None else None,
-                    'nombre': material.nombre
-                }
     else:
         # Preparar valores iniciales desde el perfil del usuario (solo optimización)
         initial_data = {}
@@ -563,25 +487,13 @@ def index(request):
         tablero_form = TableroForm(initial=initial_data, user=request.user)
         pieza_formset = PiezaFormSet(form_kwargs={'unidad_medida': tablero_form['unidad_medida'].value() or 'cm'})
         
-        # Preparar datos de materiales para JavaScript
-        materiales_data = {}
-        for material in Material.objects.filter(
-            Q(usuario=request.user) | Q(es_predefinido=True)
-        ):
-            materiales_data[str(material.pk)] = {
-                'precio': float(material.precio) if material.precio is not None else None,
-                'nombre': material.nombre,
-                'ancho': float(material.ancho) if material.ancho else None,
-                'alto': float(material.alto) if material.alto else None,
-                'unidad_medida': material.unidad_medida if material.unidad_medida else 'cm'
-            }
-
     return render(request, "cutless/index.html", {
         "tablero_form": tablero_form,
         "pieza_formset": pieza_formset,
-        "materiales_data": materiales_data
+        "materiales_data": _materiales_data_index(request.user)
     })
 
+@exigir_piezas_completas
 def resultado_view(request, pk):
     """Muestra el resultado guardado del propietario; la creación se procesa en Inicio."""
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
@@ -601,33 +513,15 @@ def resultado_view(request, pk):
     return render(request, "cutless/resultado.html", contexto)
 
 
+@exigir_piezas_completas
 def duplicar_optimizacion(request, pk):
     """
     Duplica una optimización existente y carga sus datos en el formulario.
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
     
-    # Parsear las piezas guardadas
-    piezas_data = []
-    for linea in optimizacion.piezas.splitlines():
-        partes = linea.split(',')
-        if len(partes) == 4:  # Con nombre
-            nombre, ancho, alto, cantidad = partes
-            piezas_data.append({
-                'nombre': nombre.strip(),
-                'ancho': float(ancho.strip()),  # Cambiado a float para manejar decimales
-                'alto': float(alto.strip()),    # Cambiado a float para manejar decimales
-                'cantidad': int(cantidad.strip())
-            })
-        else:  # Sin nombre (formato antiguo)
-            ancho, alto, cantidad = partes
-            piezas_data.append({
-                'nombre': '',
-                'ancho': float(ancho.strip()),  # Cambiado a float para manejar decimales
-                'alto': float(alto.strip()),    # Cambiado a float para manejar decimales
-                'cantidad': int(cantidad.strip())
-            })
-    
+    piezas_data = parsear_piezas_desde_texto(optimizacion.piezas, optimizacion.unidad_medida, estricto=True)
+
     # Crear formset con los datos de la optimización
     PiezaFormSet = formset_factory(PiezaForm, extra=0, max_num=20)
     

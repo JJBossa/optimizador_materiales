@@ -4,7 +4,7 @@ Fachada de compatibilidad: reexporta utilidades desde modulos especializados.
 Modulos:
   - units.py    : conversiones y simbolos de medida
   - pieces.py   : parseo de piezas y mensajes al usuario
-  - packing.py  : motor de corte FFD+BSSF
+  - packing.py  : motor de corte por rectángulos libres
   - render.py   : graficos matplotlib (tableros y estadisticas)
   - exports/    : reportes PDF y Excel
   - services/   : persistencia y contexto de optimizaciones

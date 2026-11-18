@@ -60,7 +60,7 @@
               <div class="col-md-4">
                 <div class="card bg-light">
                   <div class="card-body text-center">
-                    <h6 class="text-muted">Tableros Estimados</h6>
+                    <h6 class="text-muted">Tableros {% if tableros_registrados %}del plan{% else %}estimados{% endif %}</h6>
                     <h3 class="text-success">{{ num_tableros_estimado }}</h3>
                   </div>
                 </div>

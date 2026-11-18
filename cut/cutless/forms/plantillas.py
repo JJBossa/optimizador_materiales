@@ -3,6 +3,7 @@ import math
 from django import forms
 
 from ..models import Plantilla
+from ..pieces import FormatoPiezasInvalido, parsear_piezas_desde_texto, piezas_como_csv, serializar_piezas
 from ..units import convertir_a_cm, convertir_desde_cm
 
 class PlantillaForm(forms.ModelForm):
@@ -15,6 +16,15 @@ class PlantillaForm(forms.ModelForm):
             unidad = self.instance.unidad_medida or 'cm'
             self.initial['ancho_tablero'] = convertir_desde_cm(self.instance.ancho_tablero, unidad)
             self.initial['alto_tablero'] = convertir_desde_cm(self.instance.alto_tablero, unidad)
+            if not self.is_bound:
+                try:
+                    self.initial['piezas'] = piezas_como_csv(self.instance.piezas)
+                except FormatoPiezasInvalido:
+                    # Conservar el original para que la corrección sea explícita.
+                    self.initial['piezas'] = self.instance.piezas
+                    self.fields['piezas'].help_text = (
+                        'El listado guardado necesita revisión. Comprueba todas las filas antes de guardar.'
+                    )
             self.initial['margen_corte'] = self.instance.margen_corte * 10
         else:
             self.initial.setdefault('margen_corte', 3)
@@ -32,12 +42,11 @@ class PlantillaForm(forms.ModelForm):
                         datos[campo] = convertir_a_cm(valor, unidad)
         piezas = datos.get('piezas')
         if piezas and unidad:
-            lineas = [linea for linea in piezas.splitlines() if linea.strip()]
-            if len(lineas) > 20:
+            filas = parsear_piezas_desde_texto(piezas, unidad)
+            if len(filas) > 20:
                 self.add_error('piezas', 'Puedes guardar hasta 20 tipos de pieza.')
-            for numero, linea in enumerate(lineas, 1):
-                nombre_pieza, ancho, alto, cantidad = linea.split(',')
-                ancho, alto = convertir_a_cm(float(ancho), unidad), convertir_a_cm(float(alto), unidad)
+            for numero, pieza in enumerate(filas, 1):
+                ancho, alto = pieza['ancho_cm'], pieza['alto_cm']
                 if not .1 <= ancho <= 300 or not .1 <= alto <= 300:
                     self.add_error('piezas', f'Pieza {numero}: cada lado debe medir entre 0,1 y 300 cm.')
                 elif datos.get('ancho_tablero') and datos.get('alto_tablero'):
@@ -112,53 +121,20 @@ class PlantillaForm(forms.ModelForm):
         }
     
     def clean_piezas(self):
-        piezas = self.cleaned_data.get('piezas', '').strip()
-        piezas = '\n'.join(('Pieza,' + linea if len(linea.split(',')) == 3 else linea) for linea in piezas.splitlines() if linea.strip())
+        texto = self.cleaned_data['piezas']
+        try:
+            piezas = parsear_piezas_desde_texto(texto, estricto=True, csv_editable=True)
+        except (ValueError, TypeError):
+            raise forms.ValidationError('Usa nombre,ancho,alto,cantidad y medidas positivas.') from None
         if not piezas:
-            raise forms.ValidationError("Debes ingresar al menos una pieza.")
-        
-        # Validar formato
-        lineas_validas = 0
-        for linea in piezas.splitlines():
-            if linea.strip():
-                partes = linea.split(',')
-                if len(partes) != 4:
-                    raise forms.ValidationError(
-                        f"❌ Línea inválida: '{linea}'\n\n"
-                        f"Esperado: nombre,ancho,alto,cantidad\n\n"
-                        f"Ejemplo correcto:\n"
-                        f"Puerta,80,200,2"
-                    )
-                try:
-                    ancho = float(partes[1].strip())
-                    alto = float(partes[2].strip())
-                    cantidad = int(partes[3].strip())
-                    
-                    if not math.isfinite(ancho) or not math.isfinite(alto) or ancho <= 0 or alto <= 0 or cantidad <= 0:
-                        raise forms.ValidationError(
-                            f"❌ Valores en línea '{linea}' no pueden ser negativos o cero.\n"
-                            f"Ancho: {ancho}, Alto: {alto}, Cantidad: {cantidad}"
-                        )
-                except ValueError as e:
-                    raise forms.ValidationError(
-                        f"❌ Valores numéricos inválidos en línea: '{linea}'\n\n"
-                        f"Asegúrate de que:\n"
-                        f"- Nombre: texto (puede incluir espacios)\n"
-                        f"- Ancho: número\n"
-                        f"- Alto: número\n"
-                        f"- Cantidad: número entero"
-                    )
-                if not partes[0].strip() or len(partes[0].strip()) > 50:
-                    raise forms.ValidationError('Cada pieza necesita un nombre de hasta 50 caracteres.')
-                if cantidad > 100:
-                    raise forms.ValidationError('La cantidad debe estar entre 1 y 100 por tipo de pieza.')
-                lineas_validas += 1
-        
-        if lineas_validas == 0:
-            raise forms.ValidationError("Debes ingresar al menos una pieza válida.")
-        
-        return piezas
-    
+            raise forms.ValidationError('Debes ingresar al menos una pieza.')
+        for pieza in piezas:
+            if len(pieza['nombre']) > 50:
+                raise forms.ValidationError('Cada pieza necesita un nombre de hasta 50 caracteres.')
+            if pieza['cantidad'] > 100:
+                raise forms.ValidationError('La cantidad debe estar entre 1 y 100 por tipo de pieza.')
+        return serializar_piezas(piezas)
+
     def clean_margen_corte(self):
         margen = self.cleaned_data.get('margen_corte')
         if margen is not None:

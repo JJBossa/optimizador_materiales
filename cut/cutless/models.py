@@ -1,18 +1,16 @@
 from django.db import models
 from django.contrib.auth.models import User
 from decimal import Decimal
+from types import SimpleNamespace
+from django.utils.functional import cached_property
+from .units import UNIDADES_CHOICES as OPCIONES_UNIDAD
 
 class Material(models.Model):
     """
     Modelo para gestionar tipos de tableros/materiales disponibles.
     Permite crear catálogo de materiales con precios.
     """
-    UNIDADES_CHOICES = [
-        ('cm', 'Centímetros (cm)'),
-        ('m', 'Metros (m)'),
-        ('in', 'Pulgadas (in)'),
-        ('ft', 'Pies (ft)'),
-    ]
+    UNIDADES_CHOICES = OPCIONES_UNIDAD
     
     usuario = models.ForeignKey(
         User, 
@@ -70,12 +68,7 @@ class Optimizacion(models.Model):
         """Referencia permanente basada en la clave guardada, nunca en una posición."""
         return f'OPT-{self.pk:04d}' if self.pk is not None else ''
 
-    UNIDADES_CHOICES = [
-        ('cm', 'Centímetros (cm)'),
-        ('m', 'Metros (m)'),
-        ('in', 'Pulgadas (in)'),
-        ('ft', 'Pies (ft)'),
-    ]
+    UNIDADES_CHOICES = OPCIONES_UNIDAD
     
     usuario = models.ForeignKey(User, on_delete=models.CASCADE)
     fecha = models.DateTimeField(auto_now_add=True)
@@ -360,6 +353,7 @@ class Presupuesto(models.Model):
         default='borrador',
         help_text="Estado del presupuesto"
     )
+    detalle_emitido = models.JSONField(null=True, blank=True, editable=False)
     notas = models.TextField(blank=True, help_text="Notas adicionales para el cliente")
     pdf = models.FileField(upload_to='presupuestos/', null=True, blank=True, help_text="PDF generado del presupuesto")
     fecha_creacion = models.DateTimeField(auto_now_add=True)
@@ -379,29 +373,55 @@ class Presupuesto(models.Model):
         from django.utils import timezone
         return timezone.now().date() > self.fecha_validez
     
+    @cached_property
+    def lineas_cotizadas(self):
+        if self.detalle_emitido is None:
+            return list(self.optimizaciones.all())
+        return [
+            SimpleNamespace(**{**linea, 'material': SimpleNamespace(nombre=linea['material']) if linea['material'] else None})
+            for linea in self.detalle_emitido['optimizaciones']
+        ]
+
+    @property
+    def cliente_cotizado(self):
+        if self.detalle_emitido is None:
+            return self.cliente
+        cliente = self.detalle_emitido['cliente']
+        return SimpleNamespace(**cliente) if cliente else None
+
+    @property
+    def es_historico(self):
+        return self.estado != 'borrador' and self.detalle_emitido is None
+
+    @property
+    def total_vigente(self):
+        return self.calcular_costo_total_multiple() if self.estado == 'borrador' else self.costo_total
+
     def get_total_optimizaciones(self):
-        """Retorna el número total de optimizaciones en el presupuesto"""
-        return self.optimizaciones.count()
-    
+        return len(self.lineas_cotizadas)
+
     def calcular_costo_total_multiple(self):
-        """
-        Calcula el costo total del presupuesto considerando todas las optimizaciones.
-        Fórmula: Suma de (tableros × precio_tablero) para cada optimización + mano_obra total
-        """
-        total = Decimal('0.00')
-        # Sumar costo de tableros de todas las optimizaciones
-        for optimizacion in self.optimizaciones.all():
-            num_tableros = optimizacion.num_tableros or 0
-            costo_material = self.precio_tablero * Decimal(str(num_tableros))
-            total += costo_material
-        # Agregar mano de obra una sola vez (no por optimización)
-        total += self.mano_obra
-        return total
-    
+        return self.precio_tablero * self.get_total_tableros() + self.mano_obra
+
     def get_total_tableros(self):
-        """Retorna el total de tableros de todas las optimizaciones"""
-        return sum(opt.num_tableros or 0 for opt in self.optimizaciones.all())
-    
+        return sum(opt.num_tableros or 0 for opt in self.lineas_cotizadas)
+
+    def cerrar_detalle(self):
+        """Conserva el cálculo y los datos de presentación al emitir el presupuesto."""
+        cliente = self.cliente
+        campos = ('pk', 'codigo', 'etiqueta', 'ancho_tablero', 'alto_tablero',
+                  'unidad_medida', 'aprovechamiento_total', 'num_tableros', 'piezas')
+        lineas = [
+            {**{campo: getattr(opt, campo) for campo in campos},
+             'material': opt.material.nombre if opt.material else None}
+            for opt in self.lineas_cotizadas
+        ]
+        self.detalle_emitido = {
+            'optimizaciones': lineas,
+            'cliente': ({campo: getattr(cliente, campo) for campo in
+                         ('nombre', 'rut', 'email', 'telefono', 'direccion')} if cliente else None),
+        }
+
     @staticmethod
     def generar_numero_presupuesto(usuario=None):
         """
@@ -409,28 +429,16 @@ class Presupuesto(models.Model):
         La secuencia es independiente por usuario.
         Ejemplo: PRE-2025-0001
         """
-        from django.db import transaction
         from django.utils import timezone
 
-        año_actual = timezone.now().year
-        prefijo = f'PRE-{año_actual}-'
+        prefijo = f'PRE-{timezone.localdate().year}-'
+        presupuestos = Presupuesto.objects.filter(numero__startswith=prefijo)
+        if usuario is not None:
+            presupuestos = presupuestos.filter(usuario=usuario)
+        sufijos = (numero[len(prefijo):] for numero in presupuestos.values_list('numero', flat=True).iterator())
+        mayor = max((int(sufijo) for sufijo in sufijos if sufijo.isascii() and sufijo.isdecimal()), default=0)
+        return f'{prefijo}{mayor + 1:04d}'
 
-        with transaction.atomic():
-            query = Presupuesto.objects.filter(numero__startswith=prefijo)
-            if usuario:
-                query = query.filter(usuario=usuario)
-            ultimo_presupuesto = query.select_for_update().order_by('-numero').first()
-
-            if ultimo_presupuesto:
-                try:
-                    numero_secuencial = int(ultimo_presupuesto.numero.split('-')[-1])
-                    nuevo_numero = numero_secuencial + 1
-                except (ValueError, IndexError):
-                    nuevo_numero = 1
-            else:
-                nuevo_numero = 1
-
-            return f'{prefijo}{nuevo_numero:04d}'
 
 
 class Plantilla(models.Model):

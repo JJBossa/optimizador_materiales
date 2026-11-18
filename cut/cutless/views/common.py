@@ -2,39 +2,12 @@ from functools import wraps
 
 from django.contrib import messages
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import render, redirect
 
 from ..models import Material
-
-
-PERMISOS_ADMIN_EXPLICITOS = {
-    'puede_crear_materiales',
-    'puede_crear_clientes',
-    'puede_crear_proyectos',
-    'puede_crear_presupuestos',
-    'puede_crear_plantillas',
-    'puede_ver_estadisticas',
-    'puede_ver_historial_costos',
-    'puede_comparar_optimizaciones',
-}
-
-
-def usuario_tiene_permiso(usuario, permiso_nombre):
-    """Evalúa permisos funcionales sin aplicar un bypass global por rol."""
-    if not getattr(usuario, 'is_authenticated', False):
-        return False
-
-    if getattr(usuario, 'is_superuser', False):
-        return True
-
-    perfil = getattr(usuario, 'perfil', None)
-    if perfil is None:
-        return False
-
-    if getattr(perfil, 'rol', None) == 'admin' and permiso_nombre in PERMISOS_ADMIN_EXPLICITOS:
-        return True
-
-    return bool(getattr(perfil, permiso_nombre, False))
+from ..pieces import FormatoPiezasInvalido
+from ..permissions import usuario_tiene_permiso
 
 
 def handler404(request, exception):
@@ -74,6 +47,8 @@ def handler500(request):
 
 def _materiales_data_index(user):
     """Datos de materiales para serializar con json_script (errores / reintentos)."""
+    if not usuario_tiene_permiso(user, 'puede_ver_historial_costos'):
+        return {}
     materiales_data = {}
     filtro = Q(es_predefinido=True)
     if getattr(user, 'is_authenticated', False):
@@ -87,3 +62,17 @@ def _materiales_data_index(user):
             'unidad_medida': material.unidad_medida if material.unidad_medida else 'cm',
         }
     return materiales_data
+
+
+def exigir_piezas_completas(vista):
+    @wraps(vista)
+    def wrapper(*args, **kwargs):
+        try:
+            return vista(*args, **kwargs)
+        except FormatoPiezasInvalido:
+            return HttpResponse(
+                'El listado de piezas necesita revisión. Se conservó el registro original.',
+                status=422,
+                content_type='text/plain; charset=utf-8',
+            )
+    return wrapper

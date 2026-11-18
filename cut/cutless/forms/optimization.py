@@ -1,7 +1,9 @@
 from django import forms
 from django.db.models import Q
+from ..units import UNIDADES_CHOICES as OPCIONES_UNIDAD
 
 from ..models import Material, Cliente, Proyecto
+from ..permissions import usuario_tiene_permiso
 from ..board_presets import CATALOGO, medida_valida
 
 class NombreOptimizacionForm(forms.Form):
@@ -67,13 +69,7 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
     medida_habitual = forms.ChoiceField(required=False,
         choices=[('', 'Personalizado')] + [(clave, nombre) for clave, nombre, _, _ in CATALOGO],
         widget=forms.HiddenInput(attrs={'id': 'medida_habitual'}))
-    UNIDADES_CHOICES = [
-        ('cm', 'Centímetros (cm)'),
-        ('m', 'Metros (m)'),
-        ('mm', 'Milímetros (mm)'),
-        ('in', 'Pulgadas (in)'),
-        ('ft', 'Pies (ft)'),
-    ]
+    UNIDADES_CHOICES = OPCIONES_UNIDAD
     
     @property
     def medidas_habituales(self):
@@ -234,6 +230,17 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         help_text="Asocia esta optimización a un proyecto"
     )
     
+    def datos_costos(self):
+        if not self.puede_editar_costos:
+            return {}
+        datos = {campo: self.cleaned_data.get(campo) for campo in (
+            'material', 'precio_tablero', 'mano_obra', 'cliente', 'proyecto',
+        )}
+        if datos['material'] and datos['precio_tablero'] is None:
+            datos['precio_tablero'] = datos['material'].precio
+        datos['mano_obra'] = datos['mano_obra'] or 0
+        return datos
+
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         
@@ -386,6 +393,11 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
     
         self.configurar_medidas()
 
+        self.puede_editar_costos = usuario_tiene_permiso(user, 'puede_ver_historial_costos')
+        if user and not self.puede_editar_costos:
+            for campo in ('material', 'precio_tablero', 'mano_obra', 'cliente', 'proyecto'):
+                self.fields.pop(campo)
+
     def clean(self):
         datos = self.validar_medidas(super().clean())
         clave = datos.get('medida_habitual')
@@ -404,7 +416,8 @@ class PiezaForm(MedidasClarasMixin, forms.Form):
         label="Nombre de la pieza",
         max_length=50,
         required=False,
-        widget=forms.TextInput(attrs={
+        widget=forms.Textarea(attrs={
+            'rows': 1,
             'class': 'form-control',
             'placeholder': 'Ej: Puerta, Cajón, Estante'
         }),

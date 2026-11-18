@@ -1,9 +1,10 @@
 from datetime import timedelta
 from decimal import Decimal
+from math import ceil, isfinite
 
 from django.contrib import messages
 from django.db.models import Avg
-from django.http import FileResponse
+from django.http import FileResponse, HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
@@ -26,11 +27,17 @@ def calcular_tiempo_corte(request, pk):
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
     
-    # Obtener parámetros de cálculo (pueden venir del POST o usar valores por defecto)
-    velocidad_corte = float(request.POST.get('velocidad_corte', 2.0))  # cm/segundo (por defecto)
-    tiempo_setup = float(request.POST.get('tiempo_setup', 5.0))  # minutos por tablero
-    tiempo_cambio_herramienta = float(request.POST.get('tiempo_cambio_herramienta', 2.0))  # minutos
-    
+    try:
+        velocidad_corte = float(request.POST.get('velocidad_corte', 2.0))
+        tiempo_setup = float(request.POST.get('tiempo_setup', 5.0))
+        tiempo_cambio_herramienta = float(request.POST.get('tiempo_cambio_herramienta', 2.0))
+    except (ValueError, TypeError):
+        return HttpResponseBadRequest('Usa valores numéricos para la velocidad y los tiempos.')
+
+    if (not all(map(isfinite, (velocidad_corte * 60, tiempo_setup, tiempo_cambio_herramienta)))
+            or velocidad_corte <= 0 or tiempo_setup < 0 or tiempo_cambio_herramienta < 0):
+        return HttpResponseBadRequest('La velocidad debe ser positiva y los tiempos deben ser finitos y no negativos.')
+
     # Parsear piezas (formato con nombre o legacy de 3 campos)
     piezas_parseadas = parsear_piezas_desde_texto(
         optimizacion.piezas,
@@ -45,12 +52,13 @@ def calcular_tiempo_corte(request, pk):
         perimetro_pieza = 2 * (pieza['ancho_cm'] + pieza['alto_cm'])
         perimetro_total += perimetro_pieza * cantidad
 
+    num_tableros_registrado = optimizacion.num_tableros or optimizacion.tableros.count()
     area_tablero = optimizacion.ancho_tablero * optimizacion.alto_tablero
-    area_total_piezas = sum(
-        p['ancho_cm'] * p['alto_cm'] * p['cantidad']
-        for p in piezas_parseadas
-    )
-    num_tableros_estimado = max(1, int(area_total_piezas / area_tablero) + 1) if area_tablero > 0 else 1
+    area_total_piezas = sum(p['ancho_cm'] * p['alto_cm'] * p['cantidad'] for p in piezas_parseadas)
+    proporcion = area_total_piezas / area_tablero if area_tablero > 0 else 0
+    if not isfinite(proporcion):
+        return HttpResponseBadRequest('Las dimensiones superan el rango de cálculo.')
+    num_tableros_estimado = num_tableros_registrado or max(1, ceil(proporcion))
     tipos_piezas = len(piezas_parseadas)
     # Calcular tiempos
     # Tiempo de corte = perímetro total / velocidad de corte
@@ -66,6 +74,8 @@ def calcular_tiempo_corte(request, pk):
     
     # Tiempo total estimado
     tiempo_total_minutos = tiempo_corte_minutos + tiempo_setup_total + tiempo_cambio_total
+    if not isfinite(tiempo_total_minutos):
+        return HttpResponseBadRequest('Los valores superan el rango de cálculo.')
     tiempo_total_horas = tiempo_total_minutos / 60
     
     # Formatear tiempo
@@ -91,6 +101,7 @@ def calcular_tiempo_corte(request, pk):
         'total_piezas': total_piezas,
         'tipos_piezas': tipos_piezas,
         'num_tableros_estimado': num_tableros_estimado,
+        'tableros_registrados': bool(num_tableros_registrado),
         'perimetro_total': round(perimetro_total, 2),
         'tiempo_corte_minutos': round(tiempo_corte_minutos, 2),
         'tiempo_setup_total': round(tiempo_setup_total, 2),
@@ -334,25 +345,7 @@ def estadisticas(request):
     top_optimizaciones_list = []
     for idx, opt in enumerate(top_optimizaciones, start=1):
         # Parsear piezas
-        piezas_procesadas = []
-        for linea in opt.piezas.splitlines():
-            if linea.strip():
-                partes = linea.split(',')
-                if len(partes) == 4:
-                    piezas_procesadas.append({
-                        'nombre': partes[0].strip(),
-                        'ancho': partes[1].strip(),
-                        'alto': partes[2].strip(),
-                        'cantidad': partes[3].strip()
-                    })
-                elif len(partes) == 3:
-                    piezas_procesadas.append({
-                        'nombre': 'Pieza',
-                        'ancho': partes[0].strip(),
-                        'alto': partes[1].strip(),
-                        'cantidad': partes[2].strip()
-                    })
-        
+        piezas_procesadas = parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
         # Obtener unidad y convertir dimensiones para mostrar
         unidad_opt = getattr(opt, 'unidad_medida', 'cm') or 'cm'
         ancho_mostrar = round(convertir_desde_cm(opt.ancho_tablero, unidad_opt), 2)
@@ -390,7 +383,7 @@ def historial_costos(request):
     # Obtener todas las optimizaciones con costos del usuario
     optimizaciones = Optimizacion.objects.filter(usuario=request.user).exclude(
         precio_tablero__isnull=True
-    ).order_by('-fecha')
+    ).select_related('material').order_by('-fecha')
     
     # Filtros por fecha
     fecha_desde = request.GET.get('fecha_desde', '').strip()

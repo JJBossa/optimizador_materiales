@@ -24,11 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const tools = Array.from(form.querySelectorAll('#optional-tools input[type="checkbox"]'));
     const choice = name => form.querySelector(`input[name="${name}"]:checked`)?.value;
     const draftKey = `cutless:setup-draft:v1:${form.dataset.userId}`;
-    const savedMarkerKey = `${draftKey}:saved`;
+    const skipForm = document.getElementById('setup-skip-form');
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
     let step = 0;
     let hasUnsavedChanges = false;
     let submitting = false;
+    let draftId = '';
 
     function readPreferences() {
         const mode = choice('modo') || 'esencial';
@@ -42,36 +43,30 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function storeDraft() {
         hasUnsavedChanges = true;
+        draftId = window.crypto?.randomUUID?.() ||
+            `${Date.now()}-${Math.random().toString(36).slice(2)}`;
         try {
-            localStorage.setItem(draftKey, JSON.stringify(readPreferences()));
+            localStorage.setItem(draftKey, JSON.stringify({ id: draftId, ...readPreferences() }));
         } catch (_) {
-            // Si el navegador bloquea el almacenamiento local, el formulario sigue funcionando.
+            // El formulario sigue funcionando con el almacenamiento bloqueado.
         }
     }
 
     function restoreDraft() {
         const initialPreferences = JSON.stringify(readPreferences());
         try {
-            if (form.dataset.hasErrors === 'true') {
-                localStorage.removeItem(savedMarkerKey);
-                storeDraft();
-                return;
-            }
-            if (localStorage.getItem(savedMarkerKey) === '1') {
-                localStorage.removeItem(savedMarkerKey);
-                localStorage.removeItem(draftKey);
-                return;
-            }
             const rawDraft = localStorage.getItem(draftKey);
             if (!rawDraft) return;
-            const draft = JSON.parse(rawDraft);
-            if (!draft || typeof draft !== 'object') throw new Error('Borrador inválido');
-            if (JSON.stringify(draft) === initialPreferences) {
+            const { id, ...draft } = JSON.parse(rawDraft);
+            const hasErrors = form.dataset.hasErrors === 'true';
+            if (!hasErrors && ((id && id === form.dataset.confirmedDraft) ||
+                              JSON.stringify(draft) === initialPreferences)) {
                 localStorage.removeItem(draftKey);
                 return;
             }
 
             const setChoice = (name, value) => {
+                if (hasErrors && choice(name)) return;
                 const input = Array.from(form.querySelectorAll(`input[name="${name}"]`))
                     .find(candidate => candidate.value === value);
                 if (input) input.checked = true;
@@ -79,14 +74,19 @@ document.addEventListener('DOMContentLoaded', () => {
             setChoice('modo', draft.mode);
             setChoice('tema_preferido', draft.theme);
             setChoice('tamanio_fuente', draft.fontSize);
-            tools.forEach(input => {
-                input.checked = Array.isArray(draft.tools)
-                    && draft.tools.includes(input.name);
-            });
+            if (!hasErrors && Array.isArray(draft.tools)) {
+                tools.forEach(input => { input.checked = draft.tools.includes(input.name); });
+            }
+            draftId = id || '';
             hasUnsavedChanges = true;
         } catch (_) {
-            try { localStorage.removeItem(draftKey); } catch (__) { /* almacenamiento no disponible */ }
+            // Un borrador ausente, ilegible o inaccesible deja intacto el formulario.
         }
+    }
+
+    function markSubmitting(inputId) {
+        document.getElementById(inputId).value = draftId;
+        submitting = true;
     }
 
     function renderStep(focus = false) {
@@ -123,21 +123,19 @@ document.addEventListener('DOMContentLoaded', () => {
     previous.addEventListener('click', () => { step = Math.max(0, step - 1); renderStep(true); });
     next.addEventListener('click', () => { step = Math.min(sections.length - 1, step + 1); renderStep(true); });
     form.addEventListener('change', () => { preview(); storeDraft(); });
-    // Enter en el primer paso avanza; nunca guarda antes de revisar la apariencia.
+    // El formulario de omisión tiene su propio botón y nunca es el envío implícito de este formulario.
     form.addEventListener('submit', event => {
-        if (event.submitter?.value === 'skip') {
-            try { localStorage.setItem(savedMarkerKey, '1'); } catch (_) { /* el servidor guarda el modo esencial */ }
-            submitting = true;
-            hasUnsavedChanges = false;
+        if (step === 0) {
+            event.preventDefault();
+            step = 1;
+            renderStep(true);
             return;
         }
-        if (step === 0) { event.preventDefault(); step = 1; renderStep(true); }
-        else {
-            try { localStorage.setItem(savedMarkerKey, '1'); } catch (_) { /* el servidor conserva la configuración */ }
-            submitting = true;
-            hasUnsavedChanges = false;
-        }
+        storeDraft();
+        markSubmitting('setup-draft-id');
     });
+    skipForm.addEventListener('submit', () => markSubmitting('setup-skip-draft-id'));
+    window.addEventListener('pageshow', () => { submitting = false; });
     window.addEventListener('beforeunload', event => {
         if (!hasUnsavedChanges || submitting) return;
         event.preventDefault();
@@ -145,6 +143,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     systemTheme.addEventListener('change', preview);
     restoreDraft();
+    if (form.dataset.hasErrors === 'true') storeDraft();
     renderStep();
     preview();
 });

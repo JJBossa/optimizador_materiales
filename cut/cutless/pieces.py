@@ -1,52 +1,94 @@
 """Parseo de piezas y mensajes al usuario."""
+import csv
+import io
+import json
+import logging
+import math
 from collections import Counter
 
 from .units import convertir_a_cm, convertir_desde_cm, obtener_simbolo_unidad
 
-def parsear_piezas_desde_texto(texto_piezas, unidad_medida='cm'):
-    """
-    Parsea líneas de piezas guardadas en Optimizacion o Plantilla.
+logger = logging.getLogger(__name__)
 
-    Formatos soportados:
-    - nombre,ancho,alto,cantidad
-    - ancho,alto,cantidad (legacy, sin nombre)
+VERSION_PIEZAS = 'piezas:v1:'
 
-    Returns:
-        Lista de dicts con claves: nombre, ancho, alto, cantidad, ancho_cm, alto_cm
-    """
-    piezas = []
-    if not texto_piezas:
-        return piezas
 
-    for linea in texto_piezas.splitlines():
-        linea = linea.strip()
-        if not linea:
-            continue
-        partes = [p.strip() for p in linea.split(',')]
+class FormatoPiezasInvalido(ValueError):
+    """El registro no se puede interpretar por completo y necesita revisión."""
+
+
+def serializar_piezas(piezas):
+    filas = [[p['nombre'], p['ancho'], p['alto'], p['cantidad']] for p in piezas]
+    return VERSION_PIEZAS + json.dumps(filas, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+
+
+def filas_piezas(texto, *, csv_editable=False):
+    if texto.startswith(VERSION_PIEZAS):
         try:
-            if len(partes) == 4:
-                nombre, ancho_s, alto_s, cant_s = partes
-            elif len(partes) == 3:
-                nombre = f'Pieza {len(piezas) + 1}'
-                ancho_s, alto_s, cant_s = partes
-            else:
-                continue
+            filas = json.loads(texto[len(VERSION_PIEZAS):])
+        except json.JSONDecodeError:
+            # El prefijo también puede ser parte del primer nombre histórico.
+            # El lector exige que todas las filas de esta alternativa sean válidas.
+            pass
+        else:
+            if not isinstance(filas, list) or any(
+                not isinstance(fila, list) or len(fila) != 4 or not isinstance(fila[0], str)
+                for fila in filas
+            ):
+                raise FormatoPiezasInvalido('Se esperaba una lista JSON de piezas')
+            yield from filas
+            return
 
-            ancho = float(ancho_s)
-            alto = float(alto_s)
-            cantidad = int(cant_s)
-            piezas.append({
-                'nombre': (nombre or f'Pieza {len(piezas) + 1}').strip(),
-                'ancho': ancho,
-                'alto': alto,
-                'cantidad': cantidad,
-                'ancho_cm': convertir_a_cm(ancho, unidad_medida),
-                'alto_cm': convertir_a_cm(alto, unidad_medida),
-            })
-        except (ValueError, TypeError):
-            continue
+    if csv_editable:
+        yield from (fila for fila in csv.reader(io.StringIO(texto), strict=True) if any(fila))
+    else:
+        yield from (linea.strip().rsplit(',', 3) for linea in texto.splitlines() if linea.strip())
 
+
+def piezas_como_csv(texto):
+    salida = io.StringIO(newline='')
+    escritor = csv.writer(salida)
+    for pieza in parsear_piezas_desde_texto(texto, estricto=True):
+        escritor.writerow([pieza['nombre'], pieza['ancho'], pieza['alto'], pieza['cantidad']])
+    return salida.getvalue()
+
+
+def parsear_piezas_desde_texto(texto_piezas, unidad_medida='cm', *, estricto=False, csv_editable=False):
+    piezas = []
+    texto = texto_piezas or ''
+    exigir_todas = estricto or texto.startswith(VERSION_PIEZAS)
+    try:
+        for numero, fila in enumerate(filas_piezas(texto, csv_editable=csv_editable), 1):
+            try:
+                if not isinstance(fila, (tuple, list)):
+                    raise ValueError('Fila de piezas inválida')
+                if len(fila) == 3:
+                    fila = [f'Pieza {len(piezas) + 1}', *fila]
+                nombre, ancho, alto, cantidad = map(str, fila)
+                ancho, alto, cantidad = float(ancho), float(alto), int(cantidad)
+                if not (math.isfinite(ancho) and math.isfinite(alto) and ancho > 0 and alto > 0 and cantidad > 0):
+                    raise ValueError('Las dimensiones y la cantidad deben ser positivas y finitas')
+                if csv_editable and not nombre.strip():
+                    raise ValueError('La pieza necesita un nombre')
+                piezas.append({
+                    'nombre': nombre.strip() or f'Pieza {len(piezas) + 1}',
+                    'ancho': ancho,
+                    'alto': alto,
+                    'cantidad': cantidad,
+                    'ancho_cm': convertir_a_cm(ancho, unidad_medida),
+                    'alto_cm': convertir_a_cm(alto, unidad_medida),
+                })
+            except (ValueError, TypeError):
+                if exigir_todas:
+                    raise
+                logger.warning('No se pudo interpretar la fila %s de un listado de piezas', numero)
+    except (ValueError, csv.Error):
+        if estricto:
+            raise FormatoPiezasInvalido('Formato de piezas inválido') from None
+        logger.warning('No se pudo interpretar un listado de piezas completo')
+        return []
     return piezas
+
 
 def mensaje_advertencia_piezas_no_colocadas(info_desperdicio, unidad='cm'):
     """

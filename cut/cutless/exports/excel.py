@@ -3,6 +3,13 @@ import io
 
 from ..units import convertir_a_cm, convertir_desde_cm, obtener_factor_area_desde_cm2, obtener_simbolo_area, obtener_simbolo_unidad
 
+def celda_texto(hoja, fila, columna, texto):
+    """Escribe texto literal de usuario, incluso si parece una fórmula o un error de Excel."""
+    celda = hoja.cell(row=fila, column=columna, value=texto)
+    celda.data_type = 's'
+    return celda
+
+
 def generar_excel(optimizacion, info_desperdicio, piezas_con_nombre, numero_lista=None):
     """
     Genera un archivo Excel con la información detallada de la optimización.
@@ -65,8 +72,10 @@ def generar_excel(optimizacion, info_desperdicio, piezas_con_nombre, numero_list
     for label, valor in datos_generales:
         ws1[f'A{row}'] = label
         ws1[f'A{row}'].font = Font(bold=True)
-        ws1[f'B{row}'] = valor
-        if label == 'Nombre:': ws1[f'B{row}'].data_type = 's'
+        if label == 'Nombre:':
+            celda_texto(ws1, row, 2, valor)
+        else:
+            ws1[f'B{row}'] = valor
         row += 1
     
     # Información de costos (si existe)
@@ -81,7 +90,7 @@ def generar_excel(optimizacion, info_desperdicio, piezas_con_nombre, numero_list
         if optimizacion.material:
             ws1[f'A{row}'] = 'Material:'
             ws1[f'A{row}'].font = Font(bold=True)
-            ws1[f'B{row}'] = optimizacion.material.nombre
+            celda_texto(ws1, row, 2, optimizacion.material.nombre)
             row += 1
         
         if optimizacion.precio_tablero:
@@ -152,7 +161,7 @@ def generar_excel(optimizacion, info_desperdicio, piezas_con_nombre, numero_list
         area_unitaria_mostrar = round(area_unitaria_cm2 * factor_area, 2)
         area_total_mostrar = round(area_total_cm2 * factor_area, 2)
         
-        ws2.cell(row=idx, column=1, value=nombre).border = border
+        celda_texto(ws2, idx, 1, nombre).border = border
         ws2.cell(row=idx, column=2, value=ancho).border = border
         ws2.cell(row=idx, column=3, value=alto).border = border
         ws2.cell(row=idx, column=4, value=cantidad).border = border
@@ -436,7 +445,7 @@ def generar_excel_historial_costos(optimizaciones_con_costo, estadisticas, fecha
         ws2.cell(row=idx, column=1, value=fecha_str).border = border
         ws2.cell(row=idx, column=2, value=hora_str).border = border
         ws2.cell(row=idx, column=3, value=dim_str).border = border
-        ws2.cell(row=idx, column=4, value=material_str).border = border
+        celda_texto(ws2, idx, 4, material_str).border = border
         ws2.cell(row=idx, column=5, value=num_tableros).border = border
         ws2.cell(row=idx, column=6, value=f"{aprovechamiento:.1f}%").border = border
         ws2.cell(row=idx, column=7, value=f"${costo_material:,.0f}").border = border

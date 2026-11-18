@@ -126,3 +126,43 @@ class PrecisionEdicionTests(TestCase):
                     self.assertEqual(pieza['ancho'].value(), w)
                     self.assertEqual(pieza['alto'].value(), h)
                     self.assertEqual(pieza.fields['ancho'].widget.attrs['step'], 'any')
+
+    def test_milimetros_en_material_plantilla_y_optimizacion(self):
+        from cutless.forms import MaterialForm, PlantillaForm
+
+        material_form = MaterialForm({
+            'nombre': 'Material mm', 'unidad_medida': 'mm', 'ancho': 1220, 'alto': 2440,
+        })
+        self.assertTrue(material_form.is_valid(), material_form.errors)
+        material = material_form.save()
+        material.refresh_from_db()
+        material.full_clean()
+        self.assertEqual((material.ancho, material.alto, material.unidad_medida), (122, 244, 'mm'))
+        self.assertEqual(MaterialForm(instance=material).initial['ancho'], 1220)
+
+        plantilla_form = PlantillaForm({
+            'nombre': 'Plantilla mm', 'categoria': 'otros', 'unidad_medida': 'mm',
+            'ancho_tablero': 1220, 'alto_tablero': 2440, 'margen_corte': 3, 'piezas': 'Pieza,609,1300,2',
+        })
+        self.assertTrue(plantilla_form.is_valid(), plantilla_form.errors)
+        plantilla = plantilla_form.save()
+        self.assertEqual(plantilla.get_piezas_list()[0]['ancho'], 609)
+        opt = Optimizacion(ancho_tablero=122, alto_tablero=244, unidad_medida='mm', piezas=plantilla.piezas)
+        opt.full_clean(exclude=['usuario'])
+        self.assertEqual(parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)[0]['ancho_cm'], 60.9)
+
+
+class HeuristicaDocumentadaTests(SimpleTestCase):
+    def test_rectangulos_libres_en_caso_determinista_con_rotacion(self):
+        piezas = [(1, 7, 1), (2, 3, 3), (4, 2, 2)]
+        tableros, aprovechamiento, info = optimizar_corte(piezas, 7, 8)
+        self.assertEqual(len(tableros), 1)
+        self.assertEqual(info['num_piezas_colocadas'], 6)
+        self.assertEqual(aprovechamiento, 73.21)
+        self.assertEqual([p[4] for p in tableros[0]['posiciones']], [False, False, True, False, True, True])
+        self.assertEqual((tableros, aprovechamiento, info), optimizar_corte(piezas, 7, 8))
+
+    def test_pieza_imposible_se_reporta_y_no_crea_tablero(self):
+        tableros, uso, info = optimizar_corte([(10, 2, 1)], 7, 8)
+        self.assertEqual((tableros, uso, info['num_piezas_colocadas']), ([], 0, 0))
+        self.assertEqual(len(info['piezas_no_colocadas']), 1)

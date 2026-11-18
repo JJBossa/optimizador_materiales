@@ -80,7 +80,7 @@
         {% for presupuesto in presupuestos %}
         <tr>
           <td><strong>{{ presupuesto.numero }}</strong></td>
-          <td>{{ presupuesto.cliente.nombre|default:"Sin cliente" }}</td>
+          <td>{{ presupuesto.cliente_cotizado.nombre|default:"Sin cliente" }}</td>
           <td>{{ presupuesto.fecha_creacion|date:"d/m/Y" }}</td>
           <td>
             {{ presupuesto.fecha_validez|date:"d/m/Y" }}
@@ -88,7 +88,7 @@
               <span class="badge bg-danger">Vencido</span>
             {% endif %}
           </td>
-          <td><strong>${{ presupuesto.costo_total|floatformat:0 }}</strong></td>
+          <td><strong>${{ presupuesto.total_vigente|floatformat:2 }}</strong></td>
           <td>
             <span class="badge bg-{% if presupuesto.estado == 'aceptado' %}success{% elif presupuesto.estado == 'enviado' %}primary{% elif presupuesto.estado == 'rechazado' or presupuesto.estado == 'vencido' %}danger{% else %}secondary{% endif %}">
               {{ presupuesto.get_estado_display }}
