@@ -19,10 +19,10 @@ bash build.sh
 Start Command propuesto (Linux):
 
 ```sh
-gunicorn --chdir cut cutless_project.wsgi:application --bind 0.0.0.0:$PORT
+gunicorn --config gunicorn.conf.py --chdir cut cutless_project.wsgi:application --bind 0.0.0.0:$PORT
 ```
 
-PORT lo proporciona Render. No utilizar runserver en producción. No se ejecutaron estos comandos contra Render.
+PORT lo proporciona Render. La configuración de Gunicorn omite la URL y el Referer del log de acceso y filtra los errores que contienen rutas de recuperación. El servicio de producción debe usar Gunicorn. No se ejecutaron estos comandos contra Render.
 
 Las migraciones y la carga de datos no forman parte del build anterior. El esquema nuevo ya se creó satisfactoriamente en Supabase mediante las migraciones ejecutadas desde el entorno local; no se importó el histórico de prueba. Crear el esquema no traslada automáticamente los registros de SQLite.
 
@@ -39,7 +39,12 @@ Configurar los valores reales en el panel privado del servicio, no en Git ni en 
 | CUTLESS_TRUST_PROXY_HEADERS | Previsto `true` para el proxy HTTPS de Render, sujeto a confirmar que establece o sanea X-Forwarded-Proto y no existe acceso que evite ese proxy. Sin reconocimiento correcto podría haber redirecciones HTTPS repetidas. |
 | CUTLESS_MEDIA_ROOT | Pendiente del almacenamiento elegido. Solo apuntar a una ruta cuya persistencia esté garantizada. |
 | CUTLESS_DB_PATH | Solo afecta SQLite; no configura PostgreSQL y no será la conexión de Supabase. |
-| CUTLESS_EMAIL_HOST | Servidor SMTP si se habilita el envío real de recuperación de contraseña. Sin él se usa la consola. |
+| CUTLESS_PASSWORD_RESET_HOST | Dominio oficial de CutLess, incluido en `CUTLESS_ALLOWED_HOSTS`. |
+| CUTLESS_BREVO_RECOVERY_ENABLED | Interruptor del envío público. Mantener `false` mientras se resuelve la diferencia de tiempos. |
+| CUTLESS_BREVO_API_KEY | Clave privada para la API de correo transaccional de Brevo. |
+| CUTLESS_BREVO_SENDER_EMAIL | Dirección de remitente verificada en Brevo. |
+| CUTLESS_BREVO_SENDER_NAME | Nombre visible del remitente. El valor predeterminado es `CutLess`. |
+| CUTLESS_EMAIL_HOST | Servidor SMTP opcional para el correo general de Django. |
 | CUTLESS_EMAIL_PORT | Puerto STARTTLS del proveedor, valor predeterminado 587. |
 | CUTLESS_EMAIL_HOST_USER | Identidad SMTP privada. |
 | CUTLESS_EMAIL_HOST_PASSWORD | Credencial SMTP secreta. |
@@ -48,6 +53,8 @@ Configurar los valores reales en el panel privado del servicio, no en Git ni en 
 No existe una variable DEBUG independiente consumida por esta configuración. No se interpreta DATABASE_URL: se utilizan CUTLESS_DB_NAME, CUTLESS_DB_USER, CUTLESS_DB_PASSWORD, CUTLESS_DB_HOST y CUTLESS_DB_PORT. SSL es obligatorio en producción mediante CUTLESS_DB_SSLMODE, cuyo valor predeterminado es require. La tabla completa y las opciones de certificado están en CAMBIOS_PREPARACION_POSTGRESQL.md.
 
 El código no carga archivos `.env` automáticamente. `.env.example` es una referencia, no una fuente de variables para el proceso. No es necesario copiar secretos a un archivo para configurarlos en Render.
+
+La recuperación de contraseña en producción usa HTTPS por el puerto 443. La configuración del remitente, la protección de los enlaces y la comprobación de entrega se describen en la [guía de recuperación con Brevo](RECUPERACION_PASSWORD_BREVO.md).
 
 ## Archivos y seguridad
 

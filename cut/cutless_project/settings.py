@@ -152,14 +152,53 @@ SESSION_COOKIE_HTTPONLY = True
 MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('CUTLESS_MEDIA_ROOT', BASE_DIR / 'media'))
 
-# SMTP opcional; sin host los mensajes se imprimen en consola para desarrollo.
+# Correo general. La recuperación en producción usa su propio transporte HTTPS.
 EMAIL_HOST = os.environ.get('CUTLESS_EMAIL_HOST', '')
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend' if EMAIL_HOST else 'django.core.mail.backends.console.EmailBackend'
+if EMAIL_HOST:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+elif CUTLESS_ENV == 'production':
+    EMAIL_BACKEND = 'django.core.mail.backends.dummy.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 EMAIL_PORT = int(os.environ.get('CUTLESS_EMAIL_PORT', '587'))
 EMAIL_USE_TLS = bool(EMAIL_HOST)
 EMAIL_HOST_USER = os.environ.get('CUTLESS_EMAIL_HOST_USER', '')
 EMAIL_HOST_PASSWORD = os.environ.get('CUTLESS_EMAIL_HOST_PASSWORD', '')
 DEFAULT_FROM_EMAIL = os.environ.get('CUTLESS_DEFAULT_FROM_EMAIL', 'CutLess <noreply@localhost>')
+
+PASSWORD_RESET_TIMEOUT = 60 * 60
+PASSWORD_RESET_HOST = os.environ.get('CUTLESS_PASSWORD_RESET_HOST', '').strip().lower()
+BREVO_RECOVERY_ENABLED = os.environ.get('CUTLESS_BREVO_RECOVERY_ENABLED', '').strip().lower() == 'true'
+BREVO_API_KEY = os.environ.get('CUTLESS_BREVO_API_KEY', '').strip()
+BREVO_SENDER_EMAIL = os.environ.get('CUTLESS_BREVO_SENDER_EMAIL', '').strip()
+BREVO_SENDER_NAME = os.environ.get('CUTLESS_BREVO_SENDER_NAME', 'CutLess').strip() or 'CutLess'
+
+if CUTLESS_ENV == 'production':
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'filters': {
+            'sin_datos_de_recuperacion': {'()': 'cutless_project.recovery_logging.FiltroRecuperacion'},
+        },
+        'handlers': {
+            'recuperacion': {'class': 'logging.StreamHandler', 'level': 'INFO'},
+            'django.server': {
+                'class': 'logging.StreamHandler',
+                'filters': ['sin_datos_de_recuperacion'],
+            },
+            'mail_admins': {
+                'class': 'django.utils.log.AdminEmailHandler',
+                'level': 'ERROR',
+                'filters': ['sin_datos_de_recuperacion'],
+            },
+        },
+        'loggers': {
+            'usuarios.recuperacion': {'handlers': ['recuperacion'], 'level': 'INFO', 'propagate': False},
+            'django.server': {'handlers': ['django.server'], 'level': 'INFO', 'propagate': False},
+            'django.request': {'handlers': ['mail_admins'], 'level': 'INFO', 'propagate': False},
+            'django.security': {'handlers': ['mail_admins'], 'level': 'INFO', 'propagate': False},
+        },
+    }
 
 # ALLOWED_HOSTS procede de configuracion_entorno; no sobrescribirlo aquí.
 

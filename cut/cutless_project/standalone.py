@@ -23,6 +23,12 @@ def django_aislado(directorio, base_de_datos):
         'XDG_CACHE_HOME': str(directorio / 'cache'),
         'PATH': os.environ.get('PATH', os.defpath),
     }
+    if os.name == 'nt':
+        # Conserva solo las rutas del sistema que pueden necesitar TLS y las fuentes de Windows.
+        for variable in ('SYSTEMROOT', 'WINDIR'):
+            valor = os.environ.get(variable)
+            if valor:
+                entorno[variable] = valor
     with patch.dict(os.environ, entorno, clear=True):
         import django
 

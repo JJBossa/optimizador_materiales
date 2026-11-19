@@ -3,7 +3,6 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required, user_passes_test
-from django.contrib.auth.forms import PasswordResetForm
 from django.contrib.auth.views import PasswordResetConfirmView
 from django.contrib.auth.models import User
 from django.contrib import messages
@@ -17,6 +16,7 @@ from django.views.decorators.http import require_POST
 from django.views.decorators.cache import never_cache
 from .forms import AccesoForm, RegistroForm, UsuarioEdicionForm, PermisosUsuarioForm, CambiarPasswordForm
 from .models import PerfilUsuario
+from .recuperacion import FormularioRecuperacion
 
 @require_POST
 def actividad_sesion(request):
@@ -423,15 +423,9 @@ def completar_tutorial(request):
 
 @never_cache
 def recuperar_password(request):
-    form = PasswordResetForm(request.POST if request.method == 'POST' else None)
+    form = FormularioRecuperacion(request.POST if request.method == 'POST' else None)
     if request.method == 'POST' and form.is_valid():
-        form.save(
-            request=request,
-            use_https=request.is_secure(),
-            subject_template_name='usuarios/reset_password_subject.txt',
-            email_template_name='usuarios/reset_password_email.txt',
-            html_email_template_name='usuarios/email_reset_password.html',
-        )
+        form.enviar(request)
         messages.success(
             request, 'Si el correo existe en nuestro sistema, recibirás las instrucciones para recuperar tu contraseña.'
         )
@@ -442,6 +436,11 @@ def recuperar_password(request):
 class ConfirmarRecuperacionView(PasswordResetConfirmView):
     template_name = 'usuarios/reset_password_confirm.html'
     success_url = reverse_lazy('usuarios:login')
+
+    def dispatch(self, request, *args, **kwargs):
+        response = super().dispatch(request, *args, **kwargs)
+        response.headers['Referrer-Policy'] = 'no-referrer'
+        return response
 
     def get_user(self, uidb64):
         usuario = super().get_user(uidb64)
