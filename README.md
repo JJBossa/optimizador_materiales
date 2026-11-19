@@ -49,7 +49,7 @@ $env:CUTLESS_ALLOWED_HOSTS = "localhost,127.0.0.1"
 .\.venv\Scripts\python.exe cut/manage.py runserver
 ```
 
-La [documentación de producción](docs/CAMBIOS_PRODUCCION.md) explica HTTPS, correo, hosts, proxy y almacenamiento privado. Sin SMTP el correo se imprime en consola. No expongas `media/` como carpeta pública: sus rutas requieren autorización.
+La [documentación de producción](docs/CAMBIOS_PRODUCCION.md) explica HTTPS, hosts, proxy y almacenamiento privado. La [guía de Brevo](docs/RECUPERACION_PASSWORD_BREVO.md) explica cómo habilitar el correo de recuperación. No expongas `media/` como carpeta pública. Sus rutas requieren autorización.
 
 ## Comprobaciones y solución de problemas
 

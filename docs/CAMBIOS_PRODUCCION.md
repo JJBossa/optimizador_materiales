@@ -36,13 +36,13 @@ Se retiró la clave compartida del código. En desarrollo, si no se define `CUTL
 | CUTLESS_TRUST_PROXY_HEADERS | false por defecto; true para un proxy controlado |
 | CUTLESS_DB_PATH | Ruta de SQLite; por defecto cut/db.sqlite3 |
 | CUTLESS_MEDIA_ROOT | Carpeta de archivos privados; por defecto cut/media |
-| CUTLESS_EMAIL_HOST | Servidor SMTP; si falta, se usa la consola |
+| CUTLESS_EMAIL_HOST | Servidor SMTP. Si se omite, desarrollo usa consola y producción descarta el correo general. |
 | CUTLESS_EMAIL_PORT | Puerto SMTP, 587 por defecto |
 | CUTLESS_EMAIL_HOST_USER | Usuario SMTP |
 | CUTLESS_EMAIL_HOST_PASSWORD | Contraseña SMTP privada |
 | CUTLESS_DEFAULT_FROM_EMAIL | Remitente del correo |
 
-La conexión SMTP configurada usa STARTTLS. No se añade soporte para SMTP con TLS implícito en el puerto 465. Sin SMTP, los correos y enlaces de recuperación siguen apareciendo en consola; eso sirve para desarrollo, pero no entrega correo real a los usuarios.
+La conexión SMTP opcional del correo general usa STARTTLS. La recuperación en desarrollo conserva el backend de Django, que usa la consola por defecto. En producción la recuperación usa la [API HTTPS de Brevo](RECUPERACION_PASSWORD_BREVO.md).
 
 `.env.example` documenta las variables, pero **Django no carga archivos .env automáticamente**. Configurar las variables en el entorno del proceso o mediante la plataforma de despliegue.
 
@@ -125,7 +125,7 @@ No hay migraciones ni dependencias nuevas. SQLite continúa siendo el motor conf
 
 Crear el commit solo con los archivos de esta etapa y su documentación; conservar los cambios locales ajenos al bloque.
 
-Después quedan actualizar las instrucciones de instalación y comprobar los formularios de clientes en modo oscuro. Antes de un despliegue real también se deben configurar el servidor, HTTPS, estáticos, SMTP y el almacenamiento privado, y revisar los archivos de datos ya versionados.
+Después quedan actualizar las instrucciones de instalación y comprobar los formularios de clientes en modo oscuro. Antes de un despliegue real también se deben configurar el servidor, HTTPS, estáticos, el correo de recuperación y el almacenamiento privado, y revisar los archivos de datos ya versionados.
 
 ## Referencias
 

@@ -1,6 +1,7 @@
 # Framework web
 django==5.2.8
 psycopg[binary]==3.3.6
+cryptography==50.0.2
 
 # Servidor de producción (Gunicorn requiere un sistema Unix, como Render)
 gunicorn==26.2.0; sys_platform != "win32"
