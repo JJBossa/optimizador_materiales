@@ -19,6 +19,8 @@ body.review-page { font-size: 1.125rem; line-height: 1.65; }
 .history-page select.form-control:hover { background-color: var(--cl-bg-surface); }
 .history-page .form-control:focus { outline: 3px solid var(--cl-blue-light); outline-offset: 2px; }
 .history-page .form-check { display: flex; gap: 10px; align-items: center; padding-left: 0; }
+/* Prevalece sobre el fondo de .form-check que theme-colors.css aplica en ambos temas. */
+body.history-page .form-check.history-selection { background-color: transparent !important; }
 .history-page .form-check-input { float: none; margin: 0; width: 24px !important; height: 24px !important; min-width: 24px; min-height: 24px; flex-shrink: 0; }
 .history-page .form-check-label { margin: 0; font-size: 1.125rem; }
 .history-page .action-buttons { flex-wrap: wrap; }
