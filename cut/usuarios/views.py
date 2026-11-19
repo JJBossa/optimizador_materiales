@@ -439,7 +439,7 @@ class ConfirmarRecuperacionView(PasswordResetConfirmView):
 
     def dispatch(self, request, *args, **kwargs):
         response = super().dispatch(request, *args, **kwargs)
-        response.headers['Referrer-Policy'] = 'no-referrer'
+        response.headers.setdefault('Referrer-Policy', 'no-referrer')
         return response
 
     def get_user(self, uidb64):
@@ -450,7 +450,10 @@ class ConfirmarRecuperacionView(PasswordResetConfirmView):
         if not self.validlink:
             messages.error(self.request, 'El enlace de recuperación no es válido o ha expirado. Por favor solicita uno nuevo.')
             return redirect('usuarios:recuperar_password')
-        return super().render_to_response(context, **response_kwargs)
+        response = super().render_to_response(context, **response_kwargs)
+        # Django ya retiró el token de la URL. El formulario necesita conservar Origin para CSRF.
+        response.headers['Referrer-Policy'] = 'same-origin'
+        return response
 
     def form_valid(self, form):
         response = super().form_valid(form)

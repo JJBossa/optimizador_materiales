@@ -1,4 +1,5 @@
 import json
+import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from http.client import HTTPException
@@ -269,7 +270,7 @@ class RecuperacionBrevoTests(TestCase):
         self.assertEqual(destino.headers['Referrer-Policy'], 'no-referrer')
         formulario = self.client.get(destino.url, secure=True, HTTP_HOST=DOMINIO)
         self.assertEqual(formulario.status_code, 200)
-        self.assertEqual(formulario.headers['Referrer-Policy'], 'no-referrer')
+        self.assertEqual(formulario.headers['Referrer-Policy'], 'same-origin')
         cambio = self.client.post(
             destino.url, {'new_password1': nueva_clave, 'new_password2': nueva_clave},
             secure=True, HTTP_HOST=DOMINIO,
@@ -435,9 +436,15 @@ class LimitesConcurrentesRecuperacionTests(TransactionTestCase):
     EMAIL_BACKEND='django.core.mail.backends.locmem.EmailBackend',
 )
 class PruebaLocalBrevoTests(TestCase):
+    def extraer_csrf(self, respuesta):
+        campo = re.search(rb'name="csrfmiddlewaretoken" value="([^"]+)"', respuesta.content)
+        self.assertIsNotNone(campo)
+        return campo[1].decode()
+
     @patch('usuarios.recuperacion.HTTPSConnection', autospec=True)
     def test_solicitud_local_con_csrf_envio_simulado_y_restablecimiento(self, https):
         origen = 'http://127.0.0.1:8765'
+        self.assertNotIn(origen, settings.CSRF_TRUSTED_ORIGINS)
         usuario = User.objects.create_user('recuperacion-prueba', CORREO, CLAVE_ANTERIOR)
         herramienta = run_path(str(settings.BASE_DIR.parent / 'tools' / 'probar_recuperacion_brevo.py'))
         asunto, texto, html = herramienta['preparar_correo'](CORREO, origen)
@@ -452,15 +459,46 @@ class PruebaLocalBrevoTests(TestCase):
 
         cliente = Client(enforce_csrf_checks=True, HTTP_HOST=urlsplit(origen).netloc)
         redireccion = cliente.get(urlsplit(enlace).path)
+        self.assertEqual(redireccion.status_code, 302)
         self.assertIn('/set-password/', redireccion.url)
+        self.assertNotIn(urlsplit(enlace).path.split('/')[-2], redireccion.url)
+        self.assertEqual(redireccion.headers['Referrer-Policy'], 'no-referrer')
+        self.assertIn(settings.SESSION_COOKIE_NAME, redireccion.cookies)
         formulario = cliente.get(redireccion.url)
         self.assertEqual(formulario.status_code, 200)
+        self.assertIn(settings.CSRF_COOKIE_NAME, formulario.cookies)
         nueva = token_urlsafe(24)
-        cambio = cliente.post(
-            formulario.request['PATH_INFO'], {'new_password1': nueva, 'new_password2': nueva},
-            HTTP_X_CSRFTOKEN=cliente.cookies[settings.CSRF_COOKIE_NAME].value, HTTP_ORIGIN=origen,
-        )
+        contrasenas = {'new_password1': nueva, 'new_password2': nueva}
+        datos = {**contrasenas, 'csrfmiddlewaretoken': self.extraer_csrf(formulario)}
+        for origen_invalido in ('null', 'http://127.0.0.1:8766'):
+            with self.subTest(origen=origen_invalido), self.assertLogs('django.security.csrf', 'WARNING') as log:
+                rechazo = cliente.post(redireccion.url, datos, HTTP_ORIGIN=origen_invalido)
+                self.assertEqual(rechazo.status_code, 403)
+                self.assertIn(f'Origin checking failed - {origen_invalido}', log.output[0])
+        with self.assertLogs('django.security.csrf', 'WARNING') as log:
+            rechazo = cliente.post(redireccion.url, contrasenas, HTTP_ORIGIN=origen)
+        self.assertEqual(rechazo.status_code, 403)
+        self.assertIn('CSRF token missing', log.output[0])
+        usuario.refresh_from_db()
+        self.assertTrue(usuario.check_password(CLAVE_ANTERIOR))
+
+        # Client no calcula Origin. Reproduce lo que hace Chromium al enviar el formulario.
+        origen_post = 'null' if formulario.headers['Referrer-Policy'] == 'no-referrer' else origen
+        cambio = cliente.post(redireccion.url, datos, HTTP_ORIGIN=origen_post)
+        self.assertEqual(cambio.status_code, 302)
         self.assertEqual(cambio.url, reverse('usuarios:login'))
-        self.assertTrue(cliente.login(username=usuario.username, password=nueva))
-        self.assertFalse(cliente.login(username=usuario.username, password=CLAVE_ANTERIOR))
-        self.assertEqual(cliente.get(urlsplit(enlace).path).url, reverse('usuarios:recuperar_password'))
+        self.assertEqual(formulario.headers['Referrer-Policy'], 'same-origin')
+        usuario.refresh_from_db()
+        self.assertTrue(usuario.check_password(nueva))
+
+        login = cliente.get(cambio.url)
+        acceso = {'username': usuario.username, 'csrfmiddlewaretoken': self.extraer_csrf(login)}
+        antigua = cliente.post(cambio.url, {**acceso, 'password': CLAVE_ANTERIOR}, HTTP_ORIGIN=origen)
+        self.assertEqual(antigua.status_code, 200)
+        self.assertNotIn('_auth_user_id', cliente.session)
+        nueva_sesion = cliente.post(cambio.url, {**acceso, 'password': nueva}, HTTP_ORIGIN=origen)
+        self.assertEqual(nueva_sesion.status_code, 302)
+        self.assertEqual(cliente.session['_auth_user_id'], str(usuario.pk))
+        reuso = Client(enforce_csrf_checks=True, HTTP_HOST=urlsplit(origen).netloc).get(urlsplit(enlace).path)
+        self.assertEqual(reuso.url, reverse('usuarios:recuperar_password'))
+        self.assertEqual(reuso.headers['Referrer-Policy'], 'no-referrer')
