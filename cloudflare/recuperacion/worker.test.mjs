@@ -18,12 +18,12 @@ function mensaje(cambios = {}) {
       id: randomBytes(16).toString("hex"),
       nonce: randomBytes(12).toString("base64url"),
       data: randomBytes(32).toString("base64url"),
-      exp: Math.floor(Date.now() / 1000) + 60,
+      exp: Math.floor(Date.now() / 1000) + 300,
       ...cambios,
     },
     acciones,
     ack: () => acciones.push("ack"),
-    retry: () => acciones.push("retry"),
+    retry: (opciones) => acciones.push(opciones ? ["retry", opciones.delaySeconds] : "retry"),
   };
 }
 
@@ -99,4 +99,62 @@ test("los errores del callback registran solo un evento fijo", async (t) => {
   await worker.queue({messages: [trabajo]}, env);
   assert.deepEqual(trabajo.acciones, ["retry"]);
   assert.deepEqual(aviso.mock.calls.map(({arguments: args}) => args), [["cola_recuperacion_sin_acuse"]]);
+});
+
+test("403 reintenta sin registrar el contenido de la respuesta", async (t) => {
+  const trabajo = mensaje();
+  const aviso = t.mock.method(console, "warn", () => {});
+  t.mock.method(globalThis, "fetch", async () => new Response("dato@example.test", {status: 403}));
+  await worker.queue({messages: [trabajo]}, env);
+  assert.deepEqual(trabajo.acciones, ["retry"]);
+  assert.deepEqual(aviso.mock.calls.map(({arguments: args}) => args), [
+    ["cola_recuperacion_acceso_rechazado"], ["cola_recuperacion_sin_acuse"],
+  ]);
+});
+
+test("429 y 503 respetan Retry-After válido y dejan de insistir al vencer el sobre", async (t) => {
+  const aviso = t.mock.method(console, "warn", () => {});
+  for (const [estado, cabecera, esperado] of [
+    [429, "25", [["retry", 25]]],
+    [503, "70", [["retry", 70]]],
+    [503, "inválido", ["retry"]],
+    [429, "400", ["ack"]],
+  ]) {
+    const trabajo = mensaje();
+    const fetch = t.mock.method(globalThis, "fetch", async () => (
+      new Response(null, {status: estado, headers: {"Retry-After": cabecera}})
+    ));
+    await worker.queue({messages: [trabajo]}, env);
+    assert.deepEqual(trabajo.acciones, esperado);
+    fetch.mock.restore();
+  }
+  assert.deepEqual(aviso.mock.calls.at(-1).arguments, ["cola_recuperacion_reintento_fuera_de_vigencia"]);
+});
+
+test("el timeout permite otra entrega del mismo id y respeta el acuse terminal", async (t) => {
+  const trabajo = mensaje();
+  const repetido = mensaje(trabajo.body);
+  const aviso = t.mock.method(console, "warn", () => {});
+  const senal = t.mock.method(AbortSignal, "timeout", () => AbortSignal.abort(
+    new DOMException("Tiempo simulado", "TimeoutError"),
+  ));
+  const fetch = t.mock.method(globalThis, "fetch", async (_, opciones) => {
+    assert.deepEqual(JSON.parse(opciones.body), trabajo.body);
+    opciones.signal.throwIfAborted();
+  });
+  await worker.queue({messages: [trabajo]}, env);
+  assert.deepEqual(senal.mock.calls[0].arguments, [20000]);
+  assert.deepEqual(trabajo.acciones, ["retry"]);
+  senal.mock.restore();
+  fetch.mock.mockImplementation(async (_, opciones) => {
+    assert.deepEqual(JSON.parse(opciones.body), trabajo.body);
+    return new Response(null, {status: 204, headers: {
+      "X-Cutless-Queue": "ack-v1", "X-Cutless-Outcome": "ambiguo",
+    }});
+  });
+  await worker.queue({messages: [repetido]}, env);
+  assert.deepEqual(repetido.acciones, ["ack"]);
+  assert.deepEqual(aviso.mock.calls.map(({arguments: args}) => args), [
+    ["cola_recuperacion_sin_acuse"], ["cola_recuperacion_entrega_ambigua"],
+  ]);
 });

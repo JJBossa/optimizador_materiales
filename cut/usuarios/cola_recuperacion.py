@@ -22,7 +22,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.debug import sensitive_variables
 from django.views.decorators.http import require_POST
 
-from .limites_recuperacion import reclamar_trabajo
+from .limites_recuperacion import REINTENTO_SEGUNDOS, cambiar_trabajo, reclamar_trabajo
 
 
 logger = logging.getLogger('usuarios.recuperacion')
@@ -130,8 +130,12 @@ def _descifrar(sobre):
     return correo
 
 
-def _acuse():
-    return HttpResponse(status=204, headers={'X-Cutless-Queue': 'ack-v1'})
+def _acuse(resultado):
+    return HttpResponse(status=204, headers={'X-Cutless-Queue': 'ack-v1', 'X-Cutless-Outcome': resultado})
+
+
+def _reintento(estado=503, espera=REINTENTO_SEGUNDOS):
+    return HttpResponse(status=estado, headers={'Retry-After': str(espera)})
 
 
 @csrf_exempt
@@ -140,10 +144,10 @@ def _acuse():
 @sensitive_variables()
 def consumir_recuperacion(request, *, solo_sonda=False):
     # El Worker se autentica con una firma del cuerpo. Las cookies no intervienen.
-    from .recuperacion import dominio_brevo_configurado, procesar_solicitud_brevo
+    from .recuperacion import ResultadoEnvio, dominio_brevo_configurado, procesar_solicitud_brevo
 
     if not settings.RECOVERY_QUEUE_CONSUMER_ENABLED or not claves_configuradas():
-        return HttpResponse(status=503)
+        return _reintento()
     if not request.is_secure():
         return HttpResponse(status=403)
     request.get_host()
@@ -174,20 +178,35 @@ def consumir_recuperacion(request, *, solo_sonda=False):
     if solo_sonda and correo is not None:
         return HttpResponse(status=403)
     if sobre['exp'] <= ahora:
-        return _acuse()
+        return _acuse('vencido')
     if correo is None:
         logger.info('cola_recuperacion_sonda_confirmada')
-        return _acuse()
+        return _acuse('sonda')
 
     dominio = dominio_brevo_configurado()
     if not dominio:
-        return HttpResponse(status=503)
-    reclamado = reclamar_trabajo(sobre['id'], sobre['exp'])
-    if reclamado is None:
-        return HttpResponse(status=503)
-    if reclamado:
-        try:
-            procesar_solicitud_brevo(correo, dominio)
-        except DatabaseError:
-            logger.warning('cola_recuperacion_fallo_despues_de_reclamar')
-    return _acuse()
+        return _reintento()
+    reclamo = reclamar_trabajo(sobre['id'], sobre['exp'])
+    if reclamo is None:
+        return _reintento()
+    if reclamo.estado == 'ocupado':
+        return _reintento(espera=reclamo.espera)
+    if reclamo.estado != 'preparando':
+        return _acuse(reclamo.estado)
+
+    try:
+        resultado = procesar_solicitud_brevo(correo, dominio, reclamo)
+    except DatabaseError:
+        logger.warning('cola_recuperacion_fallo_despues_de_reclamar')
+        resultado = ResultadoEnvio('reintentar', espera=REINTENTO_SEGUNDOS)
+    if resultado.estado == 'sin_reclamo':
+        return _reintento()
+    reintentar = resultado.estado in ('reintentar', 'limitado')
+    destino = 'espera' if reintentar else resultado.estado
+    if not cambiar_trabajo(reclamo, resultado.anterior, destino, espera=resultado.espera):
+        return _reintento()
+    if reintentar:
+        return _reintento(429 if resultado.estado == 'limitado' else 503, resultado.espera)
+    if destino == 'ambiguo':
+        logger.warning('cola_recuperacion_envio_ambiguo')
+    return _acuse(destino)

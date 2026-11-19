@@ -30,7 +30,8 @@ from django.utils import timezone
 from cutless_project.recovery_logging import FiltroRecuperacion
 from usuarios.cola_recuperacion import consumir_recuperacion, crear_sobre
 from usuarios.limites_recuperacion import (
-    CONTADOR_ENVIOS, CONTADOR_SOLICITUDES, TRABAJOS_RECLAMADOS, admitir_solicitud, reclamar_trabajo, reservar_envio,
+    CONTADOR_ENVIOS, CONTADOR_SOLICITUDES, RECLAMO_SEGUNDOS, TRABAJOS_RECLAMADOS,
+    admitir_solicitud, cambiar_trabajo, reclamar_trabajo, reservar_envio,
 )
 from usuarios.recuperacion import enviar_correo_brevo
 
@@ -110,9 +111,11 @@ class RecuperacionBrevoTests(TestCase):
             secure=secure, HTTP_HOST=DOMINIO, HTTP_X_CUTLESS_TIMESTAMP=fecha, HTTP_X_CUTLESS_SIGNATURE=firma,
         )
 
-    def assert_acuse(self, respuesta):
+    def assert_acuse(self, respuesta, resultado=None):
         self.assertEqual(respuesta.status_code, 204)
         self.assertEqual(respuesta.headers['X-Cutless-Queue'], 'ack-v1')
+        if resultado:
+            self.assertEqual(respuesta.headers['X-Cutless-Outcome'], resultado)
 
     def enlace_enviado(self):
         contenido = json.loads(self.conexion.request.call_args.kwargs['body'])
@@ -187,13 +190,14 @@ class RecuperacionBrevoTests(TestCase):
         self.assert_acuse(self.entregar(sobre))
         self.https.assert_called_once()
         reserva = Session.objects.get(pk=TRABAJOS_RECLAMADOS)
-        self.assertEqual(json.loads(reserva.session_data), {sobre['id']: sobre['exp']})
+        self.assertEqual(json.loads(reserva.session_data),
+                         {sobre['id']: {'vence': sobre['exp'], 'estado': 'finalizado'}})
 
     def test_reentrega_despues_de_timeout_ambiguo_no_repite_brevo(self):
         self.conexion.getresponse.side_effect = TimeoutError
         with self.assertLogs(LOGGER, 'WARNING'):
             self.solicitar()
-        self.assert_acuse(self.entregar(self.ultimo_sobre()))
+        self.assert_acuse(self.entregar(self.ultimo_sobre()), 'ambiguo')
         self.https.assert_called_once()
 
     def test_rechaza_firma_incorrecta_fecha_antigua_http_y_sobre_alterado(self):
@@ -218,20 +222,38 @@ class RecuperacionBrevoTests(TestCase):
     def test_fallo_del_receptor_no_registra_email_credencial_ni_cifrado(self):
         sobre = crear_sobre(CORREO)
         datos = f'{CORREO} {settings.RECOVERY_QUEUE_HMAC_KEY} {sobre["data"]}'
-        with patch('usuarios.recuperacion.procesar_solicitud_brevo', side_effect=OperationalError(datos)):
+        with patch('usuarios.recuperacion.FormularioRecuperacionBrevo.get_users', side_effect=OperationalError(datos)):
             with self.assertLogs(LOGGER, 'WARNING') as logs:
-                self.assert_acuse(self.entregar(sobre))
+                respuesta = self.entregar(sobre)
+        self.assertEqual(respuesta.status_code, 503)
         self.assertEqual([registro.getMessage() for registro in logs.records],
                          ['cola_recuperacion_fallo_despues_de_reclamar'])
-        self.assert_acuse(self.entregar(sobre))
         self.https.assert_not_called()
+        espera = int(respuesta.headers['Retry-After'])
+        with patch('usuarios.limites_recuperacion.timezone.now',
+                   return_value=timezone.now() + timedelta(seconds=espera + 1)):
+            self.assert_acuse(self.entregar(sobre), 'finalizado')
+        self.conexion.request.assert_called_once()
 
     def test_omite_trabajo_expirado_sin_buscar_ni_enviar(self):
-        with patch('usuarios.cola_recuperacion.time', return_value=time() - 901):
-            sobre = crear_sobre(CORREO)
-        with patch('usuarios.recuperacion.FormularioRecuperacionBrevo.get_users') as buscar:
-            self.assert_acuse(self.entregar(sobre))
-        buscar.assert_not_called()
+        for destino in (CORREO, None):
+            with self.subTest(sonda=destino is None):
+                with patch('usuarios.cola_recuperacion.time', return_value=time() - 901):
+                    sobre = crear_sobre(destino)
+                with patch('usuarios.recuperacion.FormularioRecuperacionBrevo.get_users') as buscar:
+                    self.assert_acuse(self.entregar(sobre), 'vencido')
+                buscar.assert_not_called()
+        self.https.assert_not_called()
+        self.assertFalse(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
+
+    def test_reclamo_antiguo_sin_estado_conserva_el_comportamiento_sin_reenvio(self):
+        sobre = crear_sobre(CORREO)
+        Session.objects.create(
+            session_key=TRABAJOS_RECLAMADOS,
+            session_data=json.dumps({sobre['id']: sobre['exp']}),
+            expire_date=timezone.now() + timedelta(minutes=15),
+        )
+        self.assert_acuse(self.entregar(sobre), 'finalizado')
         self.https.assert_not_called()
 
     @override_settings(BREVO_RECOVERY_ENABLED=False, BREVO_API_KEY='')
@@ -269,6 +291,75 @@ class RecuperacionBrevoTests(TestCase):
         self.https.assert_not_called()
         self.assert_acuse(self.entregar(sobre))
         self.https.assert_called_once()
+
+    def test_caida_antes_del_post_vuelve_a_reclamar_e_invalida_al_titular_anterior(self):
+        sobre = crear_sobre(CORREO)
+        anterior = reclamar_trabajo(sobre['id'], sobre['exp'])
+        ocupado = self.entregar(sobre)
+        self.assertEqual(ocupado.status_code, 503)
+        self.assertGreater(int(ocupado.headers['Retry-After']), 0)
+        self.conexion.request.assert_not_called()
+
+        futuro = timezone.now() + timedelta(seconds=RECLAMO_SEGUNDOS + 1)
+        with patch('usuarios.limites_recuperacion.timezone.now', return_value=futuro):
+            self.assertFalse(cambiar_trabajo(anterior, 'preparando', 'enviando'))
+            self.assert_acuse(self.entregar(sobre), 'finalizado')
+        self.conexion.request.assert_called_once()
+
+    def test_caida_con_post_autorizado_termina_como_ambigua(self):
+        sobre = crear_sobre(CORREO)
+        reclamo = reclamar_trabajo(sobre['id'], sobre['exp'])
+        self.assertTrue(cambiar_trabajo(reclamo, 'preparando', 'enviando'))
+        self.assertEqual(self.entregar(sobre).status_code, 503)
+        futuro = timezone.now() + timedelta(seconds=RECLAMO_SEGUNDOS + 1)
+        with patch('usuarios.limites_recuperacion.timezone.now', return_value=futuro):
+            with self.assertLogs(LOGGER, 'WARNING') as logs:
+                self.assert_acuse(self.entregar(sobre), 'ambiguo')
+            self.assertEqual(logs.records[0].getMessage(), 'cola_recuperacion_envio_incierto_por_interrupcion')
+            self.assert_acuse(self.entregar(sobre), 'ambiguo')
+        self.https.assert_not_called()
+
+    def test_evidencia_de_aceptacion_no_persistida_no_duplica_el_post(self):
+        sobre = crear_sobre(CORREO)
+
+        def interrumpir(reclamo, anterior, destino, **kwargs):
+            if anterior == 'enviando' and destino == 'preparando':
+                return None
+            return cambiar_trabajo(reclamo, anterior, destino, **kwargs)
+
+        with patch('usuarios.recuperacion.cambiar_trabajo', side_effect=interrumpir):
+            with self.assertLogs(LOGGER, 'WARNING') as logs:
+                self.assertEqual(self.entregar(sobre).status_code, 503)
+        self.assertEqual(logs.records[0].getMessage(), 'cola_recuperacion_aceptacion_no_persistida')
+        self.assertEqual(self.entregar(sobre).status_code, 503)
+        futuro = timezone.now() + timedelta(seconds=RECLAMO_SEGUNDOS + 1)
+        with patch('usuarios.limites_recuperacion.timezone.now', return_value=futuro):
+            self.assert_acuse(self.entregar(sobre), 'ambiguo')
+        self.conexion.request.assert_called_once()
+
+    def test_aceptacion_persistida_sobrevive_a_fallo_antes_del_acuse_final(self):
+        sobre = crear_sobre(CORREO)
+        with patch('usuarios.cola_recuperacion.cambiar_trabajo', return_value=None):
+            self.assertEqual(self.entregar(sobre).status_code, 503)
+        self.conexion.request.assert_called_once()
+        futuro = timezone.now() + timedelta(seconds=RECLAMO_SEGUNDOS + 1)
+        with patch('usuarios.limites_recuperacion.timezone.now', return_value=futuro):
+            self.assert_acuse(self.entregar(sobre), 'finalizado')
+        self.conexion.request.assert_called_once()
+
+    def test_conexion_fallida_antes_del_post_se_reintenta(self):
+        sobre = crear_sobre(CORREO)
+        self.conexion.connect.side_effect = TimeoutError
+        with self.assertLogs(LOGGER, 'WARNING'):
+            respuesta = self.entregar(sobre)
+        self.assertEqual(respuesta.status_code, 503)
+        self.conexion.request.assert_not_called()
+        self.conexion.connect.side_effect = None
+        espera = int(respuesta.headers['Retry-After'])
+        with patch('usuarios.limites_recuperacion.timezone.now',
+                   return_value=timezone.now() + timedelta(seconds=espera + 1)):
+            self.assert_acuse(self.entregar(sobre), 'finalizado')
+        self.conexion.request.assert_called_once()
 
     def test_correo_invalido_conserva_el_error_del_formulario(self):
         respuesta = self.client.post(
@@ -336,7 +427,14 @@ class RecuperacionBrevoTests(TestCase):
                 self.https.reset_mock()
                 self.respuesta_brevo.status = estado
                 with self.assertLogs(LOGGER, 'WARNING') as logs:
-                    self.solicitar()
+                    self.solicitar(entregar=False)
+                    respuesta = self.entregar(self.ultimo_sobre())
+                if estado == 429:
+                    self.assertEqual(respuesta.status_code, 429)
+                    self.assertEqual(respuesta.headers['Retry-After'], '90')
+                else:
+                    resultado = 'rechazado' if estado in (400, 401, 403) else 'ambiguo'
+                    self.assert_acuse(respuesta, resultado)
                 self.assertEqual(logs.records[0].getMessage(), f'brevo_recuperacion_{evento} estado={estado}')
                 self.https.assert_called_once()
                 self.respuesta_brevo.read.assert_not_called()
@@ -364,7 +462,8 @@ class RecuperacionBrevoTests(TestCase):
         User.objects.create_user('segunda', CORREO, token_urlsafe(24))
         self.respuesta_brevo.status = 429
         with self.assertLogs(LOGGER, 'WARNING'):
-            self.solicitar()
+            self.solicitar(entregar=False)
+            self.assertEqual(self.entregar(self.ultimo_sobre()).status_code, 429)
         self.https.assert_called_once()
         login = self.client.post(
             reverse('usuarios:login'), {'username': self.usuario.username, 'password': CLAVE_ANTERIOR},
@@ -379,6 +478,24 @@ class RecuperacionBrevoTests(TestCase):
         envios = self.conexion.request.call_args_list
         self.assertEqual(len(envios), 2)
         self.assertNotEqual(*[json.loads(envio.kwargs['body'])['textContent'] for envio in envios])
+
+    def test_429_reintenta_solo_la_cuenta_pendiente_y_respeta_cabecera_de_brevo(self):
+        User.objects.create_user('segunda', CORREO, token_urlsafe(24))
+        self.respuesta_brevo.getheader.side_effect = {'Retry-After': '100', 'X-Sib-Ratelimit-Reset': '120'}.get
+        self.respuesta_brevo.status = 429
+        aceptada = SimpleNamespace(status=201)
+        self.conexion.getresponse.side_effect = [aceptada, self.respuesta_brevo, aceptada]
+        sobre = crear_sobre(CORREO)
+        with self.assertLogs(LOGGER, 'WARNING'):
+            respuesta = self.entregar(sobre)
+        self.assertEqual(respuesta.status_code, 429)
+        self.assertEqual(respuesta.headers['Retry-After'], '120')
+        self.assertEqual(self.entregar(sobre).status_code, 503)
+        with patch('usuarios.limites_recuperacion.timezone.now', return_value=timezone.now() + timedelta(seconds=121)):
+            self.assert_acuse(self.entregar(sobre), 'finalizado')
+        envios = [json.loads(llamada.kwargs['body'])['textContent'] for llamada in self.conexion.request.call_args_list]
+        self.assertEqual(len(envios), 3)
+        self.assertNotEqual(envios[0], envios[2])
 
     def test_limita_por_igual_correos_activos_inactivos_y_desconocidos(self):
         for correo in (CORREO, self.inactiva.email, 'no-registrada@example.test'):
@@ -397,8 +514,11 @@ class RecuperacionBrevoTests(TestCase):
 
         with patch('usuarios.limites_recuperacion.LIMITES_ENVIOS', ((300, 1, False),)):
             self.solicitar()
-            self.solicitar(self.otra.email)
-        self.https.assert_called_once()
+            self.solicitar(self.otra.email, entregar=False)
+            limitado = self.entregar(self.ultimo_sobre())
+        self.assertEqual(limitado.status_code, 429)
+        self.assertGreater(int(limitado.headers['Retry-After']), 250)
+        self.conexion.request.assert_called_once()
         self.assertEqual(Session.objects.get(pk=clave_sesion).session_data, estado_previo)
         self.assertEqual(otra_sesion.session['_auth_user_id'], str(self.otra.pk))
 
@@ -502,7 +622,7 @@ class LimitesRecuperacionTests(TestCase):
     def test_cookies_reservadas_no_se_convierten_en_sesiones_ni_se_borran_al_iniciar_sesion(self):
         cuenta = User.objects.create_user('reservada', 'reservada@example.test', password=CLAVE_ANTERIOR)
         self.assertTrue(admitir_solicitud(cuenta.email))
-        self.assertTrue(reservar_envio())
+        self.assertEqual(reservar_envio(), 0)
         for clave in (CONTADOR_SOLICITUDES, CONTADOR_ENVIOS):
             with self.subTest(clave=clave):
                 self.assertIsNone(SessionStore(session_key=clave).session_key)
@@ -522,7 +642,7 @@ class LimitesRecuperacionTests(TestCase):
         self.client.force_login(usuario)
         clave_activa = self.client.session.session_key
         self.assertTrue(admitir_solicitud('caducada@example.test'))
-        self.assertTrue(reservar_envio())
+        self.assertEqual(reservar_envio(), 0)
         Session.objects.filter(pk=CONTADOR_SOLICITUDES).update(expire_date=timezone.now() - timedelta(seconds=1))
 
         call_command('clearsessions', verbosity=0)
@@ -532,6 +652,44 @@ class LimitesRecuperacionTests(TestCase):
         self.assertEqual(self.client.session.session_key, clave_activa)
         self.assertEqual(self.client.session['_auth_user_id'], str(usuario.pk))
         self.assertTrue(admitir_solicitud('caducada@example.test'))
+
+    def test_clearsessions_conserva_trabajos_y_confirmaciones_hasta_que_vence_el_ultimo_sobre(self):
+        inicio = timezone.now().replace(microsecond=0)
+        fin_corto = inicio + timedelta(minutes=3)
+        fin_largo = inicio + timedelta(minutes=15)
+        vence_corto, vence_largo = int(fin_corto.timestamp()), int(fin_largo.timestamp())
+        huella = token_hex(32)
+
+        with patch('django.utils.timezone.now', return_value=inicio):
+            incompleto = reclamar_trabajo(token_hex(16), vence_corto)
+            aceptado = reclamar_trabajo(token_hex(16), vence_corto)
+            ambiguo = reclamar_trabajo(token_hex(16), vence_largo)
+            self.assertTrue(cambiar_trabajo(aceptado, 'preparando', 'enviando'))
+            self.assertTrue(cambiar_trabajo(aceptado, 'enviando', 'preparando', destinatario=huella))
+            self.assertTrue(cambiar_trabajo(ambiguo, 'preparando', 'enviando'))
+            self.assertTrue(cambiar_trabajo(ambiguo, 'enviando', 'ambiguo'))
+
+        tras_reclamo = inicio + timedelta(seconds=RECLAMO_SEGUNDOS + 1)
+        with patch('django.utils.timezone.now', return_value=tras_reclamo):
+            call_command('clearsessions', verbosity=0)
+            self.assertEqual(Session.objects.get(pk=TRABAJOS_RECLAMADOS).expire_date, fin_largo)
+            retomado = reclamar_trabajo(incompleto.identificador, vence_corto)
+            self.assertEqual(retomado.estado, 'preparando')
+            self.assertNotEqual(retomado.titular, incompleto.titular)
+            self.assertFalse(cambiar_trabajo(incompleto, 'preparando', 'enviando'))
+            self.assertEqual(reclamar_trabajo(aceptado.identificador, vence_corto).completados, (huella,))
+            self.assertEqual(reclamar_trabajo(ambiguo.identificador, vence_largo).estado, 'ambiguo')
+
+        with patch('django.utils.timezone.now', return_value=fin_corto + timedelta(seconds=1)):
+            call_command('clearsessions', verbosity=0)
+            self.assertTrue(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
+            self.assertEqual(reclamar_trabajo(ambiguo.identificador, vence_largo).estado, 'ambiguo')
+            registro = Session.objects.get(pk=TRABAJOS_RECLAMADOS)
+            self.assertEqual(set(json.loads(registro.session_data)), {ambiguo.identificador})
+
+        with patch('django.utils.timezone.now', return_value=fin_largo + timedelta(seconds=1)):
+            call_command('clearsessions', verbosity=0)
+            self.assertFalse(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
 
     def test_limite_global_de_solicitudes_acota_direcciones_distintas(self):
         for i in range(30):
@@ -544,12 +702,12 @@ class LimitesRecuperacionTests(TestCase):
             ahora = inicio + timedelta(minutes=5 * bloque)
             with patch('usuarios.limites_recuperacion.timezone.now', return_value=ahora):
                 for _ in range(20):
-                    self.assertTrue(reservar_envio())
-                self.assertFalse(reservar_envio())
+                    self.assertEqual(reservar_envio(), 0)
+                self.assertGreaterEqual(reservar_envio(), 300)
         with patch('usuarios.limites_recuperacion.timezone.now', return_value=inicio + timedelta(hours=23)):
-            self.assertFalse(reservar_envio())
+            self.assertEqual(reservar_envio(), 3600)
         with patch('usuarios.limites_recuperacion.timezone.now', return_value=inicio + timedelta(hours=24)):
-            self.assertTrue(reservar_envio())
+            self.assertEqual(reservar_envio(), 0)
 
 
 class LimitesConcurrentesRecuperacionTests(TransactionTestCase):
@@ -567,8 +725,33 @@ class LimitesConcurrentesRecuperacionTests(TransactionTestCase):
 
         with ThreadPoolExecutor(max_workers=8) as ejecutor:
             resultados = list(ejecutor.map(reclamar, range(8)))
-        self.assertEqual(resultados.count(True), 1)
-        self.assertEqual(resultados.count(False), 7)
+        estados = [resultado.estado for resultado in resultados]
+        self.assertEqual(estados.count('preparando'), 1)
+        self.assertEqual(estados.count('ocupado'), 7)
+
+    @skipUnlessDBFeature('has_select_for_update')
+    def test_reclamo_retomado_bloquea_autorizaciones_concurrentes_y_al_titular_viejo(self):
+        identificador, vence = token_hex(16), int(time()) + 900
+        viejo = reclamar_trabajo(identificador, vence)
+        barrera = Barrier(8)
+
+        def autorizar(i):
+            try:
+                titular = viejo if i % 2 == 0 else nuevo
+                barrera.wait(timeout=10)
+                return (i, cambiar_trabajo(titular, 'preparando', 'enviando'))
+            finally:
+                connections.close_all()
+
+        futuro = timezone.now() + timedelta(seconds=RECLAMO_SEGUNDOS + 1)
+        with patch('usuarios.limites_recuperacion.timezone.now', return_value=futuro):
+            nuevo = reclamar_trabajo(identificador, vence)
+            self.assertNotEqual(viejo.titular, nuevo.titular)
+            with ThreadPoolExecutor(max_workers=8) as ejecutor:
+                resultados = list(ejecutor.map(autorizar, range(8)))
+        autorizados = [i for i, autorizado in resultados if autorizado]
+        self.assertEqual(len(autorizados), 1)
+        self.assertEqual(autorizados[0] % 2, 1)
 
     @skipUnlessDBFeature('has_select_for_update')
     def test_varias_conexiones_comparten_tope_desde_la_primera_insercion(self):
