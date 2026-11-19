@@ -11,7 +11,8 @@ from django.http.request import validate_host
 from django.template.loader import render_to_string
 from django.views.decorators.debug import sensitive_variables
 
-from .limites_recuperacion import admitir_solicitud, reservar_envio
+from .cola_recuperacion import productor_configurado, publicar_solicitud
+from .limites_recuperacion import admitir_solicitud, reservar_envio, reservar_publicacion
 
 
 logger = logging.getLogger(__name__)
@@ -19,46 +20,59 @@ validar_dominio = DomainNameValidator(accept_idna=False)
 
 
 class FormularioRecuperacion(PasswordResetForm):
-    _envios_detenidos = False
-
     def enviar(self, request):
         request.get_host()
-        produccion = settings.CUTLESS_ENV == 'production'
-        dominio = settings.PASSWORD_RESET_HOST if produccion else None
-        if produccion:
-            if not settings.BREVO_RECOVERY_ENABLED:
-                return
-            try:
-                validar_dominio(dominio)
-                validate_email(settings.BREVO_SENDER_EMAIL)
-            except ValidationError:
-                logger.warning('brevo_recuperacion_configuracion_incompleta')
-                return
-            if not validate_host(dominio, settings.ALLOWED_HOSTS) or not settings.BREVO_API_KEY:
-                logger.warning('brevo_recuperacion_configuracion_incompleta')
-                return
-            if not admitir_solicitud(self.cleaned_data['email']):
-                return
+        if settings.CUTLESS_ENV != 'production':
+            _guardar(self, request=request, use_https=request.is_secure())
+            return
+        if not settings.BREVO_RECOVERY_ENABLED:
+            return
+        if not dominio_brevo_configurado():
+            logger.warning('brevo_recuperacion_configuracion_incompleta')
+            return
+        if not settings.RECOVERY_QUEUE_CONSUMER_ENABLED or not productor_configurado():
+            logger.warning('cola_recuperacion_configuracion_incompleta')
+            return
+        correo = self.cleaned_data['email']
+        if admitir_solicitud(correo) and reservar_publicacion():
+            publicar_solicitud(correo)
 
-        self.save(
-            request=request,
-            domain_override=dominio,
-            use_https=produccion or request.is_secure(),
-            subject_template_name='usuarios/reset_password_subject.txt',
-            email_template_name='usuarios/reset_password_email.txt',
-            html_email_template_name='usuarios/email_reset_password.html',
-        )
+
+def dominio_brevo_configurado():
+    dominio = settings.PASSWORD_RESET_HOST
+    try:
+        validar_dominio(dominio)
+        validate_email(settings.BREVO_SENDER_EMAIL)
+    except ValidationError:
+        return None
+    if validate_host(dominio, settings.ALLOWED_HOSTS) and settings.BREVO_API_KEY:
+        return dominio
+    return None
+
+
+def _guardar(formulario, **parametros):
+    formulario.save(
+        subject_template_name='usuarios/reset_password_subject.txt',
+        email_template_name='usuarios/reset_password_email.txt',
+        html_email_template_name='usuarios/email_reset_password.html',
+        **parametros,
+    )
+
+
+@sensitive_variables()
+def procesar_solicitud_brevo(correo, dominio):
+    formulario = FormularioRecuperacionBrevo({'email': correo})
+    if formulario.is_valid():
+        _guardar(formulario, domain_override=dominio, use_https=True)
+
+
+class FormularioRecuperacionBrevo(PasswordResetForm):
+    _envios_detenidos = False
 
     @sensitive_variables('context', 'asunto', 'texto', 'html', 'to_email')
     def send_mail(self, subject_template_name, email_template_name, context, from_email,
                   to_email, html_email_template_name=None):
-        if settings.CUTLESS_ENV != 'production':
-            return super().send_mail(
-                subject_template_name, email_template_name, context, from_email, to_email,
-                html_email_template_name=html_email_template_name,
-            )
-
-        if not settings.BREVO_RECOVERY_ENABLED or self._envios_detenidos or not reservar_envio():
+        if self._envios_detenidos or not reservar_envio():
             self._envios_detenidos = True
             return
         asunto = ''.join(render_to_string(subject_template_name, context).splitlines())

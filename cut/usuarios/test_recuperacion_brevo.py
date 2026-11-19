@@ -1,3 +1,4 @@
+import hmac
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -5,9 +6,10 @@ from datetime import datetime, timedelta
 from http.client import HTTPException
 from logging import LogRecord, Logger
 from runpy import run_path
-from secrets import token_urlsafe
+from secrets import token_hex, token_urlsafe
 from threading import Barrier
-from types import SimpleNamespace
+from time import time
+from types import ModuleType, SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
@@ -22,11 +24,14 @@ from django.db import OperationalError, connections, transaction
 from django.test import (
     Client, RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature,
 )
-from django.urls import reverse
+from django.urls import path, reverse
 from django.utils import timezone
 
 from cutless_project.recovery_logging import FiltroRecuperacion
-from usuarios.limites_recuperacion import CONTADOR_ENVIOS, CONTADOR_SOLICITUDES, admitir_solicitud, reservar_envio
+from usuarios.cola_recuperacion import consumir_recuperacion, crear_sobre
+from usuarios.limites_recuperacion import (
+    CONTADOR_ENVIOS, CONTADOR_SOLICITUDES, TRABAJOS_RECLAMADOS, admitir_solicitud, reclamar_trabajo, reservar_envio,
+)
 from usuarios.recuperacion import enviar_correo_brevo
 
 
@@ -49,6 +54,12 @@ LOGGER = 'usuarios.recuperacion'
     BREVO_API_KEY=CLAVE_DE_PRUEBA,
     BREVO_SENDER_EMAIL=REMITENTE,
     BREVO_SENDER_NAME='CutLess pruebas',
+    RECOVERY_QUEUE_CONSUMER_ENABLED=True,
+    RECOVERY_QUEUE_ACCOUNT_ID=token_hex(16),
+    RECOVERY_QUEUE_ID=token_hex(16),
+    RECOVERY_QUEUE_API_TOKEN=token_urlsafe(24),
+    RECOVERY_QUEUE_ENCRYPTION_KEY=token_hex(32),
+    RECOVERY_QUEUE_HMAC_KEY=token_hex(32),
 )
 class RecuperacionBrevoTests(TestCase):
     @classmethod
@@ -65,15 +76,43 @@ class RecuperacionBrevoTests(TestCase):
         self.conexion = self.https.return_value
         self.respuesta_brevo = self.conexion.getresponse.return_value
         self.respuesta_brevo.status = 201
+        cola = patch('usuarios.cola_recuperacion.HTTPSConnection', autospec=True)
+        self.cloudflare = cola.start()
+        self.addCleanup(cola.stop)
+        self.conexion_cola = self.cloudflare.return_value
+        self.respuesta_cola = self.conexion_cola.getresponse.return_value
+        self.respuesta_cola.status = 200
+        self.respuesta_cola.read.return_value = b'{"success":true}'
 
-    def solicitar(self, correo=CORREO, *, host=DOMINIO, **headers):
+    def solicitar(self, correo=CORREO, *, host=DOMINIO, entregar=True, **headers):
+        antes = self.conexion_cola.request.call_count
         respuesta = self.client.post(
             reverse('usuarios:recuperar_password'), {'email': correo},
             secure=True, HTTP_HOST=host, follow=True, **headers,
         )
         self.assertEqual(respuesta.redirect_chain, [(reverse('usuarios:login'), 302)])
         self.assertContains(respuesta, RESPUESTA_GENERICA)
+        if entregar and self.conexion_cola.request.call_count > antes:
+            self.assert_acuse(self.entregar(self.ultimo_sobre()))
         return respuesta
+
+    def ultimo_sobre(self):
+        return json.loads(self.conexion_cola.request.call_args.kwargs['body'])['body']
+
+    def entregar(self, sobre, *, firmado=None, fecha=None, secure=True, ruta=None):
+        fecha = str(int(time()) if fecha is None else fecha)
+        cuerpo = json.dumps(sobre).encode()
+        firmado = cuerpo if firmado is None else firmado
+        datos = b'cutless.queue.callback.v1\n' + fecha.encode() + b'\n' + firmado
+        firma = hmac.digest(bytes.fromhex(settings.RECOVERY_QUEUE_HMAC_KEY), datos, 'sha256').hex()
+        return Client(enforce_csrf_checks=True).post(
+            ruta or reverse('usuarios:consumir_recuperacion'), cuerpo, content_type='application/json',
+            secure=secure, HTTP_HOST=DOMINIO, HTTP_X_CUTLESS_TIMESTAMP=fecha, HTTP_X_CUTLESS_SIGNATURE=firma,
+        )
+
+    def assert_acuse(self, respuesta):
+        self.assertEqual(respuesta.status_code, 204)
+        self.assertEqual(respuesta.headers['X-Cutless-Queue'], 'ack-v1')
 
     def enlace_enviado(self):
         contenido = json.loads(self.conexion.request.call_args.kwargs['body'])
@@ -97,7 +136,8 @@ class RecuperacionBrevoTests(TestCase):
         enlace = self.enlace_enviado()
         self.assertEqual(urlsplit(enlace).netloc, DOMINIO)
         self.assertIn(f'href="{enlace}"', contenido['htmlContent'])
-        self.assertEqual(logs.records[0].getMessage(), 'brevo_recuperacion_aceptada entrega=no_confirmada')
+        self.assertIn('brevo_recuperacion_aceptada entrega=no_confirmada',
+                      [registro.getMessage() for registro in logs.records])
         self.assertEqual(mail.outbox, [])
 
     def test_desconocida_inactiva_y_sin_password_reciben_la_misma_respuesta(self):
@@ -105,6 +145,130 @@ class RecuperacionBrevoTests(TestCase):
             with self.subTest(correo=correo):
                 self.solicitar(correo)
         self.https.assert_not_called()
+
+    def test_publica_antes_de_buscar_cuentas_y_cifra_el_correo(self):
+        correos = (CORREO, self.inactiva.email, 'no-registrada@example.test')
+        with patch('usuarios.recuperacion.PasswordResetForm.get_users') as buscar:
+            for correo in correos:
+                self.solicitar(correo, entregar=False)
+            buscar.assert_not_called()
+        self.https.assert_not_called()
+        self.assertEqual(self.cloudflare.call_count, len(correos))
+        for llamada in self.cloudflare.call_args_list:
+            self.assertEqual(llamada.args, ('api.cloudflare.com',))
+        for correo, envio in zip(correos, self.conexion_cola.request.call_args_list):
+            cuerpo = envio.kwargs['body']
+            self.assertNotIn(correo.encode(), cuerpo)
+            carga = json.loads(cuerpo)
+            self.assertEqual(carga['content_type'], 'json')
+            self.assertEqual(set(carga['body']), {'v', 'id', 'exp', 'nonce', 'data'})
+            self.assertEqual(envio.args, ('POST', f'/client/v4/accounts/{settings.RECOVERY_QUEUE_ACCOUNT_ID}'
+                                                 f'/queues/{settings.RECOVERY_QUEUE_ID}/messages'))
+            self.assertEqual(envio.kwargs['headers']['Authorization'], f'Bearer {settings.RECOVERY_QUEUE_API_TOKEN}')
+
+    def test_fallo_de_publicacion_no_envia_por_brevo_desde_la_vista(self):
+        self.respuesta_cola.status = 429
+        with self.assertLogs(LOGGER, 'WARNING') as logs:
+            self.solicitar(entregar=False)
+        self.assertEqual(logs.records[0].getMessage(), 'cola_recuperacion_publicacion_rechazada')
+        self.https.assert_not_called()
+
+    def test_publico_sigue_exigiendo_csrf_y_no_publica_sin_token(self):
+        respuesta = Client(enforce_csrf_checks=True).post(
+            reverse('usuarios:recuperar_password'), {'email': CORREO}, secure=True, HTTP_HOST=DOMINIO,
+        )
+        self.assertEqual(respuesta.status_code, 403)
+        self.cloudflare.assert_not_called()
+        self.https.assert_not_called()
+
+    def test_reentrega_del_mismo_sobre_no_repite_brevo_ni_la_reserva(self):
+        self.solicitar()
+        sobre = self.ultimo_sobre()
+        self.assert_acuse(self.entregar(sobre))
+        self.https.assert_called_once()
+        reserva = Session.objects.get(pk=TRABAJOS_RECLAMADOS)
+        self.assertEqual(json.loads(reserva.session_data), {sobre['id']: sobre['exp']})
+
+    def test_reentrega_despues_de_timeout_ambiguo_no_repite_brevo(self):
+        self.conexion.getresponse.side_effect = TimeoutError
+        with self.assertLogs(LOGGER, 'WARNING'):
+            self.solicitar()
+        self.assert_acuse(self.entregar(self.ultimo_sobre()))
+        self.https.assert_called_once()
+
+    def test_rechaza_firma_incorrecta_fecha_antigua_http_y_sobre_alterado(self):
+        sobre = crear_sobre(CORREO)
+        for opciones in ({'firmado': b'{}'}, {'fecha': int(time()) - 600}, {'secure': False}):
+            with self.subTest(opciones=opciones):
+                self.assertEqual(self.entregar(sobre, **opciones).status_code, 403)
+        self.assertEqual(self.entregar({**sobre, 'id': token_hex(16)}).status_code, 400)
+        self.assertFalse(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
+        self.https.assert_not_called()
+
+    def test_rechaza_callback_sin_firma_antes_de_descifrar(self):
+        with patch('usuarios.cola_recuperacion._descifrar') as descifrar:
+            respuesta = Client(enforce_csrf_checks=True).post(
+                reverse('usuarios:consumir_recuperacion'), json.dumps(crear_sobre(CORREO)),
+                content_type='application/json', secure=True, HTTP_HOST=DOMINIO,
+            )
+        self.assertEqual(respuesta.status_code, 403)
+        descifrar.assert_not_called()
+        self.https.assert_not_called()
+
+    def test_fallo_del_receptor_no_registra_email_credencial_ni_cifrado(self):
+        sobre = crear_sobre(CORREO)
+        datos = f'{CORREO} {settings.RECOVERY_QUEUE_HMAC_KEY} {sobre["data"]}'
+        with patch('usuarios.recuperacion.procesar_solicitud_brevo', side_effect=OperationalError(datos)):
+            with self.assertLogs(LOGGER, 'WARNING') as logs:
+                self.assert_acuse(self.entregar(sobre))
+        self.assertEqual([registro.getMessage() for registro in logs.records],
+                         ['cola_recuperacion_fallo_despues_de_reclamar'])
+        self.assert_acuse(self.entregar(sobre))
+        self.https.assert_not_called()
+
+    def test_omite_trabajo_expirado_sin_buscar_ni_enviar(self):
+        with patch('usuarios.cola_recuperacion.time', return_value=time() - 901):
+            sobre = crear_sobre(CORREO)
+        with patch('usuarios.recuperacion.FormularioRecuperacionBrevo.get_users') as buscar:
+            self.assert_acuse(self.entregar(sobre))
+        buscar.assert_not_called()
+        self.https.assert_not_called()
+
+    @override_settings(BREVO_RECOVERY_ENABLED=False, BREVO_API_KEY='')
+    def test_sonda_con_publico_apagado_no_busca_ni_usa_brevo(self):
+        with patch('usuarios.recuperacion.FormularioRecuperacionBrevo.get_users') as buscar:
+            self.assert_acuse(self.entregar(crear_sobre(None)))
+        buscar.assert_not_called()
+        self.https.assert_not_called()
+        self.assertFalse(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
+
+    def test_receptor_de_prueba_solo_acepta_sondas_aun_con_brevo_configurado(self):
+        prueba = ModuleType('urlconf_sonda_cola_tests')
+        ruta = reverse('usuarios:consumir_recuperacion')
+        prueba.urlpatterns = [path(ruta.lstrip('/'), consumir_recuperacion, {'solo_sonda': True})]
+        with override_settings(ROOT_URLCONF=prueba):
+            with patch('usuarios.recuperacion.FormularioRecuperacionBrevo.get_users') as buscar:
+                self.assertEqual(self.entregar(crear_sobre(CORREO), ruta=ruta).status_code, 403)
+                self.assert_acuse(self.entregar(crear_sobre(None), ruta=ruta))
+            buscar.assert_not_called()
+        self.https.assert_not_called()
+        self.assertFalse(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
+
+    @override_settings(RECOVERY_QUEUE_CONSUMER_ENABLED=False)
+    def test_consumidor_apagado_impide_publicacion_y_procesamiento(self):
+        self.assertEqual(self.entregar(crear_sobre(CORREO)).status_code, 503)
+        with self.assertLogs(LOGGER, 'WARNING'):
+            self.solicitar()
+        self.cloudflare.assert_not_called()
+        self.https.assert_not_called()
+
+    def test_fallo_de_registro_se_puede_reintentar_antes_de_enviar(self):
+        sobre = crear_sobre(CORREO)
+        with patch('usuarios.cola_recuperacion.reclamar_trabajo', return_value=None):
+            self.assertEqual(self.entregar(sobre).status_code, 503)
+        self.https.assert_not_called()
+        self.assert_acuse(self.entregar(sobre))
+        self.https.assert_called_once()
 
     def test_correo_invalido_conserva_el_error_del_formulario(self):
         respuesta = self.client.post(
@@ -129,6 +293,7 @@ class RecuperacionBrevoTests(TestCase):
             self.solicitar()
         buscar.assert_not_called()
         self.https.assert_not_called()
+        self.cloudflare.assert_not_called()
         self.assertEqual(mail.outbox, [])
         self.assertFalse(Session.objects.filter(pk=CONTADOR_SOLICITUDES).exists())
 
@@ -388,6 +553,23 @@ class LimitesRecuperacionTests(TestCase):
 
 
 class LimitesConcurrentesRecuperacionTests(TransactionTestCase):
+    @skipUnlessDBFeature('has_select_for_update')
+    def test_varias_conexiones_reclaman_un_trabajo_una_sola_vez(self):
+        barrera = Barrier(8)
+        identificador, vence = token_hex(16), int(time()) + 900
+
+        def reclamar(_):
+            try:
+                barrera.wait(timeout=10)
+                return reclamar_trabajo(identificador, vence)
+            finally:
+                connections.close_all()
+
+        with ThreadPoolExecutor(max_workers=8) as ejecutor:
+            resultados = list(ejecutor.map(reclamar, range(8)))
+        self.assertEqual(resultados.count(True), 1)
+        self.assertEqual(resultados.count(False), 7)
+
     @skipUnlessDBFeature('has_select_for_update')
     def test_varias_conexiones_comparten_tope_desde_la_primera_insercion(self):
         barrera = Barrier(8)

@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .cola_recuperacion import consumir_recuperacion
 
 app_name = 'usuarios'
 
@@ -13,6 +14,7 @@ urlpatterns = [
     path('configuracion-sistema/', views.configuracion_sistema, name='configuracion_sistema'),
     path('completar-tutorial/', views.completar_tutorial, name='completar_tutorial'),
     path('recuperar-password/', views.recuperar_password, name='recuperar_password'),
+    path('interno/recuperacion-cola/', consumir_recuperacion, name='consumir_recuperacion'),
     path('reset-password/<uidb64>/<token>/', views.ConfirmarRecuperacionView.as_view(), name='reset_password_confirm'),
     path('admin-dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('eliminar-usuario/<int:pk>/', views.eliminar_usuario, name='eliminar_usuario'),

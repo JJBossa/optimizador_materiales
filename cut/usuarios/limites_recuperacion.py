@@ -18,6 +18,8 @@ LIMITES_ENVIOS = ((300, 20, False), (86400, 240, False))
 # Django 5.2 rechaza como cookie toda clave de sesión de menos de 8 caracteres.
 CONTADOR_SOLICITUDES = 'reset:r'
 CONTADOR_ENVIOS = 'reset:e'
+CONTADOR_PUBLICACIONES = 'reset:q'
+TRABAJOS_RECLAMADOS = 'reset:j'
 
 
 def admitir_solicitud(correo):
@@ -29,6 +31,36 @@ def admitir_solicitud(correo):
 
 def reservar_envio():
     return _reservar(CONTADOR_ENVIOS, LIMITES_ENVIOS)
+
+
+def reservar_publicacion():
+    return _reservar(CONTADOR_PUBLICACIONES, ((86400, 1000, False),))
+
+
+def reclamar_trabajo(identificador, vence):
+    """True si lo reclama, False si ya fue reclamado o venció, None si no se pudo registrar."""
+    try:
+        with transaction.atomic():
+            estado, _ = Session.objects.select_for_update().get_or_create(
+                session_key=TRABAJOS_RECLAMADOS,
+                defaults={'session_data': '{}', 'expire_date': timezone.now()},
+            )
+            ahora = timezone.now()
+            instante = ahora.timestamp()
+            historial = json.loads(estado.session_data) if estado.expire_date > ahora else {}
+            vigentes = {clave: fecha for clave, fecha in historial.items() if fecha > instante}
+            if identificador in vigentes or vence <= instante:
+                return False
+            if len(vigentes) >= 1000:
+                return None
+            vigentes[identificador] = vence
+            estado.session_data = json.dumps(vigentes, separators=(',', ':'))
+            estado.expire_date = ahora + timedelta(seconds=max(vigentes.values()) - instante)
+            estado.save(update_fields=['session_data', 'expire_date'])
+    except (DatabaseError, ValueError, TypeError, AttributeError):
+        logger.warning('cola_recuperacion_registro_no_disponible')
+        return None
+    return True
 
 
 def _reservar(clave, reglas, identificador=''):

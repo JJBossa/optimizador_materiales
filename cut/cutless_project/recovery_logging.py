@@ -6,7 +6,7 @@ class FiltroRecuperacion(Filter):
     """Evita registrar la URL del token o volcados de solicitudes de recuperación."""
 
     def filter(self, record):
-        rutas = ('/usuarios/reset-password', '/usuarios/recuperar-password')
+        rutas = ('/usuarios/reset-password', '/usuarios/recuperar-password', '/usuarios/interno/recuperacion-cola')
         solicitud = getattr(record, 'request', None)
         ruta = getattr(solicitud, 'path_info', '')
         referer = unquote(getattr(solicitud, 'META', {}).get('HTTP_REFERER', ''))

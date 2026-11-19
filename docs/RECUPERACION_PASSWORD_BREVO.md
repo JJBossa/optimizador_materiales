@@ -15,6 +15,11 @@ Django sigue seleccionando las cuentas elegibles y generando los enlaces. Los en
 | `CUTLESS_BREVO_API_KEY` | Clave API privada de Brevo. |
 | `CUTLESS_BREVO_SENDER_EMAIL` | Dirección verificada, como `recuperacion@example.com`. |
 | `CUTLESS_BREVO_SENDER_NAME` | Nombre visible del remitente. Si se omite, se usa `CutLess`. |
+| `CUTLESS_RECOVERY_QUEUE_CONSUMER_ENABLED` | `false` por defecto. Habilita el endpoint de entrega firmado y permite probar una sonda con el envío público apagado. |
+| `CUTLESS_RECOVERY_QUEUE_ACCOUNT_ID`, `CUTLESS_RECOVERY_QUEUE_ID` | ID de la cuenta Cloudflare y de la cola existente `cutless-recuperacion`. Son IDs hexadecimales, separados del nombre de la cola. |
+| `CUTLESS_RECOVERY_QUEUE_API_TOKEN` | Token de la API de Cloudflare limitado a esa cuenta con permiso **Queues Edit**. |
+| `CUTLESS_RECOVERY_QUEUE_ENCRYPTION_KEY` | 32 bytes aleatorios en hexadecimal. Solo Django cifra y descifra con esta clave. |
+| `CUTLESS_RECOVERY_QUEUE_HMAC_KEY` | Otros 32 bytes aleatorios en hexadecimal, compartidos solo entre Django y el Worker. |
 
 En desarrollo se usa el backend de Django, de consola por defecto y en memoria en la suite. Con el interruptor apagado, producción responde con el mensaje genérico sin buscar la cuenta ni reservar cupo. Con el interruptor encendido, una configuración incompleta, un dominio no autorizado o un remitente inválido también impiden el envío. Los enlaces ya emitidos conservan su expiración normal. El correo general conserva SMTP cuando se configura. En producción, su backend predeterminado descarta mensajes.
 
@@ -90,18 +95,71 @@ Los contadores descartan entradas vencidas al reservar cupo. La limpieza estánd
 
 La sección bajo bloqueo hace una lectura y, si concede cupo, una actualización. La llamada a Brevo queda fuera de la transacción. Las peticiones a un mismo contador se serializan y pueden esperar si hay una ráfaga. Una saturación general de conexiones o una interrupción de PostgreSQL también puede afectar a la aplicación. SQLite sirve para la prueba individual, mientras que la prueba de concurrencia requiere PostgreSQL. El limitador no requiere tablas, migraciones ni otro servicio.
 
-El envío sigue siendo síncrono. En una medición local con Brevo simulado a 180 ms, la mediana antes del limitador fue de 182 ms para una cuenta activa, 1,5 ms para una inactiva y 1 ms para una desconocida, con ocho solicitudes de cada clase. Con el limitador activo, la mediana de las solicitudes admitidas fue de 183 ms para cuentas activas y 1,4 ms para inactivas y desconocidas. Las limitadas tardaron entre 0,8 y 1,4 ms de mediana. Se tomaron diez muestras de cada clase, tanto admitidas como limitadas. El límite reduce las mediciones repetidas por dirección pero una solicitud admitida puede revelar una diferencia. Una demora artificial ocuparía los procesos HTTP de Render y los fallos del proveedor podrían superar esa demora. Una cola duradera con un consumidor independiente permitiría responder antes de consultar la cuenta o enviar correo. Bajo las restricciones actuales no se ha habilitado una cola con garantías de entrega.
+Antes de integrar la cola, con Brevo simulado a 180 ms, las peticiones admitidas para cuentas activas tardaban 183 ms de mediana y las inactivas o desconocidas 1,4 ms. La publicación en la cola elimina de esa petición la consulta de la cuenta y la comunicación con Brevo. La latencia aún puede variar por los límites aplicados y la disponibilidad de Cloudflare. La activación pública requiere una verificación desde el entorno real.
 
 Una ráfaga con direcciones distintas todavía puede agotar el límite compartido y retrasar recuperaciones legítimas. Un tercero también puede consumir temporalmente el cupo de recuperación de una dirección. Un límite en el proxy o un desafío permitiría frenar ese tráfico antes de llegar a Django. Cualquier política por IP debe usar una dirección validada por el proxy, ya que las cabeceras aportadas por el cliente se pueden manipular. Mantén `CUTLESS_BREVO_RECOVERY_ENABLED=false` hasta verificar entregas y registros de infraestructura y resolver la enumeración por tiempo.
 
-## Opción gratuita para separar la entrega de la respuesta HTTP
+## Arquitectura de Cloudflare Queues
 
-| Alternativa | Evaluación |
-| --- | --- |
-| Cloudflare Queues y Worker en plan Free | Recomendación para una prueba controlada. Ofrece consumo independiente, reintentos, 10.000 operaciones diarias y retención de 24 h. Cada mensaje pequeño consume normalmente tres operaciones y los reintentos y la cola de fallos consumen más. Requiere configurar un Worker y una cola externa. [Precios](https://developers.cloudflare.com/queues/platform/pricing/) · [Reintentos](https://developers.cloudflare.com/queues/configuration/batching-retries/) |
-| Upstash QStash Free | Alternativa más sencilla para tráfico bajo. Hace la entrega HTTPS firmada directamente a Django, con 1.000 mensajes al día incluyendo reintentos. El límite se consume también con solicitudes para direcciones inexistentes. [Precios](https://upstash.com/pricing/qstash) · [Firmas](https://upstash.com/docs/qstash/howto/signature) |
-| Supabase Queues | Cola duradera que requiere habilitar `pgmq` y crear estructuras en PostgreSQL. Queda fuera del alcance actual. [Guía de Supabase](https://supabase.com/docs/guides/queues/quickstart) |
+1. En producción, el formulario con CSRF verifica el formato y aplica los límites antes de cualquier consulta de la cuenta. Si está habilitado, Django publica de forma síncrona en la API de Queues y devuelve el mensaje genérico, incluso si falla la publicación. El límite adicional es de 1.000 intentos de publicación por 24 horas. El entorno local sigue usando el correo en memoria para la prueba manual con Brevo. [Publicación mediante HTTP](https://developers.cloudflare.com/queues/examples/publish-to-a-queue-via-http/)
+2. La cola contiene un identificador aleatorio, un vencimiento de 15 minutos, un nonce y el correo cifrado con AES-256-GCM. El cifrado autentica también el identificador y el vencimiento. El Worker carece de la clave de cifrado y de las credenciales de Brevo. Solo tiene la URL HTTPS exacta y la clave de firma del callback.
+3. El Worker firma la marca de tiempo y el cuerpo con HMAC-SHA-256. Django exige HTTPS, una firma válida con hasta cinco minutos de diferencia y un sobre vigente. El callback se autentica sin cookies. La excepción CSRF corresponde solo a este endpoint de máquina. El formulario público conserva CSRF.
+4. Django reclama cada identificador dentro de una transacción PostgreSQL, antes de buscar la cuenta. El registro `reset:j` y el contador `reset:q` son filas técnicas de `django_session`, con claves que Django rechaza como cookies. Solo guardan identificadores y vencimientos o marcas de tiempo. Después de confirmar la transacción, Django comprueba la elegibilidad, genera el token y entrega por Brevo. El límite de envíos existente sigue vigente.
+5. El Worker solo reconoce un `204` acompañado por `X-Cutless-Queue: ack-v1`. Reintenta si la instancia está arrancando, el callback falla o el acuse falta. Una reentrega de un trabajo reclamado recibe el acuse sin repetir el envío.
 
-Para eliminar la consulta de la cuenta de la respuesta pública, Django publicaría el mismo tipo de trabajo para todas las direcciones bien formadas y admitidas. Confirmaría la publicación duradera antes de devolver el mensaje genérico. El consumidor llamaría por HTTPS a un endpoint autenticado de Django. Ese endpoint comprobaría la vigencia del trabajo y consultaría la cuenta, generaría el token y enviaría el mensaje. La cola llevaría solo un identificador, un vencimiento y el correo cifrado. La clave de Brevo y los tokens permanecerían fuera de la cola.
+**Límite de entrega.** Si el proceso se interrumpe después de confirmar el reclamo y antes de enviar, ese correo puede perderse. Una respuesta ambigua de Brevo tampoco se reintenta automáticamente, porque el proveedor puede haber aceptado el mensaje. El acuse del Worker termina el procesamiento del trabajo. Para confirmar la entrega del correo se requiere el evento `Delivered` de Brevo.
 
-Antes de habilitarlo habría que probar la firma, las entregas duplicadas, el manejo de resultados ambiguos de Brevo y el arranque en frío de Render. El consumidor debe reconocer la respuesta esperada de Django, ya que una página de arranque del proveedor no confirma que se procesó el trabajo. Los límites diarios de publicación deben dejar margen para reintentos y mantener el plan Free. Esta arquitectura está propuesta y pendiente de validación. Los hilos de Gunicorn y los archivos locales pierden trabajos al reiniciar o dormir la instancia. [Límites de Render gratuito](https://render.com/docs/free)
+La configuración usa un consumidor concurrente, lotes de un mensaje y hasta tres reintentos con 90 segundos de espera. Con sobres pequeños, 1.000 publicaciones y tres reintentos por mensaje implican hasta aproximadamente 6.000 operaciones. El plan Free incluye 10.000 operaciones diarias compartidas por cuenta y retención de 24 horas. El vencimiento de 15 minutos de CutLess se aplica aunque Cloudflare conserve el sobre más tiempo. Los trabajos pueden descartarse cuando se agotan los reintentos. Esta configuración solo utiliza `cutless-recuperacion`, sin cola adicional para fallos. [Precios](https://developers.cloudflare.com/queues/platform/pricing/) · [Reintentos de Cloudflare](https://developers.cloudflare.com/queues/configuration/batching-retries/)
+
+## Prueba controlada con la cola existente
+
+La integración se verifica localmente con servicios simulados. Los pasos siguientes se ejecutan por separado cuando decidas conectar el Worker real. Mantén `CUTLESS_BREVO_RECOVERY_ENABLED=false`. La sonda cifrada no lleva un correo. El servidor de prueba usa SQLite temporal, funciona sin credenciales de Brevo y rechaza los trabajos que contienen una dirección, incluso con firma válida. No se necesita modificar Render o Supabase.
+
+1. En **Cloudflare → Queues → cutless-recuperacion**, comprueba que la cola está en el plan Free, sin trabajos reales pendientes ni otro consumidor que deba conservarse. Wrangler usará esa cola por nombre desde [wrangler.jsonc](../cloudflare/recuperacion/wrangler.jsonc).
+2. Desde una terminal, abre un túnel temporal al puerto de la sonda. Copia el host `*.trycloudflare.com` que aparece en la salida. Mantén esa terminal abierta. [Quick Tunnels](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)
+
+   ```powershell
+   cloudflared tunnel --url http://127.0.0.1:8765
+   ```
+
+3. Desde la raíz de la rama local, con las dependencias de `requirements.txt` instaladas, usa PowerShell para generar claves de prueba y abrir el receptor en otra ventana. Introduce únicamente el host del túnel, sin `https://`.
+
+   ```powershell
+   $hostTunel = Read-Host 'Host de Quick Tunnel'
+   $env:CUTLESS_RECOVERY_QUEUE_ENCRYPTION_KEY = & .\.venv\Scripts\python.exe -I -B -c "import secrets; print(secrets.token_hex(32))"
+   $env:CUTLESS_RECOVERY_QUEUE_HMAC_KEY = & .\.venv\Scripts\python.exe -I -B -c "import secrets; print(secrets.token_hex(32))"
+   Start-Process -FilePath .\.venv\Scripts\python.exe -ArgumentList '-I','-B','.\tools\probar_cola_recuperacion.py','servir','--host',$hostTunel
+   ```
+
+4. Cuando autorices el despliegue de prueba, inicia sesión en la cuenta Free correcta y ejecuta el bloque siguiente. Wrangler conecta el Worker a `cutless-recuperacion` a partir de la configuración. El Worker carece de una ruta HTTP pública. La clave AES queda en tu terminal de prueba. El archivo de secretos vive fuera del repositorio y se elimina al salir. [Secretos de Wrangler](https://developers.cloudflare.com/workers/configuration/secrets/)
+
+   ```powershell
+   npx.cmd --yes wrangler@4.165.0 login
+   npx.cmd --yes wrangler@4.165.0 queues info cutless-recuperacion
+   if ($LASTEXITCODE -ne 0) { throw 'La cola existente no está disponible en esta cuenta.' }
+   $archivo = Join-Path ([IO.Path]::GetTempPath()) ('cutless-' + [guid]::NewGuid().ToString() + '.json')
+   try {
+       @{
+           CUTLESS_RECOVERY_QUEUE_HMAC_KEY = $env:CUTLESS_RECOVERY_QUEUE_HMAC_KEY
+           CUTLESS_RECOVERY_CALLBACK_URL = "https://$hostTunel/usuarios/interno/recuperacion-cola/"
+       } | ConvertTo-Json -Compress | Set-Content -LiteralPath $archivo -Encoding ascii
+       npx.cmd --yes wrangler@4.165.0 deploy --config cloudflare/recuperacion/wrangler.jsonc --secrets-file $archivo
+       if ($LASTEXITCODE -ne 0) { throw 'Wrangler no confirmó el despliegue de prueba.' }
+   } finally {
+       Remove-Item -LiteralPath $archivo -ErrorAction SilentlyContinue
+   }
+   ```
+
+5. En el panel de la cola comprueba que **Consumers** muestre `cutless-recuperacion-consumer`. Genera el mensaje justo antes de enviarlo y copia el JSON completo. En **Queues → cutless-recuperacion → Messages → Send**, selecciona **JSON**, pega el sobre y envíalo una sola vez. Es el sobre, sin envolverlo con un campo `body` al usar el panel. [Enviar mensajes desde el panel](https://developers.cloudflare.com/queues/examples/send-messages-from-dash/)
+
+   ```powershell
+   & .\.venv\Scripts\python.exe -I -B .\tools\probar_cola_recuperacion.py mensaje
+   ```
+
+6. Confirma `cola_recuperacion_sonda_confirmada` en la ventana del receptor y que el mensaje se consumió en las métricas de la cola. Si queda pendiente, comprueba que el túnel sigue visible, que se usó el mismo HMAC y que la sonda no caducó. Al finalizar, quita el consumidor temporal desde el panel conservando la cola. Cierra el receptor y el túnel con Ctrl+C y elimina las variables de prueba.
+
+   ```powershell
+   Remove-Item Env:\CUTLESS_RECOVERY_QUEUE_ENCRYPTION_KEY, Env:\CUTLESS_RECOVERY_QUEUE_HMAC_KEY -ErrorAction SilentlyContinue
+   ```
+
+La sonda comprueba la entrega firmada a través de Cloudflare. La activación pública y la entrega real por Brevo quedan pendientes de verificar por separado con claves de producción, el host oficial y el comportamiento del arranque en frío de Render. [Límites de Render gratuito](https://render.com/docs/free)
