@@ -127,6 +127,10 @@ El margen se introduce en milímetros: 0 permite corte sin separación; el valor
 
 ## Documentación de cambios
 
+- [Registro de cambios de noviembre de 2026](docs/REGISTRO_CAMBIOS_NOVIEMBRE_2026.md)
+- [Auditoría integral de CutLess](docs/AUDITORIA_INTEGRAL_CUTLESS.md)
+- [Recuperación de contraseñas con Brevo y Cloudflare Queues](docs/RECUPERACION_PASSWORD_BREVO.md)
+- [Migración del correlativo de optimizaciones por usuario](docs/MIGRACION_CORRELATIVOS_OPTIMIZACIONES.md)
 - [Seguridad](docs/CAMBIOS_SEGURIDAD.md)
 - [JSON seguro](docs/CAMBIOS_JSON_SEGURO.md)
 - [Margen cero](docs/CAMBIOS_MARGEN_CERO.md)
@@ -171,6 +175,11 @@ La base local y los archivos generados se excluyen del seguimiento de Git. Los c
 - [Revisión de exportaciones y duplicación](docs/CAMBIOS_EXPORTACIONES_Y_DUPLICACION.md)
 
 - [Revisión de sesión y usabilidad](docs/CAMBIOS_REVISION_USABILIDAD.md)
+
+- [Limpieza de código y componentes compartidos](docs/CAMBIOS_LIMPIEZA_CODIGO.md)
+- [Roles, búsqueda y paginación del panel de administración](docs/CAMBIOS_ROLES_BUSQUEDA_PAGINACION_ADMIN.md)
+- [Selección de optimizaciones en proyectos](docs/CAMBIOS_SELECCION_OPTIMIZACIONES_PROYECTO.md)
+- [Selector de optimizaciones en presupuestos](docs/CAMBIOS_SELECTOR_PRESUPUESTOS.md)
 
 - [Identificadores permanentes de optimización](docs/CAMBIOS_IDENTIFICADORES_PERMANENTES.md)
 
