@@ -38,6 +38,12 @@ La regla `body.history-page .form-check.history-selection:hover` aplica `border-
 - `cut/cutless/templates/cutless/historial.html` cambia el parámetro de caché de la hoja a `history-selection-3`.
 - Este documento registra el ajuste. El [registro de noviembre](REGISTRO_CAMBIOS_NOVIEMBRE_2026.md) y el [índice del README](../README.md#documentación-de-cambios) lo vinculan con los cambios recientes.
 
+### Refinamiento del espaciado interior
+
+Tras revisar la versión redondeada en el historial, se detectó que el nombre y el código del trabajo quedaban demasiado cerca del borde del fondo resaltado, especialmente con nombres largos. Se mantiene el radio de 12 px y la paleta actual, pero se incorpora `padding: 8px 14px` de manera permanente en `body.history-page .form-check.history-selection`, de forma que no cambie el tamaño del selector al entrar o salir del hover. Se limita la anchura al contenedor y se permite envolver nombres largos sin invadir las acciones contiguas. El ajuste también aporta separación al filtro «Solo favoritos».
+
+Se actualiza la versión del CSS en `historial.html` a `history-selection-4` para evitar que el navegador conserve el estilo anterior. No se cambian la lógica de selección, los datos, los modelos ni las migraciones. La verificación visual en dispositivos y temas debe completarse antes de fusionar este refinamiento.
+
 ### Validación del redondeo
 
 - Chromium, con el HTML renderizado por Django en una base SQLite temporal, en temas claro y oscuro. Se revisaron un escritorio a 1440 px, una ventana de 360 px con ratón y un móvil táctil emulado de 360 px. En los dos controles se comprobó el radio de 12 px, la desaparición del fondo al salir con el cursor, la ausencia de resaltado táctil persistente y el foco visible con teclado. También se comprobaron el marcado, el filtro de favoritos, la selección múltiple y el fondo de los controles fuera del historial.
