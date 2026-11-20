@@ -406,7 +406,7 @@ def generar_excel_historial_costos(optimizaciones_con_costo, estadisticas, fecha
     
     # Encabezados
     headers = ['Fecha', 'Hora', 'Dimensiones', 'Material', 'Tableros', 'Aprovechamiento', 
-               'Costo Material', 'Mano de Obra', 'Costo Total']
+               'Costo Material', 'Mano de Obra', 'Costo Total', 'Código']
     for col, header in enumerate(headers, start=1):
         cell = ws2.cell(row=1, column=col, value=header)
         cell.fill = header_fill
@@ -451,6 +451,7 @@ def generar_excel_historial_costos(optimizaciones_con_costo, estadisticas, fecha
         ws2.cell(row=idx, column=7, value=f"${costo_material:,.0f}").border = border
         ws2.cell(row=idx, column=8, value=f"${costo_mano_obra:,.0f}").border = border
         ws2.cell(row=idx, column=9, value=f"${costo_total:,.0f}").border = border
+        ws2.cell(row=idx, column=10, value=opt.codigo).border = border
         
         # Formato de números
         ws2.cell(row=idx, column=5).alignment = center_alignment
@@ -482,7 +483,7 @@ def generar_excel_historial_costos(optimizaciones_con_costo, estadisticas, fecha
     ws2.cell(row=row_total, column=9).fill = PatternFill(start_color="90EE90", end_color="90EE90", fill_type="solid")
     
     # Ajustar ancho de columnas
-    column_widths = [12, 8, 18, 20, 10, 15, 15, 15, 15]
+    column_widths = [12, 8, 18, 20, 10, 15, 15, 15, 15, 24]
     for col, width in enumerate(column_widths, start=1):
         ws2.column_dimensions[get_column_letter(col)].width = width
     
@@ -574,7 +575,7 @@ def generar_excel_resumen_desperdicio(optimizaciones, estadisticas, periodo='tod
     
     # Encabezados
     headers = ['Fecha', 'Hora', 'Dimensiones', 'Aprovechamiento', 'Desperdicio', 
-               'Tableros', 'Área Total', 'Área Usada', 'Área Desperdiciada']
+               'Tableros', 'Área Total', 'Área Usada', 'Área Desperdiciada', 'Código']
     for col, header in enumerate(headers, start=1):
         cell = ws2.cell(row=1, column=col, value=header)
         cell.fill = header_fill
@@ -621,6 +622,7 @@ def generar_excel_resumen_desperdicio(optimizaciones, estadisticas, periodo='tod
         ws2.cell(row=idx, column=7, value=f"{area_total:.2f} {simbolo_area}").border = border
         ws2.cell(row=idx, column=8, value=f"{area_usada:.2f} {simbolo_area}").border = border
         ws2.cell(row=idx, column=9, value=f"{area_desperdiciada:.2f} {simbolo_area}").border = border
+        ws2.cell(row=idx, column=10, value=opt.codigo).border = border
         
         # Formato de números
         ws2.cell(row=idx, column=4).alignment = center_alignment
@@ -643,7 +645,7 @@ def generar_excel_resumen_desperdicio(optimizaciones, estadisticas, periodo='tod
     ws2.merge_cells(f'A{row_total}:C{row_total}')
     
     # Ajustar ancho de columnas
-    column_widths = [12, 8, 18, 15, 15, 10, 15, 15, 18]
+    column_widths = [12, 8, 18, 15, 15, 10, 15, 15, 18, 24]
     for col, width in enumerate(column_widths, start=1):
         ws2.column_dimensions[get_column_letter(col)].width = width
     

@@ -22,7 +22,7 @@
       <thead><tr><th>Elegir</th><th>Optimización y fecha</th><th>Tablero</th><th>Aprovechamiento</th><th>Tableros</th><th>Consultar</th></tr></thead>
       <tbody id="budget-plan-table-body">
       {% for item in optimizaciones_info %}
-        <tr data-budget-plan data-search="{{ item.optimizacion.etiqueta }} {{ item.optimizacion.piezas }}">
+        <tr data-budget-plan data-code="{{ item.optimizacion.codigo }}" data-search="{{ item.optimizacion.etiqueta }} {{ item.optimizacion.piezas }}">
           <td data-label="Elegir"><input type="checkbox" name="optimizaciones" value="{{ item.optimizacion.pk }}" id="opt_{{ item.optimizacion.pk }}" class="budget-plan-checkbox"{% if item.seleccionada %} checked{% endif %} aria-label="{% if selector_variant == 'project' %}Elegir{% else %}Seleccionar{% endif %} {{ item.optimizacion.etiqueta }}"></td>
           <td data-label="Optimización y fecha"><div class="budget-plan-identity"><label for="opt_{{ item.optimizacion.pk }}" class="budget-plan-name" title="{{ item.optimizacion.etiqueta }}">{{ item.optimizacion.etiqueta }}</label><small class="budget-plan-date">{% if item.optimizacion.fecha %}{{ item.optimizacion.fecha|date:'d/m/Y H:i' }}{% else %}—{% endif %}</small></div></td>
           <td data-label="Tablero"><span class="budget-mobile-label">Tablero</span>{% if item.optimizacion.ancho_tablero != None and item.optimizacion.alto_tablero != None %}{{ item.optimizacion.ancho_tablero|floatformat:1 }} × {{ item.optimizacion.alto_tablero|floatformat:1 }} cm{% else %}<span class="budget-plan-missing">—</span>{% endif %}</td>

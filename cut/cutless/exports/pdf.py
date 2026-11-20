@@ -33,7 +33,8 @@ def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdic
     if not imagenes_base64:
         return None
     
-    filename = f"{optimizacion.codigo}.pdf"
+    # Los archivos del servidor comparten almacenamiento entre propietarios.
+    filename = f"optimizacion-{optimizacion.pk or uuid4().hex}.pdf"
     filepath = os.path.join(settings.MEDIA_ROOT, "pdfs", filename)
     if archivo_salida is None:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -467,8 +468,8 @@ def generar_pdf_resumen_desperdicio(optimizaciones, estadisticas, periodo='todos
     y_pos -= 25
     
     # Encabezados de columnas
-    headers = ['Fecha', 'Dimensiones', 'Aprovech.', 'Desperd.', 'Tableros']
-    x_positions = [2*cm, 5*cm, 10*cm, 13*cm, 16*cm]
+    headers = ['Código', 'Fecha', 'Dimensiones', 'Aprovech.', 'Desperd.', 'Tableros']
+    x_positions = [2*cm, 6*cm, 8.5*cm, 12.5*cm, 15*cm, 17.5*cm]
     
     c.setFont("Helvetica-Bold", 9)
     for header, x_pos in zip(headers, x_positions):
@@ -494,9 +495,10 @@ def generar_pdf_resumen_desperdicio(optimizaciones, estadisticas, periodo='todos
         desperdicio = 100 - aprovechamiento
         num_tableros = opt.num_tableros or 1
         
-        c.drawString(x_positions[0], y_pos, fecha_str)
-        c.drawString(x_positions[1], y_pos, dim_str)
-        c.drawString(x_positions[2], y_pos, f"{aprovechamiento:.1f}%")
+        c.drawString(x_positions[0], y_pos, opt.codigo)
+        c.drawString(x_positions[1], y_pos, fecha_str)
+        c.drawString(x_positions[2], y_pos, dim_str)
+        c.drawString(x_positions[3], y_pos, f"{aprovechamiento:.1f}%")
         
         # Colorear desperdicio
         if desperdicio > 30:
@@ -505,10 +507,10 @@ def generar_pdf_resumen_desperdicio(optimizaciones, estadisticas, periodo='todos
             c.setFillColorRGB(1.0, 0.76, 0.03)
         else:
             c.setFillColorRGB(0.13, 0.55, 0.13)
-        c.drawString(x_positions[3], y_pos, f"{desperdicio:.1f}%")
+        c.drawString(x_positions[4], y_pos, f"{desperdicio:.1f}%")
         c.setFillColorRGB(0, 0, 0)
         
-        c.drawString(x_positions[4], y_pos, str(num_tableros))
+        c.drawString(x_positions[5], y_pos, str(num_tableros))
         
         y_pos -= 15
     

@@ -58,7 +58,7 @@ def crear_proyecto(request):
         
         for opt in form.fields['optimizaciones'].queryset:
             # Referencia estable del registro
-            numero_lista = opt.pk
+            numero_lista = opt.correlativo
             
             # Extraer nombres de piezas
             nombres_piezas = [
@@ -147,11 +147,7 @@ def agregar_optimizaciones_proyecto(request, pk):
 
     filtradas = disponibles
     if busqueda:
-        filtro = Q(nombre__icontains=busqueda) | Q(piezas__icontains=busqueda)
-        identificador = busqueda.upper().rsplit('OPT-', 1)[-1].strip()
-        if identificador.isascii() and identificador.isdecimal() and len(identificador) <= 18:
-            filtro |= Q(pk=int(identificador))
-        filtradas = filtradas.filter(filtro)
+        filtradas = filtradas.buscar_referencia(busqueda, admite_numero=True)
     try:
         numero = int(datos.get('pagina', '1'))
     except (ValueError, TypeError):
@@ -280,7 +276,7 @@ def editar_proyecto(request, pk):
         
         for opt in form.fields['optimizaciones'].queryset:
             # Referencia estable del registro
-            numero_lista = opt.pk
+            numero_lista = opt.correlativo
             
             # Extraer nombres de piezas
             nombres_piezas = [

@@ -48,12 +48,8 @@ def nombre_descarga_excel(numero_lista, optimizacion):
 
 
 def calcular_numero_lista(usuario, optimizacion_id, ordenar_por='fecha_desc'):
-    """Compatibilidad con llamadas anteriores: el número ahora es la clave estable.
-
-    La propiedad `codigo` da formato a la referencia visible. La autorización
-    continúa en las vistas, que consultan cada registro por su propietario.
-    """
-    return optimizacion_id
+    """Devuelve el correlativo guardado del propietario, independiente del orden."""
+    return Optimizacion.objects.filter(usuario=usuario, pk=optimizacion_id).values_list('correlativo', flat=True).first()
 
 
 
@@ -187,6 +183,7 @@ def persistir_resultado_optimizacion(optimizacion, imagenes_base64, info_desperd
             optimizacion.refresh_from_db()
         else:
             optimizacion.pk = None
+            optimizacion.correlativo = None
             optimizacion._state.adding = True
             optimizacion.imagen = ''
             optimizacion.pdf = ''

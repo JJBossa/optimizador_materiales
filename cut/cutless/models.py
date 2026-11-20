@@ -1,4 +1,8 @@
-from django.db import models
+from collections import Counter
+import re
+
+from django.db import models, router, transaction
+from django.db.models import Q
 from django.contrib.auth.models import User
 from decimal import Decimal
 from types import SimpleNamespace
@@ -55,7 +59,73 @@ class Material(models.Model):
         """Retorna el área del tablero en cm²"""
         return self.ancho * self.alto
 
+class ContadorOptimizacion(models.Model):
+    usuario = models.OneToOneField(User, on_delete=models.CASCADE, primary_key=True)
+    siguiente = models.PositiveBigIntegerField(default=1)
+
+    class Meta:
+        constraints = [models.CheckConstraint(condition=Q(siguiente__gt=0), name='opt_contador_positivo')]
+
+
+def _reservar_correlativos(cantidades, using):
+    """Reserva un rango por usuario dentro de la transacción que inserta los planes."""
+    inicios = {}
+    contadores = ContadorOptimizacion.objects.using(using).select_for_update()
+    # Un mismo orden de bloqueo evita interbloqueos entre lotes con usuarios en común.
+    for usuario_id, cantidad in sorted(cantidades.items()):
+        contador, _ = contadores.get_or_create(usuario_id=usuario_id)
+        inicios[usuario_id] = contador.siguiente
+        contador.siguiente += cantidad
+        contador.save(using=using, update_fields=['siguiente'])
+    return inicios
+
+
+_CAMPOS_PERMANENTES = frozenset({'usuario', 'usuario_id', 'correlativo'})
+
+
+class OptimizacionQuerySet(models.QuerySet):
+    def update(self, **kwargs):
+        if _CAMPOS_PERMANENTES.intersection(kwargs):
+            raise ValueError('El propietario y el correlativo de una optimización son permanentes.')
+        return super().update(**kwargs)
+
+    def bulk_create(self, objs, batch_size=None, ignore_conflicts=False, update_conflicts=False,
+                    update_fields=None, unique_fields=None):
+        if ignore_conflicts or update_conflicts:
+            raise ValueError('La creación de optimizaciones por lotes no admite omitir ni sobrescribir conflictos.')
+        objs = list(objs)
+        if not objs:
+            return objs
+        if any(obj.usuario_id is None for obj in objs):
+            raise ValueError('Cada optimización debe tener un propietario guardado.')
+        self._for_write = True
+        using = self.db
+        with transaction.atomic(using=using):
+            inicios = _reservar_correlativos(Counter(obj.usuario_id for obj in objs), using)
+            for obj in objs:
+                obj.correlativo = inicios[obj.usuario_id]
+                inicios[obj.usuario_id] += 1
+            return super().bulk_create(objs, batch_size=batch_size, update_fields=update_fields,
+                                       unique_fields=unique_fields)
+
+    def buscar_referencia(self, texto, *, admite_numero=False):
+        """Busca el código dentro del conjunto de optimizaciones del propietario."""
+        referencia = texto.rsplit(' · ', 1)[-1] if admite_numero else texto
+        codigo = re.fullmatch(r'OPT-([0-9]+)', referencia, flags=re.I)
+        numero = codigo[1] if codigo else texto if admite_numero and re.fullmatch(r'[0-9]+', texto) else ''
+        numero = numero.lstrip('0')
+        correlativo = int(numero) if 0 < len(numero) <= 19 else 0
+        valido = 0 < correlativo <= 9223372036854775807
+        if codigo:
+            return self.filter(correlativo=correlativo) if valido else self.none()
+        filtro = Q(nombre__icontains=texto) | Q(piezas__icontains=texto)
+        if valido:
+            filtro |= Q(correlativo=correlativo)
+        return self.filter(filtro)
+
+
 class Optimizacion(models.Model):
+    objects = OptimizacionQuerySet.as_manager()
     nombre = models.CharField(max_length=100, blank=True, default='',
         help_text='Nombre opcional del trabajo; no sustituye su código permanente.')
 
@@ -65,12 +135,13 @@ class Optimizacion(models.Model):
 
     @property
     def codigo(self):
-        """Referencia permanente basada en la clave guardada, nunca en una posición."""
-        return f'OPT-{self.pk:04d}' if self.pk is not None else ''
+        """Código visible del propietario, independiente de la clave primaria."""
+        return f'OPT-{self.correlativo:04d}' if self.correlativo is not None else ''
 
     UNIDADES_CHOICES = OPCIONES_UNIDAD
     
     usuario = models.ForeignKey(User, on_delete=models.CASCADE)
+    correlativo = models.PositiveBigIntegerField(editable=False)
     fecha = models.DateTimeField(auto_now_add=True)
     ancho_tablero = models.FloatField()  # Siempre guardado en cm (permite decimales)
     alto_tablero = models.FloatField()  # Siempre guardado en cm (permite decimales)
@@ -174,6 +245,35 @@ class Optimizacion(models.Model):
         help_text="Proyecto al que pertenece esta optimización (opcional)"
     )
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['usuario', 'correlativo'], name='opt_correlativo_usuario_unico'),
+            models.CheckConstraint(condition=Q(correlativo__gt=0), name='opt_correlativo_positivo'),
+        ]
+
+    def save(self, *, force_insert=False, force_update=False, using=None, update_fields=None):
+        using = using or router.db_for_write(type(self), instance=self)
+        if self._state.adding or self.pk is None:
+            if force_update or update_fields is not None:
+                raise ValueError('Una optimización nueva debe guardarse completa.')
+            if self.usuario_id is None:
+                raise ValueError('La optimización debe tener un propietario guardado.')
+            with transaction.atomic(using=using):
+                self.correlativo = _reservar_correlativos({self.usuario_id: 1}, using)[self.usuario_id]
+                super().save(force_insert=True, using=using)
+            return
+
+        if update_fields is None:
+            guardado = type(self).objects.using(using).values_list('usuario_id', 'correlativo').get(pk=self.pk)
+            if guardado != (self.usuario_id, self.correlativo):
+                raise ValueError('El propietario y el correlativo de una optimización son permanentes.')
+        else:
+            update_fields = frozenset(update_fields)
+            if _CAMPOS_PERMANENTES.intersection(update_fields):
+                raise ValueError('El propietario y el correlativo de una optimización son permanentes.')
+        # Una instancia desactualizada no puede reinsertar un código borrado.
+        super().save(force_insert=force_insert, force_update=not force_insert, using=using, update_fields=update_fields)
+
 
 class TableroOptimizacion(models.Model):
     """Imagen y estadísticas de un tablero dentro de una optimización."""
@@ -196,7 +296,7 @@ class TableroOptimizacion(models.Model):
         unique_together = [['optimizacion', 'numero']]
 
     def __str__(self):
-        return f"Tablero {self.numero} — OPT-{self.optimizacion_id:04d}"
+        return f"Tablero {self.numero} — {self.optimizacion.codigo}"
 
 
 class Cliente(models.Model):
