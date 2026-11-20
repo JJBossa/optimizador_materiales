@@ -20,7 +20,18 @@ body.review-page { font-size: 1.125rem; line-height: 1.65; }
 .history-page .form-control:focus { outline: 3px solid var(--cl-blue-light); outline-offset: 2px; }
 .history-page .form-check { display: flex; gap: 10px; align-items: center; padding-left: 0; }
 /* Prevalece sobre el fondo de .form-check que theme-colors.css aplica en ambos temas. */
-body.history-page .form-check.history-selection { background-color: transparent !important; }
+body.history-page .form-check.history-selection {
+  background-color: transparent !important;
+  border-radius: 12px;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  padding: 8px 14px;
+}
+body.history-page .history-selection .form-check-label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 @media (hover: hover) {
   body.history-page .form-check.history-selection:hover {
     background-color: var(--cl-bg-surface) !important;
