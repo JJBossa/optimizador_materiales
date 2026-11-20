@@ -22,7 +22,10 @@ body.review-page { font-size: 1.125rem; line-height: 1.65; }
 /* Prevalece sobre el fondo de .form-check que theme-colors.css aplica en ambos temas. */
 body.history-page .form-check.history-selection { background-color: transparent !important; }
 @media (hover: hover) {
-  body.history-page .form-check.history-selection:hover { background-color: var(--cl-bg-surface) !important; }
+  body.history-page .form-check.history-selection:hover {
+    background-color: var(--cl-bg-surface) !important;
+    border-radius: 12px;
+  }
 }
 body.history-page .history-selection .form-check-input:focus-visible { outline-color: var(--accent) !important; }
 .history-page .form-check-input { float: none; margin: 0; width: 24px !important; height: 24px !important; min-width: 24px; min-height: 24px; flex-shrink: 0; }
