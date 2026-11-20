@@ -151,7 +151,7 @@ def crear_presupuesto(request):
         
         for opt in form.fields['optimizaciones'].queryset:
             # Referencia estable del registro
-            numero_lista = opt.pk
+            numero_lista = opt.correlativo
             
             # Extraer nombres de piezas
             nombres_piezas = [
@@ -221,14 +221,10 @@ def detalle_presupuesto(request, pk):
         num_tableros = opt.num_tableros or 0
         costo_tableros = presupuesto.precio_tablero * Decimal(str(num_tableros))
         
-        # Referencia estable del registro
-        numero_lista = opt.pk
-        
         optimizaciones_con_costos.append({
             'optimizacion': opt,
             'num_tableros': num_tableros,
             'costo_tableros': costo_tableros,
-            'numero_lista': numero_lista,
         })
     
     return render(request, 'cutless/detalle_presupuesto.html', {
@@ -305,7 +301,7 @@ def editar_presupuesto(request, pk):
         
         for opt in form.fields['optimizaciones'].queryset:
             # Referencia estable del registro
-            numero_lista = opt.pk
+            numero_lista = opt.correlativo
             
             # Extraer nombres de piezas
             nombres_piezas = [

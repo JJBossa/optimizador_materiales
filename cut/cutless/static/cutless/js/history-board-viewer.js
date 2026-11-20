@@ -112,7 +112,7 @@
         viewport.setAttribute('aria-busy', 'false'); controls(false); paint(true); reveal(canvas);
       } else if (result.source) {
         drawing = image; canvas.replaceChildren(image);
-        image.alt = `Tablero ${index + 1} de la optimización ${number}`;
+        image.alt = `Tablero ${index + 1}${number ? ` de la optimización ${number}` : ''}`;
         image.hidden = false; image.src = result.source;
         viewport.setAttribute('aria-busy', 'false'); controls(false);
         if (image.complete) paint(true);
@@ -137,9 +137,9 @@
   window.abrirModalImagen = (fallback, id, displayNumber) => {
     request?.abort(); request = new AbortController();
     cache.clear(); version++; total = 0; index = 0; zoom = 1; optimizationId = id;
-    number = displayNumber || `OPT-${String(id).padStart(4, '0')}`;
+    number = displayNumber || '';
     window.CutlessUtilization?.reset?.('history');
-    document.getElementById('modalImagenLabel').textContent = `Tableros · ${number}`;
+    document.getElementById('modalImagenLabel').textContent = number ? `Tableros · ${number}` : 'Tableros';
     document.getElementById('history-board-zoom').textContent = '100%';
     modal.show(); return show(0);
   };

@@ -1,6 +1,4 @@
 from django.contrib import messages
-from django.db.models import Q
-import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
@@ -73,12 +71,7 @@ def historial(request):
     # Filtro por nombre de pieza
     nombre_pieza = request.GET.get('nombre_pieza', '').strip()
     if nombre_pieza:
-        # Buscar en el campo piezas que contiene el nombre
-        codigo_buscado = re.fullmatch(r'OPT-(\d+)', nombre_pieza, flags=re.I)
-        if codigo_buscado:
-            optimizaciones = optimizaciones.filter(pk=int(codigo_buscado.group(1)))
-        else:
-            optimizaciones = optimizaciones.filter(Q(piezas__icontains=nombre_pieza) | Q(nombre__icontains=nombre_pieza))
+        optimizaciones = optimizaciones.buscar_referencia(nombre_pieza)
     
     # Filtro por fecha
     fecha_desde = request.GET.get('fecha_desde', '').strip()
@@ -113,7 +106,7 @@ def historial(request):
 
     optimizaciones_con_piezas = []
     for opt in optimizaciones_page:
-        numero_mostrado = opt.pk
+        numero_mostrado = opt.correlativo
         piezas_procesadas = parsear_piezas_desde_texto(opt.piezas, opt.unidad_medida)
         unidad_opt = getattr(opt, 'unidad_medida', 'cm') or 'cm'
         ancho_mostrar = round(convertir_desde_cm(opt.ancho_tablero, unidad_opt), 2)

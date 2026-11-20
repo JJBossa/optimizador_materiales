@@ -2,6 +2,8 @@
 
 Fecha: 23/10/2026. Estado: revisado y autorizado para publicación junto con los nombres opcionales.
 
+Este documento describe la primera implementación. El correlativo actual por propietario y la transición desde los códigos globales se documentan en [Migración del correlativo de optimizaciones por usuario](MIGRACION_CORRELATIVOS_OPTIMIZACIONES.md).
+
 ## Problema
 
 El número visible dependía de la posición del trabajo en una consulta. Al borrar una optimización o cambiar el orden, podía cambiar la identificación de los demás trabajos. Historial, presupuestos, mensajes y descargas calculaban esa posición por separado.

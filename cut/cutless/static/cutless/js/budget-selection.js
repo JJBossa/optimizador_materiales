@@ -14,6 +14,7 @@
   const projectVariant = root.dataset.selectorVariant === 'project';
   const pageSize = Math.max(1, Number(root.dataset.pageSize) || 6);
   const normalize = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const parseCode = text => /^opt-0*([1-9][0-9]*|0)$/i.exec(text)?.[1];
   let page = 1;
   let renderId = 0;
 
@@ -28,7 +29,10 @@
     const update = () => {
       if (currentRender !== renderId) return;
       const term = normalize(search.value.trim());
-      const filtered = rows.filter(row => normalize(row.dataset.search).includes(term));
+      const code = parseCode(term);
+      const filtered = rows.filter(row => code === undefined
+        ? normalize(row.dataset.search).includes(term)
+        : parseCode(row.dataset.code) === code);
       const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
       page = Math.max(1, Math.min(page, pages));
       const visible = new Set(filtered.slice((page - 1) * pageSize, page * pageSize));

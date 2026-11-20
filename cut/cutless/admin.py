@@ -3,10 +3,13 @@ from .models import Optimizacion, Material
 
 @admin.register(Optimizacion)
 class OptimizacionAdmin(admin.ModelAdmin):
-    list_display = ('usuario', 'fecha', 'ancho_tablero', 'alto_tablero', 'aprovechamiento_total', 'costo_total_display')
+    list_display = ('codigo', 'usuario', 'fecha', 'ancho_tablero', 'alto_tablero', 'aprovechamiento_total', 'costo_total_display')
     search_fields = ('usuario__username',)
     ordering = ('-fecha',)
     list_filter = ('fecha', 'aprovechamiento_total')
+
+    def get_readonly_fields(self, request, obj=None):
+        return ('usuario', 'codigo') if obj else ()
     
     def costo_total_display(self, obj):
         costo = obj.get_costo_total()

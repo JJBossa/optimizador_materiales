@@ -3,7 +3,6 @@ from django.shortcuts import render, redirect, get_object_or_404
 
 from ..models import Optimizacion
 from ..services import (
-    calcular_numero_lista,
     convertir_info_desperdicio_unidad,
     nombre_descarga_excel,
     obtener_resultado_optimizacion,
@@ -24,8 +23,7 @@ def descargar_excel(request, pk):
     Descarga un archivo Excel con la información detallada de la optimización.
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
-    ordenar_por = request.GET.get('ordenar_por', 'fecha_desc')
-    numero_lista = calcular_numero_lista(request.user, optimizacion.id, ordenar_por)
+    numero_lista = optimizacion.correlativo
 
     unidad_opt = getattr(optimizacion, 'unidad_medida', 'cm') or 'cm'
     piezas_parseadas = parsear_piezas_desde_texto(optimizacion.piezas, unidad_opt, estricto=True)
@@ -113,9 +111,7 @@ def api_tableros_optimizacion(request, pk):
 @exigir_piezas_completas
 def descargar_pdf(request, pk):
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
-    ordenar_por = request.GET.get('ordenar_por', 'fecha_desc')
-    numero_lista = calcular_numero_lista(request.user, optimizacion.id, ordenar_por)
-    return respuesta_pdf_optimizacion(optimizacion, numero_lista=numero_lista)
+    return respuesta_pdf_optimizacion(optimizacion, numero_lista=optimizacion.correlativo)
 
 @exigir_piezas_completas
 def imprimir_plan_corte(request, pk):
@@ -127,7 +123,7 @@ def imprimir_plan_corte(request, pk):
     
     imagenes, _, info = obtener_resultado_optimizacion(optimizacion, persistir_si_falta=True, generar_imagenes=False)
     contexto = preparar_contexto_resultado(optimizacion, imagenes, info)
-    contexto['numero_lista'] = calcular_numero_lista(request.user, optimizacion.id, 'fecha_desc')
+    contexto['numero_lista'] = optimizacion.correlativo
     return render(request, 'cutless/imprimir_plan_corte.html', contexto)
 
 
@@ -138,13 +134,10 @@ def descargar_png(request, pk, tablero_num=None):
     Si tablero_num no se especifica, descarga la primera imagen (tablero 1).
     """
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
-    ordenar_por = request.GET.get('ordenar_por', 'fecha_desc')
-    numero_lista = calcular_numero_lista(request.user, optimizacion.id, ordenar_por)
-
     if tablero_num is None:
         tablero_num = 1
 
-    respuesta = respuesta_png_tablero(optimizacion, tablero_num, numero_lista=numero_lista)
+    respuesta = respuesta_png_tablero(optimizacion, tablero_num, numero_lista=optimizacion.correlativo)
     if respuesta is None:
         messages.error(request, f"El tablero #{tablero_num} no existe.")
         return redirect('cutless:historial')

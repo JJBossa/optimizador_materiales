@@ -11,7 +11,6 @@ from ..forms import TableroForm, PiezaForm, NombreOptimizacionForm
 from ..models import Optimizacion
 from ..pieces import parsear_piezas_desde_texto, serializar_piezas
 from ..services import (
-    calcular_numero_lista,
     enviar_notificacion,
     persistir_resultado_optimizacion,
     obtener_resultado_optimizacion,
@@ -213,13 +212,11 @@ def editar_optimizacion(request, pk):
             if tablero_form.puede_editar_costos:
                 for campo, valor in tablero_form.datos_costos().items():
                     setattr(optimizacion, campo, valor)
-            numero_lista = calcular_numero_lista(request.user, optimizacion.id)
             _ejecutar_con_aviso_error(request, persistir_resultado_optimizacion,
                 optimizacion,
                 imagenes_base64,
                 info_desperdicio,
                 aprovechamiento,
-                numero_lista=numero_lista,
                 medida_habitual=tablero_form.cleaned_data.get('medida_habitual', ''),
             )
 
@@ -413,13 +410,11 @@ def index(request):
                 num_tableros=num_tableros,
             )
 
-            numero_lista = optimizacion.pk
             _ejecutar_con_aviso_error(request, persistir_resultado_optimizacion,
                 optimizacion,
                 imagenes_base64,
                 info_desperdicio,
                 aprovechamiento,
-                numero_lista=numero_lista,
                 medida_habitual=tablero_form.cleaned_data.get('medida_habitual', ''),
             )
 
@@ -497,10 +492,8 @@ def index(request):
 def resultado_view(request, pk):
     """Muestra el resultado guardado del propietario; la creación se procesa en Inicio."""
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
-    numero_lista = calcular_numero_lista(request.user, optimizacion.id)
     imagenes_base64, _, info_desperdicio = obtener_resultado_optimizacion(
         optimizacion,
-        numero_lista=numero_lista,
         persistir_si_falta=True,
         generar_imagenes=False,
     )
@@ -509,7 +502,7 @@ def resultado_view(request, pk):
         imagenes_base64,
         info_desperdicio,
     )
-    contexto['numero_lista'] = optimizacion.pk
+    contexto['numero_lista'] = optimizacion.correlativo
     return render(request, "cutless/resultado.html", contexto)
 
 
