@@ -25,3 +25,20 @@ Se modifican historial.html y resultado.html y se añade history-result-refineme
 Las dos plantillas compilan. Pasaron las 86 pruebas de cutless.tests y usuarios.tests con base de pruebas y archivos temporales; Django check no informó problemas. El ajuste posterior de cabecera se revisó con el usuario y pasó git diff --check. La revisión exhaustiva de móvil, oscuro, menús y gráficos ampliados sigue pendiente. No se ha realizado una auditoría completa de accesibilidad.
 
 Los cambios locales previos de la base de datos, PDFs y CAMBIOS_AREAS.md quedan fuera de este bloque.
+
+## Redondeo del fondo al pasar el cursor en el historial
+
+El filtro «Solo favoritos» y el selector junto al nombre y al código de cada optimización conservaban un fondo rectangular al pasar el cursor. Ambos contenedores usan `.form-check.history-selection` dentro de `body.history-page`.
+
+La regla `body.history-page .form-check.history-selection:hover` aplica `border-radius: 12px` dentro de `@media (hover: hover)`. El radio aproxima el estilo de la navegación lateral. El fondo conserva `var(--cl-bg-surface)` en claro y oscuro y vuelve a ser transparente al retirar el cursor. El foco visible permanece en la casilla mediante `body.history-page .history-selection .form-check-input:focus-visible`. El ajuste deja intactos el marcado y las reglas de los demás formularios.
+
+### Archivos modificados
+
+- `cut/cutless/static/cutless/css/history-result-refinement.css` aplica el radio solo al hover de los dos tipos de contenedores de selección del historial.
+- `cut/cutless/templates/cutless/historial.html` cambia el parámetro de caché de la hoja a `history-selection-3`.
+- Este documento registra el ajuste. El [registro de noviembre](REGISTRO_CAMBIOS_NOVIEMBRE_2026.md) y el [índice del README](../README.md#documentación-de-cambios) lo vinculan con los cambios recientes.
+
+### Validación del redondeo
+
+- Chromium, con el HTML renderizado por Django en una base SQLite temporal, en temas claro y oscuro. Se revisaron un escritorio a 1440 px, una ventana de 360 px con ratón y un móvil táctil emulado de 360 px. En los dos controles se comprobó el radio de 12 px, la desaparición del fondo al salir con el cursor, la ausencia de resaltado táctil persistente y el foco visible con teclado. También se comprobaron el marcado, el filtro de favoritos, la selección múltiple y el fondo de los controles fuera del historial.
+- Pasaron 39 pruebas Django relacionadas con historial, identificadores, nombres y resultado en PostgreSQL aislado, y las 67 pruebas JavaScript de la suite. `git diff --check` se completó sin errores.
