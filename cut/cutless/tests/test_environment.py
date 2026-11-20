@@ -28,6 +28,21 @@ class ConfiguracionEntornoTests(SimpleTestCase):
                     config = runpy.run_path(str(archivo), run_name='cutless_project._settings_test')
                 self.assertEqual(config['ALLOWED_HOSTS'], esperado)
 
+    def test_recuperacion_directa_requiere_modo_y_activacion_explicitos(self):
+        archivo = Path(__file__).resolve().parents[2] / 'cutless_project' / 'settings.py'
+        entorno = dict(self.env, CUTLESS_DB_NAME='test', CUTLESS_DB_USER='test',
+                       CUTLESS_DB_PASSWORD='test', CUTLESS_DB_HOST='db.example.invalid')
+        for ajustes, modo, habilitada in (
+            ({}, 'queue', False),
+            ({'CUTLESS_BREVO_RECOVERY_MODE': ' direct '}, 'direct', False),
+            ({'CUTLESS_BREVO_RECOVERY_MODE': 'direct', 'CUTLESS_BREVO_RECOVERY_ENABLED': 'true'}, 'direct', True),
+        ):
+            with self.subTest(modo=modo, habilitada=habilitada), patch.dict(os.environ, entorno | ajustes, clear=True):
+                config = runpy.run_path(str(archivo), run_name='cutless_project._settings_test')
+                self.assertEqual(config['BREVO_RECOVERY_MODE'], modo)
+                self.assertIs(config['BREVO_RECOVERY_ENABLED'], habilitada)
+                self.assertFalse(config['RECOVERY_QUEUE_CONSUMER_ENABLED'])
+
     def setUp(self):
         self.env = {
             'CUTLESS_ENV': 'production',

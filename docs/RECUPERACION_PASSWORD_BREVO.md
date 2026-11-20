@@ -10,7 +10,8 @@ Django sigue seleccionando las cuentas elegibles y generando los enlaces. Los en
 
 | Variable | Valor |
 | --- | --- |
-| `CUTLESS_BREVO_RECOVERY_ENABLED` | `false` por defecto. Solo `true` activa el envío público y requiere los demás valores válidos. Mantenerlo apagado mientras se resuelve la diferencia de tiempos. |
+| `CUTLESS_BREVO_RECOVERY_ENABLED` | `false` por defecto. Solo `true` habilita el envío desde el formulario con una configuración válida. |
+| `CUTLESS_BREVO_RECOVERY_MODE` | `queue` por defecto, para conservar el comportamiento existente. `direct` envía por HTTPS sin usar Cloudflare Queues. Otros valores impiden el envío. |
 | `CUTLESS_PASSWORD_RESET_HOST` | Dominio oficial, como `cutless.example.com`. Escribe solo el nombre DNS, sin esquema, puerto ni ruta. |
 | `CUTLESS_BREVO_API_KEY` | Clave API privada de Brevo. |
 | `CUTLESS_BREVO_SENDER_EMAIL` | Dirección verificada, como `recuperacion@example.com`. |
@@ -22,6 +23,13 @@ Django sigue seleccionando las cuentas elegibles y generando los enlaces. Los en
 | `CUTLESS_RECOVERY_QUEUE_HMAC_KEY` | Otros 32 bytes aleatorios en hexadecimal, compartidos solo entre Django y el Worker. |
 
 En desarrollo se usa el backend de Django, de consola por defecto y en memoria en la suite. Con el interruptor apagado, producción responde con el mensaje genérico sin buscar la cuenta ni reservar cupo. Con el interruptor encendido, una configuración incompleta, un dominio no autorizado o un remitente inválido también impiden el envío. Los enlaces ya emitidos conservan su expiración normal. El correo general conserva SMTP cuando se configura. En producción, su backend predeterminado descarta mensajes.
+
+## Activación temporal del modo directo
+
+1. Una vez autorizada la prueba, usa una instancia de CutLess con `CUTLESS_ENV=production`, una base separada con cuentas de prueba y acceso restringido en el proxy o por VPN. Aplica la restricción también al origen de la aplicación para evitar que se acceda por una URL alternativa. Los participantes necesitan poder abrir el enlace en ese entorno aunque hayan olvidado su contraseña de CutLess. Si el entorno queda accesible desde Internet sin ese control, mantén el envío desactivado.
+2. Configura `CUTLESS_PASSWORD_RESET_HOST` con el dominio HTTPS de esa instancia y comprueba que figure en `CUTLESS_ALLOWED_HOSTS`. Configura un remitente verificado y la clave de Brevo como variables privadas. Define `CUTLESS_BREVO_RECOVERY_MODE=direct` y `CUTLESS_BREVO_RECOVERY_ENABLED=true`. Conserva `CUTLESS_RECOVERY_QUEUE_CONSUMER_ENABLED=false` en ese entorno. El modo directo no necesita valores de Cloudflare ni publica en la cola.
+3. Usa al menos dos cuentas de prueba con correos distintos y sesiones separadas. Cada cuenta activa, con correo válido y contraseña utilizable, puede solicitar un enlace dentro de los límites existentes. Comprueba que cada enlace solo permita cambiar la contraseña de su cuenta, que el nuevo acceso funcione y que el enlace usado quede invalidado.
+4. Para revertir, vuelve a `CUTLESS_BREVO_RECOVERY_ENABLED=false` y aplica la configuración. Confirma que una solicitud válida siga mostrando el aviso genérico y que no se produzcan nuevos envíos. Los enlaces ya emitidos conservan su vigencia de 60 minutos mientras se mantengan el dominio y la clave de Django. Para retomar la cola en una etapa posterior, selecciona `queue` y verifica su configuración antes de habilitarla.
 
 ## Prueba manual local de un solo correo
 
@@ -95,7 +103,11 @@ Los contadores descartan entradas vencidas al reservar cupo. La limpieza estánd
 
 La sección bajo bloqueo hace una lectura y, si concede cupo, una actualización. La llamada a Brevo queda fuera de la transacción. Las peticiones a un mismo contador se serializan y pueden esperar si hay una ráfaga. Una saturación general de conexiones o una interrupción de PostgreSQL también puede afectar a la aplicación. SQLite sirve para la prueba individual, mientras que la prueba de concurrencia requiere PostgreSQL. El limitador no requiere tablas, migraciones ni otro servicio.
 
-Antes de integrar la cola, con Brevo simulado a 180 ms, las peticiones admitidas para cuentas activas tardaban 183 ms de mediana y las inactivas o desconocidas 1,4 ms. La publicación en la cola elimina de esa petición la consulta de la cuenta y la comunicación con Brevo. La latencia aún puede variar por los límites aplicados y la disponibilidad de Cloudflare. La activación pública requiere una verificación desde el entorno real.
+### Riesgo de enumeración por tiempo
+
+El modo directo mantiene el mismo estado HTTP, redirección y aviso para direcciones elegibles, inactivas o desconocidas con formato válido. Solo una solicitud elegible admitida por los límites espera a Brevo. En una prueba local con SQLite temporal, 10 direcciones diferentes por grupo, orden mezclado y un retraso simulado de 180 ms en Brevo, la mediana del POST fue de 188,9 ms para cuentas elegibles, 8,0 ms para inactivas y 6,9 ms para desconocidas. Los resultados cuantifican la diferencia en el entorno de pruebas. Su magnitud real dependerá del proveedor y de la red.
+
+Un tercero podría inferir si una dirección tiene una cuenta elegible aun con una respuesta genérica. Los límites compartidos reducen el volumen de intentos y la cuota consumida. La latencia del proveedor, especialmente cuando falla, hace que una pausa fija no sea una protección fiable y además ocuparía procesos web. Usa el modo directo solo en un entorno de prueba con acceso restringido. Antes de una exposición pública, desacopla la consulta y el envío de la respuesta HTTP, como hace el modo `queue`, y verifica el comportamiento desde el entorno real.
 
 Una ráfaga con direcciones distintas todavía puede agotar el límite compartido y retrasar recuperaciones legítimas. Un tercero también puede consumir temporalmente el cupo de recuperación de una dirección. Un límite en el proxy o un desafío permitiría frenar ese tráfico antes de llegar a Django. Cualquier política por IP debe usar una dirección validada por el proxy, ya que las cabeceras aportadas por el cliente se pueden manipular. Mantén `CUTLESS_BREVO_RECOVERY_ENABLED=false` hasta verificar entregas y registros de infraestructura y resolver la enumeración por tiempo.
 

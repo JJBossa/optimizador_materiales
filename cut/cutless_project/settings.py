@@ -169,6 +169,7 @@ DEFAULT_FROM_EMAIL = os.environ.get('CUTLESS_DEFAULT_FROM_EMAIL', 'CutLess <nore
 PASSWORD_RESET_TIMEOUT = 60 * 60
 PASSWORD_RESET_HOST = os.environ.get('CUTLESS_PASSWORD_RESET_HOST', '').strip().lower()
 BREVO_RECOVERY_ENABLED = os.environ.get('CUTLESS_BREVO_RECOVERY_ENABLED', '').strip().lower() == 'true'
+BREVO_RECOVERY_MODE = os.environ.get('CUTLESS_BREVO_RECOVERY_MODE', 'queue').strip().lower()
 BREVO_API_KEY = os.environ.get('CUTLESS_BREVO_API_KEY', '').strip()
 BREVO_SENDER_EMAIL = os.environ.get('CUTLESS_BREVO_SENDER_EMAIL', '').strip()
 BREVO_SENDER_NAME = os.environ.get('CUTLESS_BREVO_SENDER_NAME', 'CutLess').strip() or 'CutLess'

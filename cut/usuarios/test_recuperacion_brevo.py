@@ -24,7 +24,7 @@ from django.db import OperationalError, connections, transaction
 from django.test import (
     Client, RequestFactory, SimpleTestCase, TestCase, TransactionTestCase, override_settings, skipUnlessDBFeature,
 )
-from django.urls import path, reverse
+from django.urls import path, resolve, reverse
 from django.utils import timezone
 
 from cutless_project.recovery_logging import FiltroRecuperacion
@@ -52,6 +52,7 @@ LOGGER = 'usuarios.recuperacion'
     PASSWORD_RESET_HOST=DOMINIO,
     ALLOWED_HOSTS=[DOMINIO, ALIAS],
     BREVO_RECOVERY_ENABLED=True,
+    BREVO_RECOVERY_MODE='queue',
     BREVO_API_KEY=CLAVE_DE_PRUEBA,
     BREVO_SENDER_EMAIL=REMITENTE,
     BREVO_SENDER_NAME='CutLess pruebas',
@@ -62,7 +63,7 @@ LOGGER = 'usuarios.recuperacion'
     RECOVERY_QUEUE_ENCRYPTION_KEY=token_hex(32),
     RECOVERY_QUEUE_HMAC_KEY=token_hex(32),
 )
-class RecuperacionBrevoTests(TestCase):
+class BaseRecuperacionBrevoTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.usuario = User.objects.create_user('activa', CORREO, password=CLAVE_ANTERIOR)
@@ -85,9 +86,9 @@ class RecuperacionBrevoTests(TestCase):
         self.respuesta_cola.status = 200
         self.respuesta_cola.read.return_value = b'{"success":true}'
 
-    def solicitar(self, correo=CORREO, *, host=DOMINIO, entregar=True, **headers):
+    def solicitar(self, correo=CORREO, *, cliente=None, host=DOMINIO, entregar=True, **headers):
         antes = self.conexion_cola.request.call_count
-        respuesta = self.client.post(
+        respuesta = (cliente or self.client).post(
             reverse('usuarios:recuperar_password'), {'email': correo},
             secure=True, HTTP_HOST=host, follow=True, **headers,
         )
@@ -121,6 +122,8 @@ class RecuperacionBrevoTests(TestCase):
         contenido = json.loads(self.conexion.request.call_args.kwargs['body'])
         return next(linea for linea in contenido['textContent'].splitlines() if linea.startswith('https://'))
 
+
+class RecuperacionBrevoTests(BaseRecuperacionBrevoTests):
     def test_publica_texto_y_html_https_en_dominio_oficial(self):
         with self.assertLogs(LOGGER, 'INFO') as logs:
             self.solicitar(CORREO.upper(), host=ALIAS, HTTP_X_FORWARDED_HOST='otro.example.test')
@@ -602,6 +605,123 @@ class RegistroSeguroRecuperacionTests(SimpleTestCase):
         registro = LogRecord('gunicorn.error', 40, '', 0, 'Error handling request %s',
                              (RUTA_CONFIRMACION_FICTICIA,), None)
         self.assertFalse(logger.filter(registro))
+
+
+@override_settings(
+    BREVO_RECOVERY_MODE='direct', RECOVERY_QUEUE_CONSUMER_ENABLED=False,
+    RECOVERY_QUEUE_API_TOKEN='', RECOVERY_QUEUE_ENCRYPTION_KEY='', RECOVERY_QUEUE_HMAC_KEY='',
+)
+class RecuperacionBrevoDirectaTests(BaseRecuperacionBrevoTests):
+    def test_cada_usuario_restablece_su_cuenta_con_csrf_y_sesion_independiente(self):
+        origen = f'https://{DOMINIO}'
+        cabeceras = {'secure': True, 'HTTP_HOST': DOMINIO, 'HTTP_ORIGIN': origen}
+        inicio = reverse('usuarios:recuperar_password')
+        cuentas = (self.usuario, self.otra)
+        clientes = [Client(enforce_csrf_checks=True) for _ in cuentas]
+        rutas, formularios = [], []
+        for cuenta, cliente in zip(cuentas, clientes):
+            self.assertEqual(cliente.get(inicio, **cabeceras).status_code, 200)
+            token = cliente.cookies[settings.CSRF_COOKIE_NAME].value
+            self.solicitar(cuenta.email, cliente=cliente, HTTP_ORIGIN=origen, HTTP_X_CSRFTOKEN=token)
+            contenido = json.loads(self.conexion.request.call_args.kwargs['body'])
+            self.assertEqual(contenido['to'][0]['email'], cuenta.email)
+            enlace = self.enlace_enviado()
+            self.assertEqual(urlsplit(enlace).netloc, DOMINIO)
+            self.assertIn(f'href="{enlace}"', contenido['htmlContent'])
+            ruta = urlsplit(enlace).path
+            rutas.append(ruta)
+            formulario = cliente.get(ruta, **cabeceras).url
+            formularios.append(formulario)
+            self.assertIn('/set-password/', formulario)
+            self.assertEqual(cliente.get(formulario, **cabeceras).status_code, 200)
+
+        parametros = {**resolve(rutas[0]).kwargs, 'uidb64': resolve(rutas[1]).kwargs['uidb64']}
+        enlace_cruzado = reverse('usuarios:reset_password_confirm', kwargs=parametros)
+        intento_cruzado = Client().get(enlace_cruzado, **cabeceras)
+        self.assertRedirects(intento_cruzado, inicio, fetch_redirect_response=False)
+        clave_intrusa = token_urlsafe(24)
+        cruce = clientes[0].post(formularios[1], {
+            'new_password1': clave_intrusa, 'new_password2': clave_intrusa,
+            'csrfmiddlewaretoken': clientes[0].cookies[settings.CSRF_COOKIE_NAME].value,
+        }, **cabeceras)
+        self.assertRedirects(cruce, inicio, fetch_redirect_response=False)
+
+        for cuenta in cuentas:
+            cuenta.refresh_from_db()
+            self.assertFalse(cuenta.check_password(clave_intrusa))
+
+        login = reverse('usuarios:login')
+        for cuenta, cliente, ruta, formulario in zip(cuentas, clientes, rutas, formularios):
+            nueva = token_urlsafe(24)
+            token = cliente.cookies[settings.CSRF_COOKIE_NAME].value
+            cambio = cliente.post(formulario, {
+                'new_password1': nueva, 'new_password2': nueva, 'csrfmiddlewaretoken': token,
+            }, **cabeceras)
+            self.assertRedirects(cambio, login, fetch_redirect_response=False)
+            self.assertRedirects(Client().get(ruta, **cabeceras), inicio, fetch_redirect_response=False)
+            self.assertEqual(cliente.post(login, {
+                'username': cuenta.username, 'password': nueva, 'csrfmiddlewaretoken': token,
+            }, **cabeceras).status_code, 302)
+            self.assertEqual(cliente.session['_auth_user_id'], str(cuenta.pk))
+        self.assertNotEqual(clientes[0].session.session_key, clientes[1].session.session_key)
+        self.assertEqual(self.conexion.request.call_count, 2)
+        self.cloudflare.assert_not_called()
+        self.assertFalse(Session.objects.filter(pk=TRABAJOS_RECLAMADOS).exists())
+
+    def test_respuesta_generica_para_cuentas_elegibles_inactivas_y_desconocidas(self):
+        for correo in (CORREO, self.inactiva.email, self.sin_password.email, 'desconocida@example.test'):
+            self.solicitar(correo)
+        self.conexion.request.assert_called_once()
+        self.cloudflare.assert_not_called()
+        self.assertEqual(mail.outbox, [])
+
+    def test_solicitudes_repetidas_y_cupo_de_envios_se_comparten_entre_clientes(self):
+        with patch('usuarios.limites_recuperacion.LIMITES_ENVIOS', ((300, 2, False),)):
+            for correo in (CORREO, CORREO.upper(), CORREO, self.otra.email):
+                self.solicitar(correo, cliente=Client())
+        self.assertEqual(self.https.call_count, 2)
+        self.assertEqual(self.conexion.request.call_count, 2)
+        self.cloudflare.assert_not_called()
+
+    def test_enlace_directo_vence_a_la_hora(self):
+        emitido = datetime(2026, 1, 1, 12)
+        with patch.object(default_token_generator, '_now', return_value=emitido):
+            self.solicitar()
+        ruta = urlsplit(self.enlace_enviado()).path
+        with self.settings(BREVO_RECOVERY_ENABLED=False):
+            with patch.object(default_token_generator, '_now', return_value=emitido + timedelta(seconds=3600)):
+                self.assertIn('/set-password/', Client().get(ruta, secure=True, HTTP_HOST=DOMINIO).url)
+        with patch.object(default_token_generator, '_now', return_value=emitido + timedelta(seconds=3601)):
+            vencido = Client().get(ruta, secure=True, HTTP_HOST=DOMINIO)
+            self.assertRedirects(vencido, reverse('usuarios:recuperar_password'), fetch_redirect_response=False)
+
+    def test_directo_rechaza_csrf_y_configuracion_incompleta_sin_enviar(self):
+        solicitud = Client(enforce_csrf_checks=True).post(
+            reverse('usuarios:recuperar_password'), {'email': CORREO}, secure=True, HTTP_HOST=DOMINIO,
+        )
+        self.assertEqual(solicitud.status_code, 403)
+        for ajustes in ({'BREVO_RECOVERY_ENABLED': False}, {'BREVO_RECOVERY_MODE': 'desconocido'},
+                        {'BREVO_API_KEY': ''}, {'PASSWORD_RESET_HOST': 'otro.example.test'}):
+            with self.settings(**ajustes), patch('usuarios.recuperacion.admitir_solicitud') as admitir:
+                self.solicitar()
+                admitir.assert_not_called()
+        self.https.assert_not_called()
+        self.cloudflare.assert_not_called()
+
+    def test_fallo_de_brevo_o_de_busqueda_conserva_la_respuesta_generica(self):
+        self.respuesta_brevo.status = 429
+        with self.assertLogs(LOGGER, 'WARNING'):
+            self.solicitar()
+        self.conexion.getresponse.side_effect = TimeoutError
+        with self.assertLogs(LOGGER, 'WARNING'):
+            self.solicitar(self.otra.email)
+        self.assertEqual(self.conexion.request.call_count, 2)
+        with patch('usuarios.recuperacion.PasswordResetForm.get_users', side_effect=OperationalError(CORREO)):
+            with self.assertLogs(LOGGER, 'WARNING') as logs:
+                self.solicitar()
+        self.assertEqual(logs.records[0].getMessage(), 'brevo_recuperacion_directa_base_no_disponible')
+        self.assertEqual(self.conexion.request.call_count, 2)
+        self.cloudflare.assert_not_called()
 
 
 class LimitesRecuperacionTests(TestCase):

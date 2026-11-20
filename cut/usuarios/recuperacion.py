@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth.forms import PasswordResetForm
 from django.core.exceptions import ValidationError
 from django.core.validators import DomainNameValidator, validate_email
+from django.db import DatabaseError
 from django.http.request import validate_host
 from django.template.loader import render_to_string
 from django.utils.crypto import salted_hmac
@@ -34,6 +35,7 @@ class ResultadoEnvio:
 
 
 class FormularioRecuperacion(PasswordResetForm):
+    @sensitive_variables()
     def enviar(self, request):
         request.get_host()
         if settings.CUTLESS_ENV != 'production':
@@ -41,13 +43,24 @@ class FormularioRecuperacion(PasswordResetForm):
             return
         if not settings.BREVO_RECOVERY_ENABLED:
             return
-        if not dominio_brevo_configurado():
+        dominio = dominio_brevo_configurado()
+        if not dominio:
             logger.warning('brevo_recuperacion_configuracion_incompleta')
+            return
+        correo = self.cleaned_data['email']
+        if settings.BREVO_RECOVERY_MODE == 'direct':
+            if admitir_solicitud(correo):
+                try:
+                    procesar_solicitud_brevo(correo, dominio)
+                except DatabaseError:
+                    logger.warning('brevo_recuperacion_directa_base_no_disponible')
+            return
+        if settings.BREVO_RECOVERY_MODE != 'queue':
+            logger.warning('brevo_recuperacion_modo_invalido')
             return
         if not settings.RECOVERY_QUEUE_CONSUMER_ENABLED or not productor_configurado():
             logger.warning('cola_recuperacion_configuracion_incompleta')
             return
-        correo = self.cleaned_data['email']
         if admitir_solicitud(correo) and reservar_publicacion():
             publicar_solicitud(correo)
 
@@ -74,7 +87,7 @@ def _guardar(formulario, **parametros):
 
 
 @sensitive_variables()
-def procesar_solicitud_brevo(correo, dominio, reclamo):
+def procesar_solicitud_brevo(correo, dominio, reclamo=None):
     formulario = FormularioRecuperacionBrevo({'email': correo}, reclamo=reclamo)
     if formulario.is_valid():
         _guardar(formulario, domain_override=dominio, use_https=True)
@@ -82,7 +95,7 @@ def procesar_solicitud_brevo(correo, dominio, reclamo):
 
 
 class FormularioRecuperacionBrevo(PasswordResetForm):
-    def __init__(self, *args, reclamo, **kwargs):
+    def __init__(self, *args, reclamo=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.reclamo = reclamo
         self.resultado = ResultadoEnvio('finalizado')
@@ -92,20 +105,30 @@ class FormularioRecuperacionBrevo(PasswordResetForm):
                   to_email, html_email_template_name=None):
         if self.resultado.estado != 'finalizado':
             return
-        destinatario = salted_hmac(
-            'usuarios.recuperacion.destinatario', f'{self.reclamo.identificador}:{context["user"].pk}',
-            algorithm='sha256',
-        ).hexdigest()
-        if destinatario in self.reclamo.completados:
-            return
+        destinatario = None
+        if self.reclamo is None:
+            if bloqueo := self._autorizar_envio():
+                self.resultado = bloqueo
+                return
+            autorizar_envio = None
+        else:
+            destinatario = salted_hmac(
+                'usuarios.recuperacion.destinatario', f'{self.reclamo.identificador}:{context["user"].pk}',
+                algorithm='sha256',
+            ).hexdigest()
+            if destinatario in self.reclamo.completados:
+                return
+            autorizar_envio = self._autorizar_envio
         asunto = ''.join(render_to_string(subject_template_name, context).splitlines())
         texto = render_to_string(email_template_name, context)
         html = render_to_string(html_email_template_name, context) if html_email_template_name else None
         contenido = _contenido_brevo(to_email, asunto, texto, html)
-        resultado = enviar_brevo(contenido, autorizar_envio=self._autorizar_envio)
+        resultado = enviar_brevo(contenido, autorizar_envio=autorizar_envio)
         if resultado.estado != 'aceptado':
             self.resultado = resultado
-        elif not cambiar_trabajo(self.reclamo, 'enviando', 'preparando', destinatario=destinatario):
+        elif self.reclamo is not None and not cambiar_trabajo(
+            self.reclamo, 'enviando', 'preparando', destinatario=destinatario,
+        ):
             logger.warning('cola_recuperacion_aceptacion_no_persistida')
             self.resultado = ResultadoEnvio('sin_reclamo')
 
@@ -115,7 +138,7 @@ class FormularioRecuperacionBrevo(PasswordResetForm):
             return ResultadoEnvio('reintentar', espera=REINTENTO_SEGUNDOS)
         if espera:
             return ResultadoEnvio('limitado', espera=espera)
-        if not cambiar_trabajo(self.reclamo, 'preparando', 'enviando'):
+        if self.reclamo is not None and not cambiar_trabajo(self.reclamo, 'preparando', 'enviando'):
             return ResultadoEnvio('sin_reclamo')
         return None
 
