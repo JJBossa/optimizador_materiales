@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}management-page{% endblock %}
 
@@ -87,7 +87,7 @@
                 <td>{{ opt.num_tableros|default:"0" }}</td>
                 <td>
                   {% if opt.precio_tablero != None %}
-                    ${{ opt.get_costo_total|floatformat:0 }}
+                    {{ opt.get_costo_total|clp }}
                   {% else %}
                     <span class="text-muted">—</span>
                   {% endif %}

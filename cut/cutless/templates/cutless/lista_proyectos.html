@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}management-page{% endblock %}
 
@@ -95,7 +95,7 @@
           </td>
           <td>
             {% if proyecto.get_total_costo %}
-              <strong>${{ proyecto.get_total_costo|floatformat:0 }}</strong>
+              <strong>{{ proyecto.get_total_costo|clp }}</strong>
             {% else %}
               <span class="text-muted">—</span>
             {% endif %}

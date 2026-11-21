@@ -1,4 +1,5 @@
 from django.contrib import admin
+from .formato_clp import formatear_clp
 from .models import Optimizacion, Material
 
 @admin.register(Optimizacion)
@@ -12,18 +13,19 @@ class OptimizacionAdmin(admin.ModelAdmin):
         return ('usuario', 'codigo') if obj else ()
     
     def costo_total_display(self, obj):
-        costo = obj.get_costo_total()
-        if costo:
-            return f"${costo:,.0f}"
-        return "-"
+        return formatear_clp(obj.get_costo_total())
     costo_total_display.short_description = "Costo Total"
 
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
-    list_display = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'es_predefinido', 'usuario', 'fecha_creacion')
+    list_display = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio_display', 'es_predefinido', 'usuario', 'fecha_creacion')
     search_fields = ('nombre', 'descripcion')
     list_filter = ('es_predefinido', 'unidad_medida', 'fecha_creacion')
     ordering = ('-es_predefinido', 'nombre')
+
+    @admin.display(description='Precio', ordering='precio')
+    def precio_display(self, obj):
+        return formatear_clp(obj.precio)
     
     def get_queryset(self, request):
         qs = super().get_queryset(request)

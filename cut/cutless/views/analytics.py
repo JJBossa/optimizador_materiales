@@ -8,6 +8,7 @@ from django.http import FileResponse, HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 
+from ..formato_clp import formatear_clp
 from ..models import Optimizacion
 from ..utils import (
     convertir_desde_cm,
@@ -485,7 +486,6 @@ def historial_costos(request):
         costos = [float(opt['costo_total']) for opt in optimizaciones_con_costo]
         
         import matplotlib.pyplot as plt
-        import matplotlib.dates as mdates
         from io import BytesIO
         import base64
         
@@ -494,6 +494,22 @@ def historial_costos(request):
         plt.title('Evolución de Costos', fontsize=16, fontweight='bold')
         plt.xlabel('Fecha', fontsize=12)
         plt.ylabel('Costo Total ($)', fontsize=12)
+        eje_importes = plt.gca().yaxis
+
+        def etiqueta_importe(valor, posicion):
+            etiqueta = formatear_clp(valor)
+            if posicion is None:
+                return etiqueta
+            minimo, maximo = sorted(eje_importes.get_view_interval())
+            if not minimo <= valor <= maximo:
+                return ''
+            if posicion:
+                anterior = eje_importes.get_majorticklocs()[posicion - 1]
+                if minimo <= anterior <= maximo and formatear_clp(anterior) == etiqueta:
+                    return ''
+            return etiqueta
+
+        eje_importes.set_major_formatter(etiqueta_importe)
         plt.grid(True, alpha=0.3)
         plt.xticks(rotation=45)
         plt.gcf().autofmt_xdate()

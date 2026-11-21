@@ -1,6 +1,7 @@
 """Comparación de datos guardados; no ejecuta el optimizador ni escribe registros."""
 from collections import Counter
 from decimal import Decimal, InvalidOperation
+from ..formato_clp import formatear_clp
 from ..pieces import parsear_piezas_desde_texto
 from ..board_presets import descripcion_material
 
@@ -57,8 +58,8 @@ def comparar_trabajos(a, b):
         if diferencia_costo is not None:
             if diferencia_costo:
                 menor = 'B' if diferencia_costo < 0 else 'A'
-                importe = f'{abs(diferencia_costo):,.2f}'.replace(',', '_').replace('.', ',').replace('_', '.')
-                conclusiones.append(f'La alternativa {menor} tiene un costo estimado ${importe} menor, según los precios y la mano de obra guardados.')
+                importe = formatear_clp(diferencia_costo.copy_abs()).lower()
+                conclusiones.append(f'La alternativa {menor} tiene un costo estimado menor en {importe}, según los precios y la mano de obra guardados.')
             else:
                 conclusiones.append('El costo estimado guardado es igual en ambas alternativas.')
         else:

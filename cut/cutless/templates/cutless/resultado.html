@@ -73,7 +73,9 @@ try {
     </div>
     {% endfor %}
   </div>
-
+  {% if tableros_con_imagenes and costo_total and precio_tablero %}
+    {% include 'cutless/includes/nota-redondeo-clp.html' %}
+  {% endif %}
 </section>
 
 <details class="result-details" data-result-stage="fold"><summary>Ver resumen de todos los tableros</summary><div class="result-stage-placeholder" aria-hidden="true">{% include 'cutless/includes/optimization-loading-block.html' with zone='fold' %}</div>

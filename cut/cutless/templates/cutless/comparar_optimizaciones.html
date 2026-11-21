@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}analysis-page comparison-page{% endblock %}
 
@@ -90,7 +90,7 @@
       {% for grafico in comparacion.graficos %}
         <figure class="comparison-chart"><figcaption>{{ grafico.titulo }}</figcaption>
         {% for barra in grafico.barras %}
-          <div class="comparison-bar-label"><strong>{{ barra.alternativa }}</strong><span>{{ barra.valor|floatformat:"2g" }} {{ grafico.unidad }}</span></div>
+          <div class="comparison-bar-label"><strong>{{ barra.alternativa }}</strong><span>{% if grafico.unidad == "CLP" %}{{ barra.valor|clp }}{% else %}{{ barra.valor|floatformat:"2g" }} {{ grafico.unidad }}{% endif %}</span></div>
           <div class="comparison-bar-track" aria-hidden="true"><span class="comparison-bar comparison-bar--{{ barra.alternativa }}" style="width:{{ barra.ancho }}%"></span></div>
         {% endfor %}
         </figure>
@@ -111,7 +111,7 @@
           <tr><th scope="row">Tableros necesarios</th><td>{{ optimizacion1.num_tableros }}</td><td>{{ optimizacion2.num_tableros }}</td><td>{{ diferencia_tableros }}</td></tr>
           <tr><th scope="row">Aprovechamiento guardado</th><td>{{ optimizacion1.aprovechamiento_total|floatformat:2 }} %</td><td>{{ optimizacion2.aprovechamiento_total|floatformat:2 }} %</td><td>{{ diferencia_aprovechamiento|floatformat:2 }} puntos porcentuales</td></tr>
           <tr><th scope="row">Material fuera de las piezas <span class="text-annotation">(incluye corte)</span></th><td>{% if comparacion.a.fuera_piezas != None %}{{ comparacion.a.fuera_piezas|floatformat:2 }} m²{% else %}No verificable{% endif %}</td><td>{% if comparacion.b.fuera_piezas != None %}{{ comparacion.b.fuera_piezas|floatformat:2 }} m²{% else %}No verificable{% endif %}</td><td>Tableros completos menos piezas solicitadas</td></tr>
-          <tr><th scope="row">Costo estimado total</th><td>{% if comparacion.a.costo != None %}${{ comparacion.a.costo|floatformat:"2g" }}{% else %}Sin precio{% endif %}</td><td>{% if comparacion.b.costo != None %}${{ comparacion.b.costo|floatformat:"2g" }}{% else %}Sin precio{% endif %}</td><td>{% if diferencia_costo != None %}{% if diferencia_costo < 0 %}−{% elif diferencia_costo > 0 %}+{% endif %}${{ diferencia_costo|floatformat:"2g"|cut:"-" }}{% else %}Falta precio para comparar{% endif %}</td></tr>
+          <tr><th scope="row">Costo estimado total</th><td>{% if comparacion.a.costo != None %}{{ comparacion.a.costo|clp }}{% else %}Sin precio{% endif %}</td><td>{% if comparacion.b.costo != None %}{{ comparacion.b.costo|clp }}{% else %}Sin precio{% endif %}</td><td>{% if diferencia_costo != None %}{{ diferencia_costo|clp:1 }}{% else %}Falta precio para comparar{% endif %}</td></tr>
         </tbody>
       </table></div>
       <p class="analysis-note">El material fuera de las piezas incluye sobrantes y ancho de corte; no indica cuánto sobrante es reutilizable. El aprovechamiento corresponde al resultado guardado.</p>
@@ -127,8 +127,8 @@
         <tr><th>Material</th><td>{{ comparacion.a.material_descripcion.nombre }}<br><small class="text-muted">{{ comparacion.a.material_descripcion.origen }}</small></td><td>{{ comparacion.b.material_descripcion.nombre }}<br><small class="text-muted">{{ comparacion.b.material_descripcion.origen }}</small></td></tr>
         <tr><th>Ancho de sierra</th><td>{{ comparacion.a.sierra_mm|floatformat:2 }} mm</td><td>{{ comparacion.b.sierra_mm|floatformat:2 }} mm</td></tr>
         <tr><th>Permitir girar</th><td>{{ optimizacion1.permitir_rotacion|yesno:'Sí,No' }}</td><td>{{ optimizacion2.permitir_rotacion|yesno:'Sí,No' }}</td></tr>
-        <tr><th>Precio por tablero</th><td>{% if optimizacion1.precio_tablero != None %}${{ optimizacion1.precio_tablero|floatformat:"2g" }}{% else %}Sin precio{% endif %}</td><td>{% if optimizacion2.precio_tablero != None %}${{ optimizacion2.precio_tablero|floatformat:"2g" }}{% else %}Sin precio{% endif %}</td></tr>
-        <tr><th>Mano de obra</th><td>${{ optimizacion1.mano_obra|floatformat:"2g" }}</td><td>${{ optimizacion2.mano_obra|floatformat:"2g" }}</td></tr>
+        <tr><th>Precio por tablero</th><td>{% if optimizacion1.precio_tablero != None %}{{ optimizacion1.precio_tablero|clp }}{% else %}Sin precio{% endif %}</td><td>{% if optimizacion2.precio_tablero != None %}{{ optimizacion2.precio_tablero|clp }}{% else %}Sin precio{% endif %}</td></tr>
+        <tr><th>Mano de obra</th><td>{{ optimizacion1.mano_obra|clp }}</td><td>{{ optimizacion2.mano_obra|clp }}</td></tr>
       </tbody></table>
       <div class="form-action-bar"><a href="{% url 'cutless:resultado' optimizacion1.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver resultado A</a><a href="{% url 'cutless:resultado' optimizacion2.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver resultado B</a></div>
     </div>

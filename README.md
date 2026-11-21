@@ -152,6 +152,7 @@ Toda corrección o nueva funcionalidad debe incluir la actualización correspond
 - [Plantillas: presentación, unidades y copias personales](docs/CAMBIOS_VISUALES_PLANTILLAS.md)
 - [Presupuestos: revisión visual y claridad](docs/CAMBIOS_VISUALES_PRESUPUESTOS.md)
 - [Indicadores económicos de Chile en Presupuestos](docs/INTEGRACION_API_INDICADORES.md)
+- [Formato visual de montos en pesos chilenos](docs/ESTANDARIZACION_FORMATO_CLP.md)
 - [Proyectos: revisión visual y claridad](docs/CAMBIOS_VISUALES_PROYECTOS.md)
 - [Clientes: revisión visual y claridad](docs/CAMBIOS_VISUALES_CLIENTES.md)
 - [Materiales: revisión visual y claridad](docs/CAMBIOS_VISUALES_MATERIALES.md)
