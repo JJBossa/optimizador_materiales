@@ -1,0 +1,31 @@
+{% load l10n %}
+<section class="indicadores-presupuesto"
+         aria-labelledby="indicadores-presupuesto-titulo"
+         data-indicadores-url="{% url 'cutless:indicadores_presupuestos' %}"
+         {% if presupuesto %}data-total-clp="{{ total_presupuesto|unlocalize }}"{% endif %}>
+  <header class="indicadores-presupuesto__cabecera">
+    <h2 id="indicadores-presupuesto-titulo">Indicadores económicos</h2>
+    <a class="indicadores-presupuesto__fuente" href="https://findic.cl/">Fuente: Findic.cl</a>
+  </header>
+  <p class="indicadores-presupuesto__estado" data-indicadores-estado role="status"></p>
+  <noscript><p class="indicadores-presupuesto__estado">Activa JavaScript para consultar los indicadores.</p></noscript>
+  <dl class="indicadores-presupuesto__datos" hidden>
+    <div data-indicador="dolar">
+      <dt>Dólar observado</dt>
+      <dd data-valor>Sin dato</dd>
+      <dd class="indicadores-presupuesto__referencia"><time data-referencia></time></dd>
+    </div>
+    <div data-indicador="uf">
+      <dt>Unidad de Fomento (UF)</dt>
+      <dd data-valor>Sin dato</dd>
+      <dd class="indicadores-presupuesto__referencia"><time data-referencia></time></dd>
+    </div>
+    {% if presupuesto %}
+    <div data-indicador="conversion">
+      <dt>Conversión referencial</dt>
+      <dd data-valor>Sin tipo de cambio</dd>
+      <dd class="indicadores-presupuesto__referencia">Equivalente del total en USD</dd>
+    </div>
+    {% endif %}
+  </dl>
+</section>

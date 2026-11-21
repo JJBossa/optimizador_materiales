@@ -6,14 +6,17 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 
 from ..exports.pdf import generar_pdf_presupuesto as construir_pdf_presupuesto
 from ..forms import PresupuestoForm
 from ..pieces import parsear_piezas_desde_texto
 from ..models import Presupuesto, Optimizacion, Cliente
 from ..services import enviar_notificacion
+from ..services.indicadores import obtener_indicadores
 from .common import exigir_piezas_completas
 from .media import media_privada
 
@@ -34,6 +37,12 @@ def guardar_detalle_presupuesto(presupuesto):
     if presupuesto.estado != 'borrador':
         presupuesto.cerrar_detalle()
     presupuesto.save(update_fields=['costo_total', 'detalle_emitido', 'fecha_actualizacion'])
+
+
+@never_cache
+@require_GET
+def indicadores_presupuestos(request):
+    return JsonResponse(obtener_indicadores())
 
 
 def lista_presupuestos(request):
@@ -229,6 +238,7 @@ def detalle_presupuesto(request, pk):
     
     return render(request, 'cutless/detalle_presupuesto.html', {
         'presupuesto': presupuesto,
+        'total_presupuesto': presupuesto.total_vigente,
         'optimizaciones_con_costos': optimizaciones_con_costos,
         'total_tableros': presupuesto.get_total_tableros(),
     })

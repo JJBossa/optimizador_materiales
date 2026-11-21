@@ -5,7 +5,10 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/indicadores-presupuesto.css' %}">
 {% endblock %}
+
+{% block extra_js %}<script defer src="{% static 'cutless/js/indicadores-presupuesto.js' %}"></script>{% endblock %}
 
 {% block content %}
   <header class="page-header fade-in">
@@ -24,6 +27,8 @@
       </a>{% endif %}
     </div>
   </header>
+
+  {% include 'cutless/includes/indicadores-presupuesto.html' %}
 
   <!-- Filtros -->
   <div class="search-filters filters-panel fade-in mb-4">
