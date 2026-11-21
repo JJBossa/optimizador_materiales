@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}management-page{% endblock %}
 
@@ -90,7 +90,7 @@
     <div class="col-md-3">
       <div class="card text-center">
         <div class="card-body">
-          <h3 class="text-warning costo-total">${{ costo_total|floatformat:0 }}</h3>
+          <h3 class="text-warning costo-total">{{ costo_total|clp }}</h3>
           <p class="mb-0">Costo total</p>
         </div>
       </div>
@@ -126,7 +126,7 @@
             <td>{{ opt.num_tableros }}</td>
             <td>
               {% if opt.precio_tablero != None %}
-                ${{ opt.get_costo_total|floatformat:0 }}
+                {{ opt.get_costo_total|clp }}
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}
@@ -139,6 +139,9 @@
         </tbody>
       </table>
     </div>
+    {% if total_optimizaciones > 1 and costo_total %}
+      {% include 'cutless/includes/nota-redondeo-clp.html' %}
+    {% endif %}
   </div>
   {% else %}
   <div class="alert alert-info fade-in">

@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}management-page{% endblock %}
 
@@ -80,7 +80,7 @@
             </td>
             <td>
               {% if material.precio != None %}
-                ${{ material.precio|floatformat:0 }}
+                {{ material.precio|clp }}
               {% else %}
                 <span class="text-muted">Sin precio</span>
               {% endif %}
@@ -143,7 +143,7 @@
             </td>
             <td>
               {% if material.precio != None %}
-                ${{ material.precio|floatformat:0 }}
+                {{ material.precio|clp }}
               {% else %}
                 <span class="text-muted">Sin precio</span>
               {% endif %}

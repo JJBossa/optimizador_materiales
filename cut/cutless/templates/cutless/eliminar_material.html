@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}management-page{% endblock %}
 
@@ -28,7 +28,7 @@
           <h5>{{ material.nombre }}</h5>
           <p class="mb-1"><strong>Dimensiones:</strong> {{ material.ancho }} × {{ material.alto }} {{ material.get_unidad_medida_display }}</p>
           {% if material.precio != None %}
-            <p class="mb-1"><strong>Precio:</strong> ${{ material.precio|floatformat:0 }}</p>
+            <p class="mb-1"><strong>Precio:</strong> {{ material.precio|clp }}</p>
           {% endif %}
           {% if material.descripcion %}
             <p class="mb-0"><strong>Descripción:</strong> {{ material.descripcion }}</p>

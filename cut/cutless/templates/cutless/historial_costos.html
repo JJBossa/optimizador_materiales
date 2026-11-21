@@ -1,5 +1,5 @@
 {% extends 'cutless/base.html' %}
-{% load static %}
+{% load static moneda %}
 
 {% block body_class %}analysis-page costs-page{% endblock %}
 
@@ -72,7 +72,7 @@
           <div class="stats-label">Optimizaciones</div>
           {% if total_optimizaciones > 0 %}
           <div class="avg-cost">
-            Promedio: ${{ costo_promedio|floatformat:0|default:"0" }}
+            Promedio: {{ costo_promedio|clp }}
           </div>
           {% endif %}
         </div>
@@ -82,11 +82,11 @@
       <div class="card stats-card border-success">
         <div class="card-body text-center">
 
-          <div class="stats-value text-success">${{ costo_total|floatformat:0 }}</div>
+          <div class="stats-value text-success">{{ costo_total|clp }}</div>
           <div class="stats-label">Costo total</div>
           {% if num_tableros_total > 0 %}
           <div class="avg-cost">
-            ${{ costo_por_tablero|floatformat:0|default:"0" }} por tablero
+            {{ costo_por_tablero|clp }} por tablero
           </div>
           {% endif %}
         </div>
@@ -96,7 +96,7 @@
       <div class="card stats-card border-info">
         <div class="card-body text-center">
 
-          <div class="stats-value text-info">${{ costo_material_total|floatformat:0 }}</div>
+          <div class="stats-value text-info">{{ costo_material_total|clp }}</div>
           <div class="stats-label">Costo de material</div>
           {% if costo_total > 0 %}
           <div class="avg-cost">
@@ -110,7 +110,7 @@
       <div class="card stats-card border-warning">
         <div class="card-body text-center">
 
-          <div class="stats-value text-warning">${{ costo_mano_obra_total|floatformat:0 }}</div>
+          <div class="stats-value text-warning">{{ costo_mano_obra_total|clp }}</div>
           <div class="stats-label">Mano de obra</div>
           {% if costo_total > 0 %}
           <div class="avg-cost">
@@ -201,13 +201,13 @@
               </span>
             </td>
             <td>
-              <strong class="text-info">${{ item.costo_material|floatformat:0 }}</strong>
+              <strong class="text-info">{{ item.costo_material|clp }}</strong>
             </td>
             <td>
-              <strong class="text-warning">${{ item.costo_mano_obra|floatformat:0 }}</strong>
+              <strong class="text-warning">{{ item.costo_mano_obra|clp }}</strong>
             </td>
             <td>
-              <strong class="text-success costo-total-large">${{ item.costo_total|floatformat:0 }}</strong>
+              <strong class="text-success costo-total-large">{{ item.costo_total|clp }}</strong>
             </td>
             <td>
               <a href="{% url 'cutless:resultado' item.optimizacion.pk %}"
@@ -225,14 +225,15 @@
             <td>
               <span class="badge bg-secondary">{{ aprovechamiento_promedio|floatformat:1|default:"0" }}%</span>
             </td>
-            <td><strong>${{ costo_material_total|floatformat:0 }}</strong></td>
-            <td><strong>${{ costo_mano_obra_total|floatformat:0 }}</strong></td>
-            <td><strong class="costo-total-xl">${{ costo_total|floatformat:0 }}</strong></td>
+            <td><strong>{{ costo_material_total|clp }}</strong></td>
+            <td><strong>{{ costo_mano_obra_total|clp }}</strong></td>
+            <td><strong class="costo-total-xl">{{ costo_total|clp }}</strong></td>
             <td></td>
           </tr>
         </tfoot>
       </table>
     </div>
+    {% include 'cutless/includes/nota-redondeo-clp.html' %}
   </div>
   {% else %}
   <div class="alert alert-info fade-in text-center">

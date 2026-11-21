@@ -12,6 +12,7 @@ from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
 
 from ..exports.pdf import generar_pdf_presupuesto as construir_pdf_presupuesto
+from ..formato_clp import formatear_clp
 from ..forms import PresupuestoForm
 from ..pieces import parsear_piezas_desde_texto
 from ..models import Presupuesto, Optimizacion, Cliente
@@ -132,7 +133,8 @@ def crear_presupuesto(request):
                 request,
                 'presupuesto_creado',
                 'Presupuesto Creado',
-                f'Se ha creado el presupuesto #{presupuesto.numero} con un costo total de ${presupuesto.costo_total:.2f}.',
+                f'Se ha creado el presupuesto #{presupuesto.numero} con un costo total de '
+                f'{formatear_clp(presupuesto.costo_total).lower()}.',
                 {'presupuesto_id': presupuesto.id, 'numero': presupuesto.numero, 'costo_total': presupuesto.costo_total}
             )
             return redirect('cutless:detalle_presupuesto', pk=presupuesto.pk)
