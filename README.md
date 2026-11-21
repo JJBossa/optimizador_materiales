@@ -127,6 +127,8 @@ El margen se introduce en milímetros: 0 permite corte sin separación; el valor
 
 ## Documentación de cambios
 
+Toda corrección o nueva funcionalidad debe incluir la actualización correspondiente de la documentación técnica en `docs/` antes de considerarse completa.
+
 - [Registro de cambios de noviembre de 2026](docs/REGISTRO_CAMBIOS_NOVIEMBRE_2026.md)
 - [Auditoría integral de CutLess](docs/AUDITORIA_INTEGRAL_CUTLESS.md)
 - [Recuperación de contraseñas con Brevo y Cloudflare Queues](docs/RECUPERACION_PASSWORD_BREVO.md)
@@ -144,6 +146,7 @@ El margen se introduce en milímetros: 0 permite corte sin separación; el valor
 - [Mi perfil y preferencias](docs/CAMBIOS_VISUALES_PERFIL.md)
 - [Configuración, menú personalizado y notificaciones](docs/CAMBIOS_VISUALES_CONFIGURACION.md)
 - [Ayuda: presentación y recorrido contextual](docs/CAMBIOS_VISUALES_AYUDA.md)
+- [Auditoría de reapertura y diseño móvil de tutoriales](docs/AUDITORIA_TUTORIALES_CUTLESS.md)
 - [Estadísticas: presentación y claridad](docs/CAMBIOS_VISUALES_ESTADISTICAS.md)
 - [Análisis: comparación y costos](docs/CAMBIOS_VISUALES_ANALISIS.md)
 - [Plantillas: presentación, unidades y copias personales](docs/CAMBIOS_VISUALES_PLANTILLAS.md)
