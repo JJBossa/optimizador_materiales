@@ -5,7 +5,10 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/indicadores-presupuesto.css' %}">
 {% endblock %}
+
+{% block extra_js %}<script defer src="{% static 'cutless/js/indicadores-presupuesto.js' %}"></script>{% endblock %}
 
 {% block content %}
   <header class="page-header fade-in">
@@ -147,7 +150,7 @@
           {% endif %}
           <tr class="table-primary">
             <td colspan="3" class="text-end"><strong>TOTAL:</strong></td>
-            <td class="costo-total"><strong>${{ presupuesto.total_vigente|floatformat:2 }}</strong></td>
+            <td class="costo-total"><strong>${{ total_presupuesto|floatformat:2 }}</strong></td>
           </tr>
         </tbody>
       </table></div>
@@ -157,6 +160,8 @@
       </div>
     </div>
   </div>
+
+  {% include 'cutless/includes/indicadores-presupuesto.html' %}
 
   <!-- Notas -->
   {% if presupuesto.notas %}

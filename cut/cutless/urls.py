@@ -72,6 +72,11 @@ urlpatterns = [
 
     # Gestión de presupuestos
     path('presupuestos/', auth_perm('puede_crear_presupuestos', views.lista_presupuestos), name='lista_presupuestos'),
+    path(
+        'presupuestos/indicadores/',
+        auth_perm('puede_crear_presupuestos', views.indicadores_presupuestos),
+        name='indicadores_presupuestos',
+    ),
     path('presupuestos/crear/', auth_perm('puede_crear_presupuestos', views.crear_presupuesto), name='crear_presupuesto'),
     path('presupuestos/editar/<int:pk>/', auth_perm('puede_crear_presupuestos', views.editar_presupuesto), name='editar_presupuesto'),
     path('presupuestos/<int:pk>/', auth_perm('puede_crear_presupuestos', views.detalle_presupuesto), name='detalle_presupuesto'),
