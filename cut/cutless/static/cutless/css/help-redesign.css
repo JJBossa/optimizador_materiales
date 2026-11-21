@@ -76,3 +76,33 @@
 @media (prefers-reduced-motion: reduce) {
   .introjs-tooltipReferenceLayer, .introjs-helperLayer, .introjs-overlay { transition: none !important; }
 }
+
+/* En pantallas estrechas el cuadro se alinea al área visible, incluso con zoom. */
+@media (max-width: 600px) {
+  body.tutorial-running .introjs-tooltip.customTooltip {
+    --ayuda-margen-lateral: max(12px, env(safe-area-inset-left, 0px), env(safe-area-inset-right, 0px));
+    --ayuda-margen-superior: max(12px, env(safe-area-inset-top, 0px));
+    --ayuda-margen-inferior: max(12px, env(safe-area-inset-bottom, 0px));
+    position: fixed;
+    inset: calc(var(--ayuda-borde-inferior-visible, 100dvh) - var(--ayuda-margen-inferior)) auto auto
+      calc(var(--ayuda-izquierda-visible, 0px) + var(--ayuda-margen-lateral)) !important;
+    transform: translateY(-100%);
+    margin: 0 !important;
+    width: calc(var(--ayuda-ancho-visible, 100vw) - 2 * var(--ayuda-margen-lateral));
+    min-width: 0;
+    max-width: none;
+    max-height: calc(var(--ayuda-alto-visible, 100dvh) - var(--ayuda-margen-superior) - var(--ayuda-margen-inferior));
+  }
+  .customTooltip .introjs-tooltip-header { padding: 14px 14px 0; }
+  .customTooltip .introjs-tooltiptext {
+    padding: 12px 14px;
+    max-height: clamp(3rem, calc(var(--ayuda-alto-visible, 100dvh) * .4),
+      calc(var(--ayuda-alto-visible, 100dvh) - 185px));
+    overscroll-behavior-y: contain;
+  }
+  .customTooltip .introjs-progress { margin-inline: 14px; }
+  .customTooltip .introjs-tooltipbuttons { padding: 10px 14px; gap: 8px; }
+  .customTooltip .introjs-button { min-inline-size: 0; overflow-wrap: anywhere; }
+  .customTooltip .introjs-arrow { visibility: hidden; }
+  #modalBienvenida .modal-body { overflow-wrap: anywhere; }
+}

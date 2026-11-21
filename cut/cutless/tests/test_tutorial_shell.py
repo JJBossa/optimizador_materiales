@@ -17,11 +17,13 @@ class TutorialShellTests(SimpleTestCase):
             with self.subTest(options=options):
                 html = self.render_shell(**options)
                 self.assertNotIn('function iniciarTutorial()', html)
+                self.assertNotIn('cutless/js/tutorial.js', html)
                 self.assertNotIn('id="modalBienvenida"', html)
 
     def test_new_user_has_one_help_controller_and_one_welcome_dialog(self):
         html = self.render_shell()
         self.assertEqual(html.count('function iniciarTutorial()'), 1)
+        self.assertEqual(html.count('cutless/js/tutorial.js'), 1)
         self.assertEqual(html.count('id="modalBienvenida"'), 1)
         self.assertIn('const esUsuarioNuevo = true;', html)
         self.assertIn('revision_tutorial', html)

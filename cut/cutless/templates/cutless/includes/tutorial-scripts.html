@@ -1,3 +1,5 @@
+{% load static %}
+<script src="{% static 'cutless/js/tutorial.js' %}?v=2"></script>
     <script>
         // Aplicar tema del perfil si está configurado
         (function() {
@@ -20,133 +22,53 @@
         // Solo tras login exitoso (bandera en sesión), usuario nuevo y sin optimizaciones aún
         if (mostrarModalBienvenida && esUsuarioNuevo && !tieneOptimizaciones) {
             document.addEventListener('DOMContentLoaded', function() {
-                // Esperar un poco para que la página cargue completamente
-                setTimeout(function() {
-                    const modalBienvenida = new bootstrap.Modal(document.getElementById('modalBienvenida'));
-                    modalBienvenida.show();
-                }, 500);
+                const modalBienvenida = new bootstrap.Modal(document.getElementById('modalBienvenida'));
+                modalBienvenida.show();
             });
         }
 
         // Función para iniciar tutorial interactivo
         function iniciarTutorial() {
-            // Cerrar modal de bienvenida si está abierto
-            const modalBienvenida = bootstrap.Modal.getInstance(document.getElementById('modalBienvenida'));
-            if (modalBienvenida) {
-                modalBienvenida.hide();
-            }
-
             const pagina = '{{ request.resolver_match.url_name|escapejs }}';
             const secciones = {
-                historial: 'historial', resultado: 'resultado', perfil: 'perfil',
-                configuracion_sistema: 'configuracion_sistema', estadisticas: 'estadisticas',
+                resultado: 'resultado',
                 lista_materiales: 'materiales', lista_clientes: 'clientes',
                 lista_proyectos: 'proyectos', lista_presupuestos: 'presupuestos',
                 lista_plantillas: 'plantillas', historial_costos: 'costos',
-                comparar_optimizaciones: 'comparar', calcular_tiempo: 'calcular_tiempo',
+                comparar_optimizaciones: 'comparar',
                 agregar_optimizaciones_proyecto: 'agregar_optimizaciones',
                 agregar_optimizaciones_presupuesto: 'agregar_optimizaciones'
             };
             if (pagina !== 'index') {
-                iniciarTutorialSeccion(secciones[pagina] || pagina);
-                return;
+                return iniciarTutorialSeccion(secciones[pagina] || pagina);
             }
-            mostrarGuia(obtenerPasosTutorial(), true);
-        }
-
-        let guiaActiva = null;
-        function mostrarGuia(pasos, completarBienvenida = false) {
-            // No señalar controles ocultos, inexistentes o todo el cuerpo de la página.
-            const visibles = pasos.filter(paso => !('element' in paso) ||
-                (paso.element && paso.element !== document.body &&
-                 paso.element.getClientRects().length > 0));
-            if (!visibles.length) {
-                visibles.push({title: 'Ayuda', intro: 'No hay controles disponibles para guiar en esta pantalla. Puedes volver a Inicio para preparar un corte o a Historial para consultar los anteriores.'});
-            }
-            if (guiaActiva) guiaActiva.exit(true);
-            document.body.classList.add('tutorial-running');
-            guiaActiva = introJs().setOptions({
-                steps: visibles, showProgress: true, showBullets: false,
-                exitOnOverlayClick: false, exitOnEsc: true,
-                nextLabel: 'Siguiente', prevLabel: 'Anterior', skipLabel: '×',
-                doneLabel: 'Finalizar', tooltipClass: 'customTooltip',
-                highlightClass: 'customHighlight', scrollPadding: 24, scrollToElement: true, scrollTo: 'tooltip', positionPrecedence: ['bottom', 'top', 'left', 'right']
-            });
-            guiaActiva.oncomplete(() => {
-                document.body.classList.remove('tutorial-running');
-                if (completarBienvenida) marcarTutorialCompletado();
-            });
-            guiaActiva.onafterchange(function() {
-                const cerrar = document.querySelector('.introjs-skipbutton');
-                if (cerrar) { cerrar.setAttribute('aria-label', 'Cerrar ayuda'); cerrar.setAttribute('title', 'Cerrar ayuda'); }
-            });
-            guiaActiva.onexit(() => document.body.classList.remove('tutorial-running'));
-            guiaActiva.start();
+            return mostrarGuia(obtenerPasosTutorial(), marcarTutorialCompletado);
         }
 
         // Obtener pasos del tutorial según la página
         function obtenerPasosTutorial() {
-            const path = window.location.pathname;
-            const pasos = [];
-
-            if (path.includes('index') || path === '/cutless/') {
-                // Tutorial en página principal
-                pasos.push(
-                    {
-                        title: '¡Bienvenido a CutLess!',
-                        intro: 'Este tutorial te guiará paso a paso para usar el sistema de optimización de cortes.',
-                        element: document.querySelector('h1, h2')
-                    },
-                    {
-                        title: 'Dimensiones del Tablero',
-                        intro: 'Ingresa las dimensiones del tablero de madera que vas a cortar. Puedes usar diferentes unidades (cm, m, pulgadas, pies).',
-                        element: document.querySelector('input[name="ancho"]') || document.querySelector('.form-control')
-                    },
-                    {
-                        title: 'Agregar Piezas',
-                        intro: 'Agrega las piezas que necesitas cortar. Puedes darle un nombre a cada pieza para identificarla mejor. Haz clic en "Añadir otro tipo de pieza" para añadir más.',
-                        element: document.querySelector('textarea[name$="-nombre"]') || document.querySelector('.formset')
-                    },
-                    {
-                        title: 'Generar plan de corte',
-                        intro: 'Una vez que hayas ingresado todas las piezas, haz clic en "Generar plan de corte" para generar el plan de corte.',
-                        element: document.querySelector('#optimizacion-form button[type="submit"]')
-                    }
-                );
-            } else if (path.includes('mis-optimizaciones')) {
-                pasos.push(
-                    {
-                        title: 'Historial de Optimizaciones',
-                        intro: 'Aquí puedes ver todas tus optimizaciones guardadas. Puedes filtrar, buscar y ordenar según tus necesidades.',
-                        element: document.querySelector('h1, h2')
-                    },
-                    {
-                        title: 'Buscar y Filtrar',
-                        intro: 'Usa estos filtros para encontrar optimizaciones específicas por nombre de pieza, fecha o aprovechamiento.',
-                        element: document.querySelector('.search-filters') || document.body
-                    },
-                    {
-                        title: 'Favoritos',
-                        intro: 'Haz clic en la estrella para marcar optimizaciones importantes como favoritas. Luego puedes filtrar para ver solo tus favoritos.',
-                        element: document.querySelector('.favorito-btn') || document.body
-                    },
-                    {
-                        title: 'Acciones',
-                        intro: 'Cada optimización tiene acciones disponibles: descargar PDF, duplicar, descargar PNG, calcular tiempo y más opciones en el menú.',
-                        element: document.querySelector('.action-buttons') || document.body
-                    }
-                );
-            } else if (path.includes('estadisticas')) {
-                pasos.push(
-                    {
-                        title: ' Estadísticas',
-                        intro: 'Aquí puedes ver gráficos y métricas de todas tus optimizaciones para analizar tu eficiencia.',
-                        element: document.querySelector('h1, h2')
-                    }
-                );
-            }
-
-            return pasos;
+            return [
+                {
+                    title: '¡Bienvenido a CutLess!',
+                    intro: 'Este tutorial te guiará paso a paso para usar el sistema de optimización de cortes.',
+                    element: document.querySelector('h1, h2')
+                },
+                {
+                    title: 'Dimensiones del Tablero',
+                    intro: 'Ingresa las dimensiones del tablero de madera que vas a cortar. Puedes usar diferentes unidades (cm, m, pulgadas, pies).',
+                    element: document.querySelector('input[name="ancho"]') || document.querySelector('.form-control')
+                },
+                {
+                    title: 'Agregar Piezas',
+                    intro: 'Agrega las piezas que necesitas cortar. Puedes darle un nombre a cada pieza para identificarla mejor. Haz clic en "Añadir otro tipo de pieza" para añadir más.',
+                    element: document.querySelector('textarea[name$="-nombre"]') || document.querySelector('.formset')
+                },
+                {
+                    title: 'Generar plan de corte',
+                    intro: 'Revisa las medidas y las cantidades antes de pulsar el botón principal para calcular el plan de corte.',
+                    element: document.querySelector('#optimizacion-form button[type="submit"]')
+                }
+            ];
         }
 
         // Marcar tutorial como completado
@@ -195,21 +117,47 @@
 
         // Función para iniciar tutorial de sección específica
         function iniciarTutorialSeccion(seccion) {
-            const path = window.location.pathname;
             let pasos = [];
 
             if (seccion === 'tablero') {
+                const medidasHabituales = document.getElementById('tableros-dropdown');
                 pasos = [
                     {
                         title: 'Dimensiones del Tablero',
-                        intro: 'Ingresa el ancho y alto del tablero de madera disponible. Puedes usar tableros predefinidos o ingresar medidas personalizadas. Selecciona la unidad de medida que prefieras (cm, m, pulgadas o pies).',
-                        element: document.querySelector('input[name="ancho"]') || document.querySelector('#medidas-pred-container')
+                        intro: 'Ingresa el ancho y alto del tablero de madera que vas a cortar.',
+                        element: document.querySelector('input[name="ancho"]')
                     },
-                    {
+                    medidasHabituales ? {
                         title: 'Tableros Predefinidos',
                         intro: 'Usa el menú desplegable para seleccionar medidas estándar de tableros comunes (OSB, MDF, Melamina, etc.). Esto ahorra tiempo al ingresar dimensiones frecuentes.',
-                        element: document.querySelector('#tableros-dropdown') || document.querySelector('#medidas-pred-container')
+                        element: medidasHabituales
+                    } : {
+                        title: 'Unidad de medida',
+                        intro: 'Selecciona en qué unidad quieres ingresar las medidas del tablero.',
+                        element: document.querySelector('select[name="unidad_medida"]')
                     }
+                ];
+            } else if (seccion === 'costos_optimizacion') {
+                pasos = [
+                    {
+                        title: 'Material y precio por tablero',
+                        intro: 'Puedes seleccionar un material y revisar el precio por tablero que se usará para este corte.',
+                        element: document.querySelector('#precio_tablero')
+                    },
+                    {
+                        title: 'Mano de obra',
+                        intro: 'Añade el costo de mano de obra si deseas incluirlo en el resultado.',
+                        element: document.querySelector('#mano_obra')
+                    }
+                ];
+            } else if (seccion === 'editar_optimizacion') {
+                pasos = [
+                    {
+                        title: 'Editar el plan de corte',
+                        intro: 'Ajusta las dimensiones y las piezas y guarda la optimización para calcular el nuevo plan.',
+                        element: document.querySelector('.app-main h1')
+                    },
+                    ...obtenerPasosTutorial().slice(1)
                 ];
             } else if (seccion === 'piezas') {
                 pasos = [
@@ -262,17 +210,17 @@
                     {
                         title: 'Seleccionar Período',
                         intro: 'Filtra las estadísticas por período de tiempo: últimos 7, 30 o 365 días, o todo el historial. Selecciona el período y pulsa "Aplicar período". Esto te permite analizar tendencias específicas.',
-                        element: document.querySelector('select[name="periodo"]')
+                        element: document.querySelector('.app-main select[name="periodo"]')
                     },
                     {
                         title: 'Gráficos Interactivos',
                         intro: 'Los gráficos muestran la tendencia de aprovechamiento y desperdicio a lo largo del tiempo. Haz clic en ellos para verlos en pantalla completa con zoom.',
-                        element: document.querySelector('.chart-container')
+                        element: document.querySelector('.statistics-page .chart-container')
                     },
                     {
                         title: 'Mejores resultados del período',
                         intro: 'Revisa tus mejores optimizaciones ordenadas por aprovechamiento. Puedes duplicar o descargar estas optimizaciones para reutilizarlas.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     }
                 ];
             } else if (seccion === 'presupuestos') {
@@ -290,12 +238,12 @@
                     {
                         title: 'Crear Presupuesto',
                         intro: 'Haz clic en "Crear Presupuesto" para generar un nuevo presupuesto. Puedes asociar múltiples optimizaciones y calcular el costo total automáticamente.',
-                        element: document.querySelector('a[href*="crear_presupuesto"]')
+                        element: document.querySelector('.app-main .page-header__actions a[data-action="primary"]')
                     },
                     {
                         title: 'Lista de Presupuestos',
                         intro: 'La tabla muestra todos tus presupuestos con información clave: número, cliente, estado, costo total y fecha. Usa los botones de acción para ver, editar o generar PDF.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     }
                 ];
             } else if (seccion === 'proyectos') {
@@ -313,12 +261,12 @@
                     {
                         title: 'Crear Proyecto',
                         intro: 'Crea un nuevo proyecto para organizar tus optimizaciones. Puedes asociar un cliente, definir fechas y agregar múltiples optimizaciones.',
-                        element: document.querySelector('a[href*="crear_proyecto"]')
+                        element: document.querySelector('.app-main .page-header__actions a[data-action="primary"]')
                     },
                     {
                         title: 'Vista de Proyectos',
                         intro: 'La tabla muestra todos tus proyectos con información sobre cliente, estado, número de optimizaciones y costo total. Usa los botones para ver detalles, editar o eliminar.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     }
                 ];
             } else if (seccion === 'clientes') {
@@ -336,12 +284,12 @@
                     {
                         title: 'Agregar Cliente',
                         intro: 'Crea un nuevo cliente con su información de contacto. Puedes agregar RUT, email, teléfono y dirección para mantener un registro completo.',
-                        element: document.querySelector('a[href*="crear_cliente"]')
+                        element: document.querySelector('.app-main .page-header__actions a[data-action="primary"]')
                     },
                     {
                         title: 'Lista de Clientes',
                         intro: 'La tabla muestra todos tus clientes con su información de contacto y el número de optimizaciones asociadas. Usa los botones para ver historial, editar o eliminar.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     }
                 ];
             } else if (seccion === 'materiales') {
@@ -359,12 +307,12 @@
                     {
                         title: 'Agregar Material',
                         intro: 'Crea un nuevo material con sus dimensiones y precio. Los materiales guardados aparecerán automáticamente al crear optimizaciones.',
-                        element: document.querySelector('a[href*="crear_material"]')
+                        element: document.querySelector('.app-main .page-header__actions a[data-action="primary"]')
                     },
                     {
                         title: 'Lista de Materiales',
                         intro: 'La biblioteca muestra las medidas en centímetros, el precio por tablero y el área. Solo los administradores pueden modificar materiales del sistema.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     }
                 ];
             } else if (seccion === 'plantillas') {
@@ -382,12 +330,12 @@
                     {
                         title: 'Crear Plantilla',
                         intro: 'Crea una nueva plantilla desde una optimización existente. Las plantillas guardan las dimensiones del tablero y todas las piezas.',
-                        element: document.querySelector('a[href*="crear_plantilla"]')
+                        element: document.querySelector('.app-main .page-header__actions a[data-action="primary"]')
                     },
                     {
-                        title: 'Cargar plantilla Plantilla',
+                        title: 'Cargar plantilla',
                         intro: 'Haz clic en "Cargar plantilla" para aplicar una plantilla a una nueva optimización. Esto carga automáticamente todas las piezas y configuraciones guardadas.',
-                        element: document.querySelector('.card')
+                        element: document.querySelector('.app-main .card-footer a[data-action="primary"]')
                     }
                 ];
             } else if (seccion === 'costos') {
@@ -405,7 +353,7 @@
                     {
                         title: 'Filtrar por Fecha',
                         intro: 'Elige las fechas y pulsa "Aplicar fechas". El resumen, el gráfico, la tabla y Exportar Excel corresponden al filtro aplicado.',
-                        element: document.querySelector('input[type="date"]')
+                        element: document.querySelector('.app-main input[type="date"]')
                     },
                     {
                         title: 'Gráfico de Costos',
@@ -415,7 +363,7 @@
                     {
                         title: 'Tabla Detallada',
                         intro: 'La tabla lista todas las optimizaciones con sus costos desglosados: material, mano de obra y total. Puedes exportar estos datos a Excel.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.cost-table')?.closest('.table-responsive')
                     }
                 ];
             } else if (seccion === 'comparar') {
@@ -433,12 +381,12 @@
                     {
                         title: 'Resultados de Comparación',
                         intro: 'Las diferencias se calculan como segunda optimización menos primera. Los porcentajes se expresan en puntos porcentuales. Lee el signo junto con la métrica: menos desperdicio y más aprovechamiento pueden ser mejoras.',
-                        element: document.querySelector('.comparison-result')
+                        element: document.querySelector('[aria-labelledby="comparison-decision-title"]')
                     },
                     {
                         title: 'Ver Detalles',
                         intro: 'Haz clic en "Ver resultado" para ver el plan de corte completo de cada optimización, incluyendo el gráfico visual y la lista de piezas.',
-                        element: document.querySelector('a[href*="resultado"]')
+                        element: document.querySelector('.app-main a[href*="/resultado/"]')
                     }
                 ];
             } else if (seccion === 'crear_presupuesto' || seccion === 'editar_presupuesto') {
@@ -451,17 +399,17 @@
                     {
                         title: 'Seleccionar Optimizaciones',
                         intro: 'Elige una o más optimizaciones para incluir en el presupuesto. Puedes ver los detalles de cada optimización antes de seleccionarla. El costo total se calculará automáticamente.',
-                        element: document.querySelector('.optimizaciones-container')
+                        element: document.querySelector('.budget-plan-selector')
                     },
                     {
                         title: 'Fecha de Validez',
                         intro: 'Establece hasta cuándo es válido el presupuesto. Esto es importante para controlar la vigencia de las ofertas a tus clientes.',
-                        element: document.querySelector('input[type="date"]')
+                        element: document.querySelector('.app-main input[type="date"]')
                     },
                     {
                         title: 'Guardar Presupuesto',
                         intro: 'Una vez completado, guarda el presupuesto. Podrás editarlo, generar un PDF o agregar más optimizaciones más tarde.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'crear_proyecto' || seccion === 'editar_proyecto') {
@@ -474,17 +422,17 @@
                     {
                         title: 'Seleccionar Optimizaciones',
                         intro: 'Elige las optimizaciones que forman parte de este proyecto. Puedes seleccionar múltiples optimizaciones y ver sus detalles antes de agregarlas.',
-                        element: document.querySelector('.optimizaciones-container')
+                        element: document.querySelector('.budget-plan-selector')
                     },
                     {
                         title: 'Fechas del Proyecto',
                         intro: 'Define las fechas de inicio y fin del proyecto. Esto es útil para planificar y hacer seguimiento del progreso.',
-                        element: document.querySelector('input[type="date"]')
+                        element: document.querySelector('.app-main input[type="date"]')
                     },
                     {
                         title: 'Guardar Proyecto',
                         intro: 'Guarda el proyecto con todas sus optimizaciones asociadas. Podrás agregar más optimizaciones o editar la información más tarde.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'crear_cliente' || seccion === 'editar_cliente') {
@@ -502,7 +450,7 @@
                     {
                         title: 'Guardar Cliente',
                         intro: 'Una vez guardado, el cliente estará disponible para asociarlo a optimizaciones, presupuestos y proyectos.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'crear_material' || seccion === 'editar_material') {
@@ -525,7 +473,7 @@
                     {
                         title: 'Guardar Material',
                         intro: 'Guarda el material en tu biblioteca. Estará disponible para usar en futuras optimizaciones y presupuestos.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'crear_plantilla' || seccion === 'editar_plantilla') {
@@ -548,7 +496,7 @@
                     {
                         title: 'Guardar Plantilla',
                         intro: 'Guarda la plantilla para reutilizarla en el futuro. Podrás aplicarla rápidamente a nuevas optimizaciones.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'detalle_presupuesto') {
@@ -561,7 +509,7 @@
                     {
                         title: 'Optimizaciones Incluidas',
                         intro: 'La lista muestra todas las optimizaciones asociadas al presupuesto con sus detalles: dimensiones, aprovechamiento, cantidad de tableros y costo.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     },
                     {
                         title: 'Costos',
@@ -584,7 +532,7 @@
                     {
                         title: 'Optimizaciones del Proyecto',
                         intro: 'La lista muestra todas las optimizaciones que forman parte del proyecto. Puedes ver detalles de cada una o agregar más optimizaciones.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     },
                     {
                         title: 'Costo Total',
@@ -607,7 +555,7 @@
                     {
                         title: 'Optimizaciones del Cliente',
                         intro: 'La tabla muestra todas las optimizaciones asociadas a este cliente. Puedes ver detalles, aprovechamiento y fechas de cada una.',
-                        element: document.querySelector('.table')
+                        element: document.querySelector('.table-responsive')
                     },
                     {
                         title: 'Estadísticas',
@@ -630,7 +578,7 @@
                     {
                         title: 'Confirmar Selección',
                         intro: 'Una vez seleccionadas las optimizaciones, haz clic en "Agregar Optimizaciones" para asociarlas al proyecto o presupuesto.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'configuracion_sistema') {
@@ -663,7 +611,7 @@
                     {
                         title: 'Guardar Configuración',
                         intro: 'Una vez configurados los valores predeterminados, guarda los cambios. Estos valores se aplicarán automáticamente en futuras optimizaciones.',
-                        element: document.querySelector('button[type="submit"]')
+                        element: document.querySelector('.app-main form button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'perfil') {
@@ -695,8 +643,8 @@
                     },
                     {
                         title: 'Guardar Cambios',
-                        intro: 'No olvides guardar los cambios después de modificar tu información o preferencias.',
-                        element: document.querySelector('button[type="submit"]')
+                        intro: 'Cada formulario tiene su propio botón para guardar los cambios de la sección activa.',
+                        element: document.querySelector('#profileTabsContent .tab-pane.active button[type="submit"]')
                     }
                 ];
             } else if (seccion === 'resultado') {
@@ -727,17 +675,17 @@
                     {
                         title: 'Calculadora de Tiempo',
                         intro: 'Esta herramienta te ayuda a estimar el tiempo necesario para cortar todas las piezas de la optimización. Considera velocidad de corte, tiempo de setup y cambios de herramienta.',
-                        element: document.querySelector('.card')
+                        element: document.querySelector('.app-main h1')
                     },
                     {
                         title: 'Parámetros de Cálculo',
-                        intro: 'Ajusta los parámetros según tu máquina y proceso: velocidad de corte (cm/seg), tiempo de setup por tablero (min) y tiempo de cambio de herramienta (min).',
-                        element: document.querySelector('form')
+                        intro: 'Consulta la velocidad de corte, la preparación por tablero y el tiempo por cambio de herramienta que se usaron en la estimación.',
+                        element: document.getElementById('parametros-tiempo')
                     },
                     {
                         title: 'Resumen de Piezas',
                         intro: 'Aquí puedes ver el resumen: total de piezas, tipos de piezas diferentes, perímetro total a cortar y número estimado de tableros.',
-                        element: document.querySelector('.mb-4')
+                        element: document.getElementById('resumen-piezas-tiempo')
                     },
                     {
                         title: 'Tiempo Estimado',
@@ -758,7 +706,7 @@
                 ];
             }
 
-            mostrarGuia(pasos);
+            return mostrarGuia(pasos);
         }
 
         // Hacer función global para que esté disponible desde onclick
