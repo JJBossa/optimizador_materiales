@@ -2,7 +2,6 @@
   'use strict';
   const element = document.getElementById('modalImagen');
   if (!element) return;
-  const modal = bootstrap.Modal.getOrCreateInstance(element);
   const viewport = document.getElementById('history-board-viewport');
   const canvas = document.getElementById('history-board-canvas');
   const image = document.getElementById('history-board-image');
@@ -62,6 +61,7 @@
       if (response.redirected && response.url.includes('/usuarios/login/')) throw new Error('sesion');
       if (!response.ok) throw new Error([401, 403].includes(response.status) ? 'sesion' : 'carga');
       const data = await response.json();
+      if (controller.signal.aborted) return;
       if (!Number.isInteger(data.total) || data.total < 1) throw new Error('carga');
       if (typeof data.panel === 'string') return {html:data.panel, total:data.total, source:null};
       // Compatibilidad con resultados antiguos sin coordenadas, sin alterar sus archivos.
@@ -95,7 +95,7 @@
     if (!request || request.signal.aborted || target < 0 || (total && target >= total)) return;
     index = target; zoom = 1;
     const ticket = ++version, controller = request;
-    const current = () => request === controller && !controller.signal.aborted && version === ticket;
+    const current = () => request === controller && !controller.signal.aborted && version === ticket && navigation.isOpen();
     loading();
     try {
       const result = await fetchBoard(index + 1, controller);
@@ -132,19 +132,36 @@
       if (index + 1 < total) fetchBoard(index + 2, controller).catch(() => {});
     } catch (error) { if (current()) failure(error); }
   }
-  image.addEventListener('load', () => { if (drawing === image && request && !request.signal.aborted) paint(true); });
-  image.addEventListener('error', () => { if (drawing === image && request && !request.signal.aborted) { version++; failure(new Error('carga')); } });
-  window.abrirModalImagen = (fallback, id, displayNumber) => {
+  const showingLegacyImage = () => navigation.isOpen() && drawing === image && request && !request.signal.aborted;
+  image.addEventListener('load', () => { if (showingLegacyImage()) paint(true); });
+  image.addEventListener('error', () => { if (showingLegacyImage()) { version++; failure(new Error('carga')); } });
+  element.addEventListener('hidden.bs.modal', () => { cache.clear(); busy(false); image.hidden = true; drawing = image; canvas.replaceChildren(image); pieces.replaceChildren(); details.replaceChildren(); });
+  const findOpener = value => Number.isSafeInteger(value?.id)
+    ? document.querySelector(`[data-history-board-id="${value.id}"]`) : null;
+  const navigation = window.createModalHistory({
+    element,
+    key: 'cutlessHistoryViewer',
+    valid: value => Number.isSafeInteger(value?.index) && value.index >= 0 && Boolean(findOpener(value)),
+    render: openBoard,
+    findOpener,
+  });
+  function openBoard({id, index: boardIndex, displayNumber}) {
     request?.abort(); request = new AbortController();
     cache.clear(); version++; total = 0; index = 0; zoom = 1; optimizationId = id;
     number = displayNumber || '';
     window.CutlessUtilization?.reset?.('history');
     document.getElementById('modalImagenLabel').textContent = number ? `Tableros · ${number}` : 'Tableros';
     document.getElementById('history-board-zoom').textContent = '100%';
-    modal.show(); return show(0);
-  };
-  previous.addEventListener('click', () => show(index - 1));
-  next.addEventListener('click', () => show(index + 1));
+    return show(boardIndex);
+  }
+  window.abrirModalImagen = (_fallback, id, displayNumber) => navigation.open({id, index: 0, displayNumber});
+  function changeBoard(target) {
+    if (!navigation.isOpen() || target < 0 || target >= total || target === index) return;
+    navigation.replace({id: optimizationId, index: target, displayNumber: number});
+    show(target);
+  }
+  previous.addEventListener('click', () => changeBoard(index - 1));
+  next.addEventListener('click', () => changeBoard(index + 1));
   document.getElementById('history-board-retry').addEventListener('click', () => { cache.delete(index + 1); show(index); });
   function changeZoom(delta) {
     const old = zoom, x = viewport.scrollLeft + viewport.clientWidth / 2, y = viewport.scrollTop + viewport.clientHeight / 2;
@@ -155,7 +172,9 @@
   zoomIn.addEventListener('click', () => changeZoom(.25)); zoomOut.addEventListener('click', () => changeZoom(-.25));
   fit.addEventListener('click', () => { zoom = 1; paint(true); });
   element.addEventListener('shown.bs.modal', () => paint(true));
-  element.addEventListener('hide.bs.modal', () => { request?.abort(); version++; window.CutlessUtilization?.reset?.('history'); });
-  element.addEventListener('hidden.bs.modal', () => { cache.clear(); busy(false); image.hidden = true; drawing = image; canvas.replaceChildren(image); pieces.replaceChildren(); details.replaceChildren(); });
+  element.addEventListener('hide.bs.modal', event => {
+    if (event.defaultPrevented) return;
+    request?.abort(); version++; window.CutlessUtilization?.reset?.('history');
+  });
   window.addEventListener('resize', () => { if (element.classList.contains('show')) paint(); });
 })();

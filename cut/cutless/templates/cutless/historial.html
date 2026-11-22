@@ -124,6 +124,10 @@
           <div class="optimizacion-card">
             {% if item.miniatura or optimizacion.imagen %}
               <div class="chart-container chart-container-clickable"
+                   data-history-board-id="{{ optimizacion.id }}"
+                   role="button" tabindex="0" aria-haspopup="dialog" aria-controls="modalImagen"
+                   aria-label="Ampliar imagen de {{ optimizacion.codigo }}"
+                   onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!event.repeat) this.click(); }"
                    onclick="abrirModalImagen('{% if optimizacion.imagen %}{{ optimizacion.imagen.url }}{% endif %}', {{ optimizacion.id }}, '{{ optimizacion.codigo }}')">
                 {% if item.miniatura %}
                   <div class="chart-thumbnail chart-thumbnail-horizontal" role="img" aria-label="{{ optimizacion.codigo }}: primer tablero horizontal">
@@ -329,7 +333,7 @@
       <div class="modal-dialog modal-fullscreen"><div class="modal-content">
         <div class="modal-header">
           <h2 class="modal-title" id="modalImagenLabel">Tableros de la optimización</h2>
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-action="secondary" data-icon="chevron-left">{% button_icon 'chevron-left' %}Volver al historial</button>
+          <button type="button" class="btn btn-secondary" data-close-modal-viewer data-action="secondary" data-icon="chevron-left">{% button_icon 'chevron-left' %}Volver al historial</button>
         </div>
         <div class="board-toolbar" aria-label="Controles del visor">
           <div class="history-board-navigation button-pagination">
@@ -361,7 +365,8 @@
     </div>
     {% include 'cutless/includes/board-loading.html' %}
     <script src="{% static 'cutless/js/utilization.js' %}?v=2"></script>
-<script src="{% static 'cutless/js/history-board-viewer.js' %}?v=progressive-2" defer></script>
+<script src="{% static 'cutless/js/modal-history.js' %}?v=2"></script>
+<script src="{% static 'cutless/js/history-board-viewer.js' %}?v=viewer-history-2" defer></script>
 <script>
 // Función para obtener el token CSRF de las cookies
 function getCookie(name) {

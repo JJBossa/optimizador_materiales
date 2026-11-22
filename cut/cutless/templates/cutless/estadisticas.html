@@ -143,7 +143,7 @@
         <div class="modal-content">
           <div class="modal-header modal-header-app">
             <h5 class="modal-title" id="modalGraficoLabel">Gráfico en Pantalla Completa</h5>
-            <button type="button" class="btn btn-icon btn-text" data-bs-dismiss="modal" aria-label="Cerrar" data-action="text" data-icon="close"></button>
+            <button type="button" class="btn btn-icon btn-text" data-close-modal-viewer aria-label="Cerrar" data-action="text" data-icon="close"></button>
           </div>
           <div class="modal-body modal-grafico-body">
             <div class="zoom-controls">
@@ -155,7 +155,7 @@
             <div id="modalGraficoContenido" class="modal-grafico-contenido" tabindex="0" aria-label="Gráfico ampliado; desplázate para ver sus detalles"></div>
           </div>
           <div class="modal-footer modal-footer-app">
-            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal" data-action="secondary" data-icon="close">Cerrar</button>
+            <button type="button" class="btn btn-secondary" data-close-modal-viewer data-action="secondary" data-icon="close">Cerrar</button>
             <button type="button" class="btn btn-secondary" onclick="resetearZoom()" data-action="secondary" data-icon="refresh">Restablecer ampliación</button>
           </div>
         </div>
@@ -241,6 +241,7 @@
     </div>
   {% endif %}
 
+<script src="{% static 'cutless/js/modal-history.js' %}?v=2"></script>
 <script>
 const modalGrafico = document.getElementById('modalGrafico');
 const miniaturasEstadisticas = document.getElementById('miniaturasEstadisticas');
@@ -348,8 +349,20 @@ function resetearZoom() {
     contenido.scrollLeft = 0;
 }
 
-async function abrirModalGrafico(tipo) {
-    if (!modalGrafico) return;
+const historialGrafico = modalGrafico && window.createModalHistory({
+    element: modalGrafico,
+    key: 'cutlessStatisticsViewer',
+    valid: tipo => tipo === 'aprovechamiento' || tipo === 'desperdicio',
+    render: mostrarGrafico,
+    findOpener: tipo => miniaturasEstadisticas?.querySelector(`[data-tipo="${tipo}"] .chart-container:not([hidden])`)
+        || document.getElementById('estadisticasPeriodo'),
+});
+
+function abrirModalGrafico(tipo) {
+    historialGrafico?.open(tipo);
+}
+
+async function mostrarGrafico(tipo) {
     const apertura = ++aperturaGrafico;
     const contenido = document.getElementById('modalGraficoContenido');
     const titulo = tipo === 'aprovechamiento' ? 'Aprovechamiento en el tiempo' : 'Desperdicio en el tiempo';
@@ -360,28 +373,27 @@ async function abrirModalGrafico(tipo) {
     estado.textContent = 'Cargando gráfico…';
     contenido.replaceChildren(estado);
     resetearZoom();
-    bootstrap.Modal.getOrCreateInstance(modalGrafico).show();
     try {
         const imagen = await cargarGrafico(modalGrafico, tipo);
-        if (apertura !== aperturaGrafico) return;
+        if (apertura !== aperturaGrafico || !historialGrafico.isOpen()) return;
         imagen.alt = titulo;
         contenido.replaceChildren(imagen);
         actualizarZoomGrafico();
     } catch (_) {
-        if (apertura !== aperturaGrafico) return;
+        if (apertura !== aperturaGrafico || !historialGrafico.isOpen()) return;
         estado.textContent = 'No se pudo cargar el gráfico.';
         const reintentar = document.createElement('button');
         reintentar.type = 'button';
         reintentar.className = 'btn btn-secondary mx-3';
         reintentar.textContent = 'Reintentar';
         reintentar.addEventListener('click', () => {
-            if (reintentar.isConnected) abrirModalGrafico(tipo);
+            if (reintentar.isConnected && historialGrafico.isOpen()) mostrarGrafico(tipo);
         });
         contenido.append(reintentar);
     }
 }
 
-modalGrafico?.addEventListener('hide.bs.modal', () => { aperturaGrafico++; });
+modalGrafico?.addEventListener('hide.bs.modal', event => { if (!event.defaultPrevented) aperturaGrafico++; });
 document.getElementById('zoomSlider')?.addEventListener('input', actualizarZoomGrafico);
 </script>
 {% endblock %}
