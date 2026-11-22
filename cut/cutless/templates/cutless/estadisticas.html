@@ -170,27 +170,27 @@
       <div class="card-body">
         {% if top_optimizaciones %}
           <div class="table-responsive">
-            <table class="table table-striped table-hover">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Fecha</th>
-                  <th>Aprovechamiento</th>
-                  <th>Tablero</th>
-                  <th>Piezas</th>
-                  <th>Acciones</th>
+            <table role="table" class="table table-striped table-hover mobile-table-cards">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">#</th>
+                  <th role="columnheader" scope="col">Fecha</th>
+                  <th role="columnheader" scope="col">Aprovechamiento</th>
+                  <th role="columnheader" scope="col">Tablero</th>
+                  <th role="columnheader" scope="col">Piezas</th>
+                  <th role="columnheader" scope="col">Acciones</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody role="rowgroup">
                 {% for item in top_optimizaciones %}
-                  <tr>
-                    <td><strong>{{ item.posicion }}</strong><br><span class="text-muted">{{ item.optimizacion.etiqueta }}</span></td>
-                    <td>{{ item.optimizacion.fecha|date:"d/m/Y H:i" }}</td>
-                    <td>
+                  <tr role="row">
+                    <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Optimización y posición</span><strong>{{ item.posicion }}</strong><br><span class="text-muted">{{ item.optimizacion.etiqueta }}</span></td>
+                    <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha</span>{{ item.optimizacion.fecha|date:"d/m/Y H:i" }}</td>
+                    <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
                       <span class="stats-percentage">{{ item.optimizacion.aprovechamiento_total|floatformat:2 }}%</span>
                     </td>
-                    <td>{{ item.ancho_mostrar }} × {{ item.alto_mostrar }} {{ item.unidad_medida }}</td>
-                    <td>
+                    <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tablero</span>{{ item.ancho_mostrar }} × {{ item.alto_mostrar }} {{ item.unidad_medida }}</td>
+                    <td role="cell"><span class="mobile-table-label" aria-hidden="true">Piezas</span>
                       <details>
                         <summary>Ver tipos de pieza <span class="text-annotation">({{ item.piezas|length }})</span></summary>
                         <div class="mt-2">
@@ -200,7 +200,7 @@
                         </div>
                       </details>
                     </td>
-                    <td>
+                    <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
                       <a href="{% url 'cutless:resultado' item.optimizacion.id %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver resultado</a>
                       <a href="{% url 'cutless:duplicar_optimizacion' item.optimizacion.id %}"
                          class="btn btn-sm btn-secondary" title="Duplicar" data-action="secondary" data-icon="copy">

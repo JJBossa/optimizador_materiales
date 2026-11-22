@@ -20,6 +20,10 @@ Las fechas corresponden a la fusión en `main` o al commit de la rama independie
 
 | 22/11/2026 | Consolidación de evidencias históricas de pruebas de CutLess: auditoría H01–H17, ensayos iniciales, repeticiones en Windows, PostgreSQL/SQLite, rendimiento y seguridad; identifica límites y evidencias originales pendientes. | [Matriz de evidencias](MATRIZ_EVIDENCIAS_PRUEBAS_CUTLESS.md) · [Auditoría integral](AUDITORIA_INTEGRAL_CUTLESS.md) | Preparado en rama documental independiente `docs/matriz-evidencias-auditoria-cutless-20261122`, sin integración aún. | No se ejecutaron nuevas pruebas ni se modificó producción. |
 
+## Trabajo local en revisión
+
+- 22/11/2026. Adaptación de tablas web a teléfonos de hasta 575 px, con listados en tarjetas, comparación A/B y controles de selección. Rama local `feature/tablas-responsive-movil`, pendiente de revisión. Sin commit, PR ni despliegue. [Informe técnico](CAMBIOS_TABLAS_RESPONSIVE_MOVIL.md)
+
 ## Evidencia operativa
 
 - El equipo confirmó una prueba real de Brevo en Windows 11 con recepción del mensaje y restablecimiento local. También informó un despliegue temporal del Worker que entregó una sonda cifrada al receptor de prueba. Al cerrar ese ensayo, la cola quedó con cero productores y cero consumidores. Ese despliegue correspondió al ensayo y la recuperación pública siguió desactivada. [Procedimiento de pruebas controladas](RECUPERACION_PASSWORD_BREVO.md)

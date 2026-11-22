@@ -60,33 +60,33 @@
   <!-- Lista de Clientes -->
   {% if clientes %}
   <div class="table-responsive fade-in">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>RUT</th>
-          <th>Email</th>
-          <th>Teléfono</th>
-          <th>Optimizaciones</th>
-          <th>Acciones</th>
+    <table role="table" class="table table-hover mobile-table-cards">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th role="columnheader" scope="col">Nombre</th>
+          <th role="columnheader" scope="col">RUT</th>
+          <th role="columnheader" scope="col">Email</th>
+          <th role="columnheader" scope="col">Teléfono</th>
+          <th role="columnheader" scope="col">Optimizaciones</th>
+          <th role="columnheader" scope="col">Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {% for cliente in clientes %}
-        <tr>
-          <td>
+        <tr role="row">
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Nombre</span>
             <strong>{{ cliente.nombre }}</strong>
             {% if cliente.direccion %}
               <br><small class="text-muted">{{ cliente.direccion|truncatewords:5 }}</small>
             {% endif %}
           </td>
-          <td>{{ cliente.rut|default:"—" }}</td>
-          <td>{{ cliente.email|default:"—" }}</td>
-          <td>{{ cliente.telefono|default:"—" }}</td>
-          <td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">RUT</span>{{ cliente.rut|default:"—" }}</td>
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Email</span>{{ cliente.email|default:"—" }}</td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Teléfono</span>{{ cliente.telefono|default:"—" }}</td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Optimizaciones</span>
             <span class="badge bg-primary">{{ cliente.get_total_optimizaciones }}</span>
           </td>
-          <td><div class="action-group">
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="action-group">
             <a href="{% url 'cutless:historial_cliente' cliente.pk %}" class="btn btn-sm btn-secondary" title="Ver historial" data-action="secondary" data-icon="chevron-right">
               Historial
             </a>

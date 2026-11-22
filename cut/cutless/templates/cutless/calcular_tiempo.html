@@ -9,7 +9,7 @@
   <header class="page-header fade-in">
     <div class="page-header__text">
       <h1 class="page-title">Calculadora de tiempo de corte</h1>
-      <p class="page-lead">Estimación orientativa según piezas y tableros de la optimización {{ optimizacion.etiqueta }}.</p>
+      <p class="page-lead mobile-table-context">Estimación orientativa según piezas y tableros de la optimización {{ optimizacion.etiqueta }}.</p>
     </div>
     <div class="page-header__actions">
       <button type="button" class="btn btn-ayuda-seccion btn-text"
@@ -30,7 +30,7 @@
         <div class="card-body">
           <div class="mb-4">
             <h5>Información de la Optimización</h5>
-            <p class="mb-1"><strong>Optimización {{ optimizacion.etiqueta }}</strong></p>
+            <p class="mb-1 mobile-table-context"><strong>Optimización {{ optimizacion.etiqueta }}</strong></p>
             <p class="mb-1"><strong>Tablero:</strong> {{ ancho_mostrar }} × {{ alto_mostrar }} {{ unidad_medida }}</p>
             <p class="mb-1"><strong>Aprovechamiento:</strong> {{ optimizacion.aprovechamiento_total|floatformat:2 }}%</p>
             <p class="mb-1"><strong>Fecha:</strong> {{ optimizacion.fecha|date:"d/m/Y H:i" }}</p>
@@ -84,34 +84,34 @@
 
           <div class="mb-4">
             <h5>Desglose de Tiempos</h5>
-            <table class="table table-striped">
-              <thead>
-                <tr>
-                  <th>Concepto</th>
-                  <th class="text-end">Tiempo</th>
-                  <th class="text-end">% del Total</th>
+            <table role="table" class="table table-striped mobile-table-cards">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th role="columnheader" scope="col">Concepto</th>
+                  <th role="columnheader" scope="col" class="text-end">Tiempo</th>
+                  <th role="columnheader" scope="col" class="text-end">% del Total</th>
                 </tr>
               </thead>
-              <tbody>
-                <tr>
-                  <td>Tiempo de Corte</td>
-                  <td class="text-end">{{ tiempo_corte_minutos|floatformat:2 }} minutos</td>
-                  <td class="text-end">{{ porcentaje_corte }}%</td>
+              <tbody role="rowgroup">
+                <tr role="row">
+                  <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Concepto</span>Tiempo de Corte</td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">Tiempo</span>{{ tiempo_corte_minutos|floatformat:2 }} minutos</td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">% del total</span>{{ porcentaje_corte }}%</td>
                 </tr>
-                <tr>
-                  <td>Tiempo de Setup <span class="text-annotation">(Preparación)</span></td>
-                  <td class="text-end">{{ tiempo_setup_total|floatformat:2 }} minutos</td>
-                  <td class="text-end">{{ porcentaje_setup }}%</td>
+                <tr role="row">
+                  <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Concepto</span>Tiempo de Setup <span class="text-annotation">(Preparación)</span></td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">Tiempo</span>{{ tiempo_setup_total|floatformat:2 }} minutos</td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">% del total</span>{{ porcentaje_setup }}%</td>
                 </tr>
-                <tr>
-                  <td>Tiempo de Cambio de Herramienta</td>
-                  <td class="text-end">{{ tiempo_cambio_total|floatformat:2 }} minutos</td>
-                  <td class="text-end">{{ porcentaje_cambio }}%</td>
+                <tr role="row">
+                  <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Concepto</span>Tiempo de Cambio de Herramienta</td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">Tiempo</span>{{ tiempo_cambio_total|floatformat:2 }} minutos</td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">% del total</span>{{ porcentaje_cambio }}%</td>
                 </tr>
-                <tr class="table-primary">
-                  <td><strong>TOTAL</strong></td>
-                  <td class="text-end"><strong>{{ tiempo_total_minutos|floatformat:2 }} minutos</strong></td>
-                  <td class="text-end"><strong>100%</strong></td>
+                <tr role="row" class="table-primary">
+                  <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Concepto</span><strong>TOTAL</strong></td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">Tiempo</span><strong>{{ tiempo_total_minutos|floatformat:2 }} minutos</strong></td>
+                  <td role="cell" class="text-end"><span class="mobile-table-label" aria-hidden="true">% del total</span><strong>100%</strong></td>
                 </tr>
               </tbody>
             </table>

@@ -158,58 +158,58 @@
       <small class="text-muted">{{ optimizaciones_con_costo|length }} optimización{{ optimizaciones_con_costo|length|pluralize }}</small>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover cost-table">
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Dimensiones</th>
-            <th>Material</th>
-            <th>Tableros</th>
-            <th>Aprovechamiento</th>
-            <th>Costo de material</th>
-            <th>Mano de obra</th>
-            <th>Costo total</th>
-            <th>Acciones</th>
+      <table role="table" class="table table-hover cost-table mobile-table-cards">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">Fecha</th>
+            <th role="columnheader" scope="col">Dimensiones</th>
+            <th role="columnheader" scope="col">Material</th>
+            <th role="columnheader" scope="col">Tableros</th>
+            <th role="columnheader" scope="col">Aprovechamiento</th>
+            <th role="columnheader" scope="col">Costo de material</th>
+            <th role="columnheader" scope="col">Mano de obra</th>
+            <th role="columnheader" scope="col">Costo total</th>
+            <th role="columnheader" scope="col">Acciones</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {% for item in optimizaciones_con_costo %}
-          <tr>
-            <td>
+          <tr role="row">
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Optimización y fecha</span>
               <div><strong>{{ item.optimizacion.etiqueta }}</strong><br>{{ item.optimizacion.fecha|date:"d/m/Y" }}</div>
               <small class="text-muted">{{ item.optimizacion.fecha|date:"H:i" }}</small>
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Dimensiones</span>
               <div>{{ item.optimizacion.ancho_tablero }} × {{ item.optimizacion.alto_tablero }} cm</div>
               {% if item.optimizacion.unidad_medida != 'cm' %}
               <small class="material-info">{{ item.optimizacion.get_unidad_medida_display }}</small>
               {% endif %}
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Material</span>
               {% if item.optimizacion.material %}
               <span class="badge bg-secondary">{{ item.optimizacion.material.nombre }}</span>
               {% else %}
               <span class="text-muted">-</span>
               {% endif %}
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tableros</span>
               <span class="badge bg-primary cost-badge">{{ item.optimizacion.num_tableros|default:"0" }}</span>
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
               <span class="badge bg-{% if item.optimizacion.aprovechamiento_total >= 80 %}success{% elif item.optimizacion.aprovechamiento_total >= 60 %}warning{% else %}danger{% endif %} cost-badge">
                 {{ item.optimizacion.aprovechamiento_total|floatformat:1 }}%
               </span>
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo de material</span>
               <strong class="text-info">{{ item.costo_material|clp }}</strong>
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Mano de obra</span>
               <strong class="text-warning">{{ item.costo_mano_obra|clp }}</strong>
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo total</span>
               <strong class="text-success costo-total-large">{{ item.costo_total|clp }}</strong>
             </td>
-            <td>
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
               <a href="{% url 'cutless:resultado' item.optimizacion.pk %}"
                  class="btn btn-sm btn-secondary"
                  title="Ver detalles" data-action="secondary" data-icon="eye">
@@ -219,16 +219,16 @@
           </tr>
           {% endfor %}
         </tbody>
-        <tfoot>
-          <tr class="table-primary">
-            <td colspan="4" class="text-end fw-bold">Totales y promedio:</td>
-            <td>
+        <tfoot role="rowgroup">
+          <tr role="row" class="table-primary">
+            <td role="rowheader" colspan="4" class="text-end fw-bold">Totales y promedio:</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento promedio</span>
               <span class="badge bg-secondary">{{ aprovechamiento_promedio|floatformat:1|default:"0" }}%</span>
             </td>
-            <td><strong>{{ costo_material_total|clp }}</strong></td>
-            <td><strong>{{ costo_mano_obra_total|clp }}</strong></td>
-            <td><strong class="costo-total-xl">{{ costo_total|clp }}</strong></td>
-            <td></td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo de material</span><strong>{{ costo_material_total|clp }}</strong></td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Mano de obra</span><strong>{{ costo_mano_obra_total|clp }}</strong></td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo total</span><strong class="costo-total-xl">{{ costo_total|clp }}</strong></td>
+            <td role="cell"></td>
           </tr>
         </tfoot>
       </table>

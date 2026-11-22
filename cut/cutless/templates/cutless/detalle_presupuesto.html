@@ -75,29 +75,29 @@
     <div class="card-body">
       {% if presupuesto.lineas_cotizadas %}
       <div class="table-responsive">
-        <table class="table table-hover">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Dimensiones</th>
-              <th>Aprovechamiento</th>
-              <th>Tableros</th>
-              {% if not presupuesto.detalle_emitido %}<th>Acciones</th>{% endif %}
+        <table role="table" class="table table-hover mobile-table-cards">
+          <thead role="rowgroup">
+            <tr role="row">
+              <th role="columnheader" scope="col">Fecha</th>
+              <th role="columnheader" scope="col">Dimensiones</th>
+              <th role="columnheader" scope="col">Aprovechamiento</th>
+              <th role="columnheader" scope="col">Tableros</th>
+              {% if not presupuesto.detalle_emitido %}<th role="columnheader" scope="col">Acciones</th>{% endif %}
             </tr>
           </thead>
-          <tbody>
+          <tbody role="rowgroup">
             {% for opt in presupuesto.lineas_cotizadas %}
-            <tr>
-              <td><strong>{{ opt.etiqueta }}</strong>{% if opt.fecha %}<br>{{ opt.fecha|date:"d/m/Y H:i" }}{% endif %}</td>
-              <td>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
-              <td>
+            <tr role="row">
+              <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Optimización y fecha</span><strong>{{ opt.etiqueta }}</strong>{% if opt.fecha %}<br>{{ opt.fecha|date:"d/m/Y H:i" }}{% endif %}</td>
+              <td role="cell"><span class="mobile-table-label" aria-hidden="true">Dimensiones</span>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
+              <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
                 <span class="badge bg-{% if opt.aprovechamiento_total >= 80 %}success{% elif opt.aprovechamiento_total >= 60 %}warning{% else %}danger{% endif %}">
                   {{ opt.aprovechamiento_total|floatformat:1 }}%
                 </span>
               </td>
-              <td>{{ opt.num_tableros|default:"0" }}</td>
+              <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tableros</span>{{ opt.num_tableros|default:"0" }}</td>
               {% if not presupuesto.detalle_emitido %}
-              <td>
+              <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
                 <a href="{% url 'cutless:resultado' opt.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver resultado</a>
               </td>
               {% endif %}
@@ -120,37 +120,37 @@
       <h4 class="mb-0">Desglose de costos</h4>
     </div>
     <div class="card-body">
-      <div class="table-responsive"><table class="table">
-        <thead>
-          <tr>
-            <th>Concepto</th>
-            <th>Cantidad</th>
-            <th>Precio unitario</th>
-            <th>Subtotal</th>
+      <div class="table-responsive"><table role="table" class="table mobile-table-cards">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">Concepto</th>
+            <th role="columnheader" scope="col">Cantidad</th>
+            <th role="columnheader" scope="col">Precio unitario</th>
+            <th role="columnheader" scope="col">Subtotal</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {% if not presupuesto.es_historico %}
           {% for item in optimizaciones_con_costos %}
-          <tr>
-            <td>Tableros <span class="text-annotation">({{ item.optimizacion.etiqueta }})</span></td>
-            <td>{{ item.num_tableros }}</td>
-            <td>{{ presupuesto.precio_tablero|clp }}</td>
-            <td>{{ item.costo_tableros|clp }}</td>
+          <tr role="row">
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Concepto</span>Tableros <span class="text-annotation">({{ item.optimizacion.etiqueta }})</span></td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Cantidad</span>{{ item.num_tableros }}</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Precio unitario</span>{{ presupuesto.precio_tablero|clp }}</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Subtotal</span>{{ item.costo_tableros|clp }}</td>
           </tr>
           {% endfor %}
           {% if presupuesto.mano_obra %}
-          <tr>
-            <td>Mano de obra</td>
-            <td>1</td>
-            <td>{{ presupuesto.mano_obra|clp }}</td>
-            <td>{{ presupuesto.mano_obra|clp }}</td>
+          <tr role="row">
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Concepto</span>Mano de obra</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Cantidad</span>1</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Precio unitario</span>{{ presupuesto.mano_obra|clp }}</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Subtotal</span>{{ presupuesto.mano_obra|clp }}</td>
           </tr>
           {% endif %}
           {% endif %}
-          <tr class="table-primary">
-            <td colspan="3" class="text-end"><strong>TOTAL:</strong></td>
-            <td class="costo-total"><strong>{{ total_presupuesto|clp }}</strong></td>
+          <tr role="row" class="table-primary mobile-table-total">
+            <td role="rowheader" colspan="3" class="text-end"><strong>TOTAL:</strong></td>
+            <td role="cell" class="costo-total"><strong>{{ total_presupuesto|clp }}</strong></td>
           </tr>
         </tbody>
       </table></div>

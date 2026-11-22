@@ -102,36 +102,36 @@
   <div class="fade-in">
     <h4 class="mb-3">Optimizaciones del Proyecto</h4>
     <div class="table-responsive">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Fecha</th>
-            <th>Tablero</th>
-            <th>Aprovechamiento</th>
-            <th>Tableros</th>
-            <th>Costo</th>
-            <th>Acciones</th>
+      <table role="table" class="table table-hover mobile-table-cards">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">Fecha</th>
+            <th role="columnheader" scope="col">Tablero</th>
+            <th role="columnheader" scope="col">Aprovechamiento</th>
+            <th role="columnheader" scope="col">Tableros</th>
+            <th role="columnheader" scope="col">Costo</th>
+            <th role="columnheader" scope="col">Acciones</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {% for opt in optimizaciones %}
-          <tr>
-            <td><strong>{{ opt.etiqueta }}</strong><br>{{ opt.fecha|date:"d/m/Y H:i" }}</td>
-            <td>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
-            <td>
+          <tr role="row">
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Optimización y fecha</span><strong>{{ opt.etiqueta }}</strong><br>{{ opt.fecha|date:"d/m/Y H:i" }}</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tablero</span>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
               <span class="badge bg-{% if opt.aprovechamiento_total >= 80 %}success{% elif opt.aprovechamiento_total >= 60 %}warning{% else %}danger{% endif %}">
                 {{ opt.aprovechamiento_total|floatformat:1 }}%
               </span>
             </td>
-            <td>{{ opt.num_tableros }}</td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tableros</span>{{ opt.num_tableros }}</td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo</span>
               {% if opt.precio_tablero != None %}
                 {{ opt.get_costo_total|clp }}
               {% else %}
                 <span class="text-muted">—</span>
               {% endif %}
             </td>
-            <td>
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
               <a href="{% url 'cutless:resultado' opt.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver resultado</a>
             </td>
           </tr>
