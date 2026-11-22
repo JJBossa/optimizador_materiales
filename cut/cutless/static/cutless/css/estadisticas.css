@@ -50,3 +50,22 @@
   .statistics-page .period-form > .btn { width: 100%; }
   .statistics-page .modal-grafico-body { padding: 12px; }
 }
+
+.statistics-page .chart-slot [hidden] { display: none; }
+.statistics-page .chart-placeholder {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  text-align: center;
+  min-height: 108px;
+  aspect-ratio: 2 / 1;
+  box-sizing: content-box;
+  padding-bottom: calc(24px + 1.5rem);
+  border: 1px solid var(--cl-border);
+  border-radius: 8px;
+}
+.statistics-page .chart-slot .chart-thumbnail {
+  aspect-ratio: 2 / 1;
+  min-height: 108px;
+  object-fit: contain;
+}

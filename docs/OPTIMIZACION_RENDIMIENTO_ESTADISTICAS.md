@@ -173,3 +173,98 @@ La mediana de la primera apertura pasó de **465 a 544 ms**. Para 6.000 planes e
 - Chromium verificó apertura, cierre durante una petición pendiente, reapertura usando esa misma petición, zoom al 250 %, desplazamiento, restablecimiento, un fallo HTTP 503 simulado y recuperación con «Reintentar». Las cuatro combinaciones de 390 y 1440 px con temas claro y oscuro pasaron. Se comprobó que, después de cargar el PNG, volver a abrirlo no genere una solicitud adicional.
 - El primer HD de cada tipo añade trabajo al servidor en el momento del clic. Si el historial cambia mientras la página permanece abierta, una primera ampliación refleja la serie disponible al solicitarla. Las reaperturas conservan el PNG de esa visita y una recarga vuelve a consultar los datos. Las pruebas locales no estiman concurrencia, latencia de red real ni arranque del servicio desplegado.
 - La proyección compartida de la serie, la entrega diferida de miniaturas, la consolidación de agregados y la caché interna del servidor quedan como mejoras futuras.
+
+## Segunda etapa. Miniaturas después de mostrar el panel
+
+En `upstream/main` con el PR #12 (`c34c1ac`), las ampliaciones HD ya se generaban bajo demanda. La segunda auditoría midió el clic real en el menú y situó el inicio de navegación entre 2 y 8 ms después del clic. Las dos miniaturas ocupaban una mediana del 92,5 % del tiempo de Django. Con 6.000 optimizaciones y caché caliente, la auditoría midió 807 ms en Django, de los cuales 762 ms correspondían a las miniaturas.
+
+La respuesta inicial entrega el filtro, las tarjetas, el Top 10 y los enlaces de exportación. Los espacios de gráficos conservan una altura estable mediante un contenedor 2:1, con el espacio de la etiqueta de ampliación reservado. Los PNG mantienen su proporción intrínseca y sus píxeles originales. La proporción del contenedor es común a ambas miniaturas, aunque el recorte exacto del PNG puede variar con las etiquetas de Matplotlib.
+
+Tras dar al navegador una oportunidad de pintar, la página solicita primero la miniatura de aprovechamiento y luego la de desperdicio, cada una por separado. Se eligió la carga inicial secuencial para que una visita no lance dos renderizados a la vez. Con un único worker síncrono las peticiones paralelas igualmente esperan turno. Con más capacidad, podrían reducir el tiempo hasta ver ambos gráficos a costa de ejecutar más trabajo simultáneo. Las ampliaciones HD y los reintentos explícitos siguen siendo independientes. En el WSGI local de un worker se alternaron cinco pares secuenciales y cinco paralelos por historial, en «Todo el historial». Las medianas hasta completar ambos PNG fueron 358/351 ms para 40 planes, 399/410 ms para 800 y 763/760 ms para 6.000 (secuencial/paralelo). En ese entorno, la diferencia no justifica lanzar ambos renderizados a la vez.
+
+Las rutas de miniaturas y HD comparten validación del tipo y el período, limitan la consulta al usuario autenticado con permiso `puede_ver_estadisticas` y devuelven PNG con `Cache-Control: private, no-store`. Dentro de una visita se reutilizan las peticiones en curso y las imágenes decodificadas de cada URL. Un fallo retira la petición de ese registro y muestra «Reintentar» en el gráfico afectado. Esto cubre errores HTTP, fallos de red, respuestas con tipo inesperado y PNG que Chromium no puede decodificar. Al reintentar vuelve el estado de carga y, si falla de nuevo, reaparece el botón.
+
+Las descargas de PNG tienen un límite de 30 segundos en el navegador. Al salir de la página se cancelan cuando el documento se descarta. Si el navegador conserva el documento en su historial, los resultados pertenecen a ese documento y período. La cancelación de la descarga no interrumpe necesariamente un renderizado síncrono ya iniciado en el servidor. El modal se puede cerrar durante la generación y una respuesta que llegue después del cierre no vuelve a abrirlo.
+
+### Archivos de esta etapa
+
+| Archivo | Cambio |
+| --- | --- |
+| `cut/cutless/views/analytics.py` | Respuesta inicial sin generación de gráficos y controlador compartido para los dos tamaños. |
+| `cut/cutless/urls.py` | Ruta GET protegida para miniaturas. |
+| `cut/cutless/templates/cutless/estadisticas.html` | Estados por gráfico, cargas después del primer pintado, reintentos, gestión de solicitudes y modal existente. |
+| `cut/cutless/static/cutless/css/estadisticas.css` | Espacio reservado y estilo localizado de los estados de carga y error. |
+| `cut/cutless/tests/test_estadisticas_hd.py` | Regresiones de la vista inicial y los endpoints PNG. |
+| `cut/cutless/tests/browser/estadisticas.cjs` | Prueba de interacción en Chromium con errores inyectados y respuestas PNG reales del servidor local. |
+
+### Reproducción de la prueba de interacción
+
+Con Django local en ejecución, usa una cuenta de prueba con permiso de Estadísticas, tema «Automático» y optimizaciones de los últimos siete días. Define `CUTLESS_TEST_ORIGIN` con el origen local y `CUTLESS_TEST_SESSION` con la cookie de esa sesión local. Ejecuta `node cut/cutless/tests/browser/estadisticas.cjs` con Playwright disponible en el entorno de pruebas. Si usas un Chromium instalado por el sistema, indica su ejecutable mediante `CUTLESS_TEST_CHROMIUM`. Playwright se usa únicamente para esta comprobación y no forma parte de las dependencias de la aplicación.
+
+La prueba recorre 390 y 1.440 px en ambos temas. Inyecta HTTP 503, fallo de conexión, HTML inesperado y PNG inválido en sucesión, tanto para la miniatura como para el HD de aprovechamiento. Comprueba que «Reintentar» reaparece tras cada fallo, que pulsarlo dos veces solo inicia una solicitud, que el gráfico de desperdicio y el resto del panel siguen disponibles, y que la altura del espacio cambia como máximo 1 px. Verifica también zoom, desplazamiento, restablecimiento, reapertura del HD sin otra petición y cambio de período con una miniatura anterior pendiente.
+
+### Medición del recorrido en Chromium
+
+Se usó Chromium de escritorio a 1.440 × 1.200 px, con una sesión autenticada, un servidor WSGI local y PostgreSQL con datos sintéticos. Cada muestra parte de Materiales y hace clic en «Estadísticas» dentro de «Análisis». Para los períodos filtrados se parametrizó el destino del mismo enlace de prueba. Se obtuvieron 54 navegaciones por versión, sin fallos de recursos: tres repeticiones por fase para «Todo el historial» y una para cada fase de los otros períodos, con 40, 800 y 6.000 optimizaciones. Una visita posterior con caché caliente vuelve a entrar desde el menú y conserva la caché de recursos del navegador. Las fases frías vacían esa caché antes del clic. El proceso WSGI se conserva dentro de cada serie.
+
+Los tiempos en ms parten del clic. TTFB y FCP se leen de las entradas de rendimiento de Chromium. Para estimar cuándo se ven las tarjetas y miniaturas se observó su presencia en el área visible, con PNG decodificado para las imágenes, y se tomó el siguiente cuadro, con FCP como límite inferior. Esta aproximación no mide la pintura exacta de cada elemento. El inicio de navegación fue de 5,2 ms de mediana antes y 4,5 ms después.
+
+**Todo el historial.** Medianas de tres recorridos por celda. A es aprovechamiento y D es desperdicio.
+
+| Optimizaciones | Período | Visita | TTFB | Primer contenido (FCP) | Tarjetas | Miniatura A | Miniatura D | Reducción hasta tarjetas |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 40 | Todo | Primera, fría | 401 → 61 | 695 → 284 | 695 → 284 | 695 → 544 | 695 → 744 | 59 % |
+| 40 | Todo | Posterior, caliente | 363 → 52 | 508 → 152 | 508 → 152 | 508 → 395 | 508 → 562 | 70 % |
+| 40 | Todo | Posterior, fría | 381 → 39 | 724 → 300 | 724 → 300 | 724 → 494 | 724 → 694 | 59 % |
+| 800 | Todo | Primera, fría | 697 → 68 | 1097 → 302 | 1097 → 302 | 1097 → 542 | 1097 → 809 | 72 % |
+| 800 | Todo | Posterior, caliente | 797 → 41 | 1026 → 140 | 1026 → 140 | 1026 → 427 | 1026 → 660 | 86 % |
+| 800 | Todo | Posterior, fría | 540 → 43 | 978 → 276 | 978 → 276 | 978 → 528 | 978 → 778 | 72 % |
+| 6.000 | Todo | Primera, fría | 839 → 74 | 1131 → 350 | 1131 → 350 | 1131 → 858 | 1131 → 1275 | 69 % |
+| 6.000 | Todo | Posterior, caliente | 885 → 86 | 1012 → 216 | 1012 → 216 | 1012 → 644 | 1012 → 1060 | 79 % |
+| 6.000 | Todo | Posterior, fría | 912 → 57 | 1189 → 288 | 1189 → 288 | 1189 → 812 | 1189 → 1395 | 76 % |
+
+**Períodos filtrados.** Una navegación posterior con caché caliente por combinación. La muestra sirve para comprobar el comportamiento por período y tiene menos repeticiones que «Todo el historial».
+
+| Optimizaciones | Período | Visita | TTFB | Primer contenido (FCP) | Tarjetas | Miniatura A | Miniatura D | Reducción hasta tarjetas |
+| ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 40 | semanal | Posterior, caliente | 337 → 35 | 427 → 155 | 427 → 155 | 427 → 377 | 427 → 610 | 64 % |
+| 40 | mensual | Posterior, caliente | 483 → 37 | 666 → 135 | 666 → 135 | 666 → 360 | 666 → 527 | 80 % |
+| 40 | anual | Posterior, caliente | 438 → 56 | 582 → 151 | 582 → 151 | 582 → 361 | 582 → 545 | 74 % |
+| 800 | semanal | Posterior, caliente | 613 → 44 | 765 → 143 | 765 → 143 | 765 → 362 | 765 → 546 | 81 % |
+| 800 | mensual | Posterior, caliente | 415 → 38 | 584 → 136 | 584 → 136 | 584 → 345 | 584 → 545 | 77 % |
+| 800 | anual | Posterior, caliente | 503 → 54 | 669 → 171 | 669 → 171 | 669 → 395 | 669 → 595 | 74 % |
+| 6.000 | semanal | Posterior, caliente | 379 → 41 | 517 → 156 | 517 → 156 | 517 → 344 | 517 → 528 | 70 % |
+| 6.000 | mensual | Posterior, caliente | 450 → 70 | 631 → 189 | 631 → 189 | 631 → 479 | 631 → 712 | 70 % |
+| 6.000 | anual | Posterior, caliente | 641 → 53 | 797 → 203 | 797 → 203 | 797 → 478 | 797 → 745 | 75 % |
+
+El panel inicial mejora en todos los escenarios mostrados. Las miniaturas siguen ejecutando el mismo trabajo. La espera hasta completar ambas puede aumentar, especialmente para 6.000 optimizaciones en «Todo el historial», donde la segunda miniatura en caliente pasó de 1.012 a 1.060 ms desde el clic mientras las tarjetas aparecieron en 216 ms.
+
+### Medición de Django y comprobación de equivalencia
+
+Mediana de tres peticiones por combinación a Django en cada versión, con PostgreSQL local. Los tiempos están en ms. Los tiempos A/D corresponden a los renderizadores dentro del HTML antes y dentro de las rutas independientes después. El HTML se midió sin compresión.
+
+| Optimizaciones | Período | Respuesta HTML (ms) | Consultas del HTML | SQL del HTML (ms) | HTML (KiB) | Generación A (ms) | Generación D (ms) |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 40 | Todo | 344 → 19 | 13 → 9 | 5.3 → 3.4 | 254.0 → 115.4 | 173 → 173 | 141 → 145 |
+| 40 | semanal | 308 → 14 | 13 → 9 | 5.0 → 3.2 | 213.5 → 93.5 | 150 → 137 | 144 → 152 |
+| 40 | mensual | 402 → 17 | 13 → 9 | 8.7 → 3.2 | 239.3 → 109.9 | 171 → 128 | 200 → 129 |
+| 40 | anual | 424 → 19 | 13 → 9 | 7.1 → 3.0 | 261.1 → 115.4 | 194 → 158 | 205 → 149 |
+| 800 | Todo | 540 → 21 | 13 → 9 | 16.2 → 5.3 | 357.5 → 115.4 | 239 → 177 | 230 → 180 |
+| 800 | semanal | 311 → 18 | 13 → 9 | 6.2 → 3.6 | 263.4 → 115.4 | 137 → 136 | 139 → 131 |
+| 800 | mensual | 374 → 18 | 13 → 9 | 8.6 → 3.4 | 348.6 → 115.4 | 169 → 151 | 175 → 151 |
+| 800 | anual | 411 → 21 | 13 → 9 | 11.5 → 4.4 | 317.3 → 115.4 | 184 → 163 | 165 → 147 |
+| 6.000 | Todo | 767 → 30 | 13 → 9 | 61.4 → 15.8 | 248.7 → 115.4 | 383 → 354 | 326 → 329 |
+| 6.000 | semanal | 320 → 23 | 13 → 9 | 14.3 → 8.3 | 298.4 → 115.4 | 148 → 145 | 143 → 144 |
+| 6.000 | mensual | 384 → 24 | 13 → 9 | 18.9 → 9.4 | 328.3 → 115.4 | 180 → 196 | 174 → 184 |
+| 6.000 | anual | 525 → 31 | 13 → 9 | 34.5 → 14.2 | 287.6 → 115.4 | 245 → 239 | 234 → 220 |
+
+Las dos solicitudes PNG añadieron cinco consultas cada una, incluidas autenticación y perfil. En total, una visita que carga las dos miniaturas hace 19 consultas repartidas en tres solicitudes, frente a 13 en la respuesta anterior. La primera respuesta pasa de 13 a 9 consultas. Las latencias medidas son locales. No se estimó el consumo de CPU o memoria en Render ni su comportamiento con concurrencia efectiva, arranque en frío o latencia de red hacia la base de datos.
+
+Se compararon los mismos datos en las 12 combinaciones de historial y período. Coincidieron las métricas y el Top 10, incluidos su orden y contenido, y los bytes de los dos PNG normales y los dos HD. Coincidió el contenido de la exportación semanal de Excel, incluidos tipos y formatos. El texto del PDF semanal coincidió tras excluir su fecha y hora de generación.
+
+### Resultado de las pruebas
+
+- Django con SQLite local: 286 pruebas ejecutadas, 284 aprobadas y 2 omitidas por la suite. Se comprobó la respuesta inicial sin renderizadores, datos de métricas, historial vacío, igualdad de PNG, aislamiento por usuario, permiso, método HTTP y parámetros inválidos.
+- Suite JavaScript existente: 65 pruebas aprobadas.
+- Chromium con Django y PostgreSQL local: 4 combinaciones de tamaño y tema aprobadas, con reintentos repetidos en ambos tamaños de gráfico y carga del período correcto. Las dos miniaturas completaron los 54 recorridos por versión con historiales de 40, 800 y 6.000 optimizaciones.
+- `git diff --check` sin incidencias.

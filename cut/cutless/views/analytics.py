@@ -40,6 +40,16 @@ def _optimizaciones_estadisticas(usuario, periodo):
 @never_cache
 @require_GET
 def grafico_estadisticas_hd(request):
+    return _grafico_estadisticas(request, alta_resolucion=True)
+
+
+@never_cache
+@require_GET
+def grafico_estadisticas_miniatura(request):
+    return _grafico_estadisticas(request, alta_resolucion=False)
+
+
+def _grafico_estadisticas(request, alta_resolucion):
     generadores = {
         'aprovechamiento': generar_grafico_aprovechamiento,
         'desperdicio': generar_grafico_desperdicio,
@@ -51,10 +61,10 @@ def grafico_estadisticas_hd(request):
 
     optimizaciones = _optimizaciones_estadisticas(request.user, periodo)
     try:
-        grafico = generadores[tipo](optimizaciones, periodo, alta_resolucion=True)
+        grafico = generadores[tipo](optimizaciones, periodo, alta_resolucion=alta_resolucion)
         png = b64decode(grafico, validate=True) if grafico else None
     except Exception:
-        logger.exception('No se pudo generar la ampliación de Estadísticas.')
+        logger.exception('No se pudo generar el gráfico de Estadísticas.')
         return HttpResponse('No se pudo generar el gráfico.', status=503)
     if not png:
         return HttpResponse('No hay datos para mostrar en este período.', status=404)
@@ -341,21 +351,12 @@ def estadisticas(request):
         # Top 10 optimizaciones (mayor aprovechamiento)
         top_optimizaciones = optimizaciones_filtradas.order_by('-aprovechamiento_total')[:10]
         
-        # Las versiones HD se generan desde su propia ruta al abrir el modal.
-        grafico_aprovechamiento = generar_grafico_aprovechamiento(
-            optimizaciones_filtradas.order_by('fecha'), periodo, alta_resolucion=False
-        )
-        grafico_desperdicio = generar_grafico_desperdicio(
-            optimizaciones_filtradas.order_by('fecha'), periodo, alta_resolucion=False
-        )
     else:
         promedio_aprovechamiento = 0
         max_aprovech_val = 0
         min_aprovech_val = 0
         promedio_desperdicio = 0
         top_optimizaciones = []
-        grafico_aprovechamiento = None
-        grafico_desperdicio = None
     
     # Procesar top optimizaciones para el template
     top_optimizaciones_list = []
@@ -383,8 +384,6 @@ def estadisticas(request):
         'min_aprovechamiento': round(min_aprovech_val, 2),
         'promedio_desperdicio': round(promedio_desperdicio, 2),
         'top_optimizaciones': top_optimizaciones_list,
-        'grafico_aprovechamiento': grafico_aprovechamiento,
-        'grafico_desperdicio': grafico_desperdicio,
         'periodo': periodo,
         'optimizaciones_filtradas': optimizaciones_filtradas,
     })
