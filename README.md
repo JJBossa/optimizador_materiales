@@ -168,6 +168,7 @@ La base local y los archivos generados se excluyen del seguimiento de Git. Los c
 - [Lupa de lectura compartida](docs/CAMBIOS_LUPA_LECTURA.md)
 - [Visor del Historial: controles y armonía visual](docs/CAMBIOS_VISOR_HISTORIAL.md)
 - [Navegación de los visores de Estadísticas e Historial](docs/CAMBIOS_NAVEGACION_VISORES.md)
+- [Decisión de mantenimiento: sqlparse y Pillow sin actualizar](docs/DEPENDENCIAS_APLAZADAS_SQLPARSE_PILLOW.md)
 - [Leyenda compacta y legible en los planos PNG](docs/CAMBIOS_LEYENDA_PLANOS.md)
 
 - [Reforma visual integral y navegación de tableros](docs/CAMBIOS_REFORMA_VISUAL.md)
