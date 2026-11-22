@@ -127,13 +127,14 @@ El margen se introduce en milímetros: 0 permite corte sin separación; el valor
 
 ## Documentación de cambios
 
-Toda corrección o nueva funcionalidad debe incluir la actualización correspondiente de la documentación técnica en `docs/` antes de considerarse completa.
+Todo cambio técnico, corrección de seguridad, nueva funcionalidad u optimización debe quedar documentado en Markdown dentro de `docs/`, conforme a las convenciones del repositorio.
 
 - [Registro de cambios de noviembre de 2026](docs/REGISTRO_CAMBIOS_NOVIEMBRE_2026.md)
 - [Auditoría integral de CutLess](docs/AUDITORIA_INTEGRAL_CUTLESS.md)
 - [Recuperación de contraseñas con Brevo y Cloudflare Queues](docs/RECUPERACION_PASSWORD_BREVO.md)
 - [Migración del correlativo de optimizaciones por usuario](docs/MIGRACION_CORRELATIVOS_OPTIMIZACIONES.md)
 - [Seguridad](docs/CAMBIOS_SEGURIDAD.md)
+- [SEC-01 · Actualización de Django 5.2 LTS](docs/SEC_01_ACTUALIZACION_DJANGO.md)
 - [JSON seguro](docs/CAMBIOS_JSON_SEGURO.md)
 - [Margen cero](docs/CAMBIOS_MARGEN_CERO.md)
 - [Áreas](docs/CAMBIOS_AREAS.md)
