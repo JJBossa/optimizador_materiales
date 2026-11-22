@@ -49,7 +49,7 @@ test('el visor conserva el ID para descargar y el código para mostrar', async (
       return nodes.get(id);
     },
   };
-  const window = {addEventListener() {}};
+  const window = {addEventListener() {}, createModalHistory: ({render}) => ({open: render, isOpen: () => true})};
   load('history-board-viewer.js', {
     document, window, AbortController, matchMedia: () => ({matches: true}),
     bootstrap: {Modal: {getOrCreateInstance: () => ({show() {}})}},
