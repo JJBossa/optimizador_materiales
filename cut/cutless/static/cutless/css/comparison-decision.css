@@ -11,4 +11,15 @@
 .comparison-pieces > summary:focus-visible { outline:2px solid var(--accent); }
 @media(max-width:767px) { .comparison-charts { grid-template-columns:1fr; } }
 
+@media screen and (max-width: 575px) {
+  .form-action-bar.comparison-result-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .comparison-result-actions > .btn[data-action="secondary"]:first-child {
+    margin-inline-end: 0;
+  }
+}
+
 #comparison-charts-title { scroll-margin-top:110px; }

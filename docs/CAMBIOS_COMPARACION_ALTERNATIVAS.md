@@ -20,3 +20,13 @@ Los nombres diferentes no se consideran equivalentes automáticamente. La resolu
 28 pruebas de comparación y regresión aprobadas: equivalencia entre unidades/orden/agrupaciones, orientación, cantidades distintas, datos inválidos, diferencia entre cantidad y superficie de tableros, costo cero/ausente, sierra en mm y presentación. Se mantienen controles de propietario y resultados completos. Revisión visual local con datos de ejemplo en copia temporal; no se modifica Supabase. Sin commit, push ni despliegue.
 
 Verificación final: **227 pruebas Django aprobadas** en la suite completa, con base de pruebas y archivos temporales aislados; `git diff --check` sin errores.
+
+## Alineación móvil de los enlaces de resultado
+
+22/11/2026. En «Condiciones de cada alternativa», la barra compartida alineaba el primer enlace a un extremo con un margen automático y el segundo al extremo opuesto con flexbox. En pantallas estrechas, los dos enlaces podían quedar en filas distintas con alineaciones opuestas.
+
+La plantilla `cut/cutless/templates/cutless/comparar_optimizaciones.html` identifica esa barra con `comparison-result-actions`. En `cut/cutless/static/cutless/css/comparison-decision.css`, la barra pasa a una cuadrícula de una columna hasta 575 px y se retira el margen automático del primer enlace. Los botones ocupan el mismo ancho y conservan la separación de 12 px, el orden A/B y los estilos de foco existentes. A partir de 576 px se conserva la barra original. Los destinos y el contenido de la comparación permanecen intactos.
+
+- Chromium 156 verificó 320, 360, 390, 430 y 575 px en claro y oscuro. A 390 px, los anchos pasaron de aproximadamente 158 px y posiciones opuestas a 320 px y una alineación común. Se conservaron las tres tablas, los gráficos y las demás acciones.
+- Se comprobó el foco visible en A y B con Tab y Mayús+Tab en los cinco anchos. Enter abrió el resultado correspondiente en 320 y 390 px en ambos temas.
+- Las comparaciones a 576, 768 y 1280 px coincidieron con la base en ambos temas. Pasaron 12 pruebas Django de comparación y análisis con SQLite local y datos sintéticos.
