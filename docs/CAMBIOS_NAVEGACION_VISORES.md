@@ -3,7 +3,7 @@
 - Fecha de validación: 22 de noviembre de 2026.
 - Rama: `fix/navegacion-modales-estadisticas-historial`.
 - Base: `175433f688eb469de163d16a9cd953b997040d08` (`upstream/main`, con el PR #14).
-- Estado: cambios locales pendientes de commit y publicación. Sin PR ni despliegue.
+- Estado de GitHub al 22/11/2026: commit [`b8f7474`](https://github.com/JJBossa/optimizador_materiales/commit/b8f74743a35413ec4fa3107fcc202cc97a529213) publicado en el fork; [PR #15](https://github.com/gy0kuroo/optimizador_materiales/pull/15) abierto contra `main`, aún sin fusionar y no marcado como borrador. El despliegue de esta corrección no está verificado.
 
 ## Problema
 
@@ -68,5 +68,5 @@ Playwright debe estar disponible para Node. `CUTLESS_TEST_CHROMIUM` permite indi
 
 - La restauración depende de que la URL y la entrada de historial del navegador sigan disponibles. Un tablero eliminado puede mostrar el error recuperable del visor al solicitarlo de nuevo.
 - La validación de navegación usa Chromium local. El comportamiento de restauración puede variar según la disponibilidad de la caché de navegación en cada navegador.
-- La publicación requiere autorización. Render tiene Auto Deploy habilitado, por lo que debe revisarse el efecto de publicar o abrir el PR antes de hacerlo.
+- El commit y el PR ya están publicados para revisión, sin fusionar. Render tiene Auto Deploy habilitado según lo informado. Antes de fusionar el PR, el administrador debe confirmar la rama vinculada al servicio, el plan de reversión y las verificaciones posteriores al despliegue; la etiqueta `[skip preview]` en el título no desactiva Auto Deploy al fusionar.
 - Para revertir antes de publicar, revisar el diff contra el commit base y restaurar únicamente los cambios de esta corrección en los archivos rastreados. Retirar los tres archivos nuevos cuando se haya comprobado que contienen solo el trabajo de esta rama. Una vez registrada la corrección, revertir su commit completo con `git revert <SHA>` previa autorización. La reversión no requiere migraciones ni restaurar datos.
