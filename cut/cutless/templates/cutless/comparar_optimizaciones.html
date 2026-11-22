@@ -103,7 +103,7 @@
   <section class="card mb-4" aria-labelledby="comparison-metrics-title">
     <div class="card-header"><h2 class="h4 mb-0" id="comparison-metrics-title">Comparación de recursos</h2></div>
     <div class="card-body">
-      <div class="table-responsive"><table class="table">
+      <div class="table-responsive"><table class="table mobile-table-comparison">
         <caption>La diferencia se calcula como B menos A. Una reducción de material o costo aparece con signo negativo.</caption>
         <thead><tr><th scope="col">Dato</th><th scope="col">A · {{ optimizacion1.etiqueta }}</th><th scope="col">B · {{ optimizacion2.etiqueta }}</th><th scope="col">Diferencia B − A</th></tr></thead>
         <tbody>
@@ -121,21 +121,21 @@
 
   <section class="card mb-4" aria-labelledby="comparison-settings-title">
     <div class="card-header"><h2 class="h4 mb-0" id="comparison-settings-title">Condiciones de cada alternativa</h2></div>
-    <div class="card-body table-responsive"><table class="table">
-      <thead><tr><th>Condición</th><th>Alternativa A</th><th>Alternativa B</th></tr></thead><tbody>
-        <tr><th>Tablero</th><td>{{ optimizacion1.ancho_tablero }} × {{ optimizacion1.alto_tablero }} cm</td><td>{{ optimizacion2.ancho_tablero }} × {{ optimizacion2.alto_tablero }} cm</td></tr>
-        <tr><th>Material</th><td>{{ comparacion.a.material_descripcion.nombre }}<br><small class="text-muted">{{ comparacion.a.material_descripcion.origen }}</small></td><td>{{ comparacion.b.material_descripcion.nombre }}<br><small class="text-muted">{{ comparacion.b.material_descripcion.origen }}</small></td></tr>
-        <tr><th>Ancho de sierra</th><td>{{ comparacion.a.sierra_mm|floatformat:2 }} mm</td><td>{{ comparacion.b.sierra_mm|floatformat:2 }} mm</td></tr>
-        <tr><th>Permitir girar</th><td>{{ optimizacion1.permitir_rotacion|yesno:'Sí,No' }}</td><td>{{ optimizacion2.permitir_rotacion|yesno:'Sí,No' }}</td></tr>
-        <tr><th>Precio por tablero</th><td>{% if optimizacion1.precio_tablero != None %}{{ optimizacion1.precio_tablero|clp }}{% else %}Sin precio{% endif %}</td><td>{% if optimizacion2.precio_tablero != None %}{{ optimizacion2.precio_tablero|clp }}{% else %}Sin precio{% endif %}</td></tr>
-        <tr><th>Mano de obra</th><td>{{ optimizacion1.mano_obra|clp }}</td><td>{{ optimizacion2.mano_obra|clp }}</td></tr>
+    <div class="card-body table-responsive"><table class="table mobile-table-comparison">
+      <thead><tr><th scope="col">Condición</th><th scope="col">Alternativa A</th><th scope="col">Alternativa B</th></tr></thead><tbody>
+        <tr><th scope="row">Tablero</th><td>{{ optimizacion1.ancho_tablero }} × {{ optimizacion1.alto_tablero }} cm</td><td>{{ optimizacion2.ancho_tablero }} × {{ optimizacion2.alto_tablero }} cm</td></tr>
+        <tr><th scope="row">Material</th><td>{{ comparacion.a.material_descripcion.nombre }}<br><small class="text-muted">{{ comparacion.a.material_descripcion.origen }}</small></td><td>{{ comparacion.b.material_descripcion.nombre }}<br><small class="text-muted">{{ comparacion.b.material_descripcion.origen }}</small></td></tr>
+        <tr><th scope="row">Ancho de sierra</th><td>{{ comparacion.a.sierra_mm|floatformat:2 }} mm</td><td>{{ comparacion.b.sierra_mm|floatformat:2 }} mm</td></tr>
+        <tr><th scope="row">Permitir girar</th><td>{{ optimizacion1.permitir_rotacion|yesno:'Sí,No' }}</td><td>{{ optimizacion2.permitir_rotacion|yesno:'Sí,No' }}</td></tr>
+        <tr><th scope="row">Precio por tablero</th><td>{% if optimizacion1.precio_tablero != None %}{{ optimizacion1.precio_tablero|clp }}{% else %}Sin precio{% endif %}</td><td>{% if optimizacion2.precio_tablero != None %}{{ optimizacion2.precio_tablero|clp }}{% else %}Sin precio{% endif %}</td></tr>
+        <tr><th scope="row">Mano de obra</th><td>{{ optimizacion1.mano_obra|clp }}</td><td>{{ optimizacion2.mano_obra|clp }}</td></tr>
       </tbody></table>
       <div class="form-action-bar"><a href="{% url 'cutless:resultado' optimizacion1.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver resultado A</a><a href="{% url 'cutless:resultado' optimizacion2.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver resultado B</a></div>
     </div>
   </section>
   <details class="card mb-4 comparison-pieces"><summary>Verificación de piezas y cantidades</summary>
     <div class="card-body"><p>Se comparan nombres, ancho y alto en centímetros y cantidades acumuladas, con resolución de 0,01 cm. Los nombres ignoran mayúsculas y espacios repetidos. No se intercambian ancho y alto: la orientación solicitada puede importar.</p>
-    <div class="table-responsive"><table class="table"><thead><tr><th>Pieza</th><th>Medidas (cm)</th><th>Cantidad A</th><th>Cantidad B</th></tr></thead><tbody>
+    <div class="table-responsive"><table class="table mobile-table-comparison"><thead><tr><th scope="col">Pieza</th><th scope="col">Medidas (cm)</th><th scope="col">Cantidad A</th><th scope="col">Cantidad B</th></tr></thead><tbody>
     {% for pieza in comparacion.piezas %}<tr><td>{{ pieza.nombre }}</td><td>{{ pieza.ancho|floatformat:2 }} × {{ pieza.alto|floatformat:2 }}</td><td>{{ pieza.a }}</td><td>{{ pieza.b }}</td></tr>{% empty %}<tr><td colspan="4">No fue posible interpretar las piezas guardadas.</td></tr>{% endfor %}
     </tbody></table></div></div>
   </details>

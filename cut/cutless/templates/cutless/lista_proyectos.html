@@ -63,45 +63,45 @@
   <!-- Lista de Proyectos -->
   {% if proyectos %}
   <div class="table-responsive fade-in">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>Nombre</th>
-          <th>Cliente</th>
-          <th>Estado</th>
-          <th>Optimizaciones</th>
-          <th>Costo total</th>
-          <th>Fecha de creación</th>
-          <th>Acciones</th>
+    <table role="table" class="table table-hover mobile-table-cards">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th role="columnheader" scope="col">Nombre</th>
+          <th role="columnheader" scope="col">Cliente</th>
+          <th role="columnheader" scope="col">Estado</th>
+          <th role="columnheader" scope="col">Optimizaciones</th>
+          <th role="columnheader" scope="col">Costo total</th>
+          <th role="columnheader" scope="col">Fecha de creación</th>
+          <th role="columnheader" scope="col">Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {% for proyecto in proyectos %}
-        <tr>
-          <td>
+        <tr role="row">
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Nombre</span>
             <strong>{{ proyecto.nombre }}</strong>
             {% if proyecto.descripcion %}
               <br><small class="text-muted">{{ proyecto.descripcion|truncatewords:10 }}</small>
             {% endif %}
           </td>
-          <td>{{ proyecto.cliente.nombre|default:"Sin cliente" }}</td>
-          <td>
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Cliente</span>{{ proyecto.cliente.nombre|default:"Sin cliente" }}</td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Estado</span>
             <span class="badge bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
               {{ proyecto.get_estado_display }}
             </span>
           </td>
-          <td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Optimizaciones</span>
             <span class="badge bg-info">{{ proyecto.get_total_optimizaciones }}</span>
           </td>
-          <td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo total</span>
             {% if proyecto.get_total_costo %}
               <strong>{{ proyecto.get_total_costo|clp }}</strong>
             {% else %}
               <span class="text-muted">—</span>
             {% endif %}
           </td>
-          <td>{{ proyecto.fecha_creacion|date:"d/m/Y" }}</td>
-          <td><div class="action-group">
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de creación</span>{{ proyecto.fecha_creacion|date:"d/m/Y" }}</td>
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="action-group">
             <a href="{% url 'cutless:detalle_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver detalle</a>
             <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
             <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash">Eliminar</a>

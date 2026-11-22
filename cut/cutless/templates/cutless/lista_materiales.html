@@ -56,37 +56,37 @@
     <p class="management-note">Las medidas de esta biblioteca se muestran en centímetros. Al editar se utiliza la unidad elegida para el material.</p>
     {% if materiales_usuario %}
     <div class="table-responsive">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Dimensiones</th>
-            <th>Precio</th>
-            <th>Área</th>
-            <th>Acciones</th>
+      <table role="table" class="table table-hover mobile-table-cards">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">Nombre</th>
+            <th role="columnheader" scope="col">Dimensiones</th>
+            <th role="columnheader" scope="col">Precio</th>
+            <th role="columnheader" scope="col">Área</th>
+            <th role="columnheader" scope="col">Acciones</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {% for material in materiales_usuario %}
-          <tr>
-            <td>
+          <tr role="row">
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Nombre</span>
               <strong>{{ material.nombre }}</strong>
               {% if material.descripcion %}
                 <br><small class="text-muted">{{ material.descripcion|truncatewords:10 }}</small>
               {% endif %}
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Dimensiones</span>
               {{ material.ancho|floatformat:2 }} × {{ material.alto|floatformat:2 }} cm
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Precio</span>
               {% if material.precio != None %}
                 {{ material.precio|clp }}
               {% else %}
                 <span class="text-muted">Sin precio</span>
               {% endif %}
             </td>
-            <td>{{ material.get_area|floatformat:2 }} cm²</td>
-            <td><div class="action-group">
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Área</span>{{ material.get_area|floatformat:2 }} cm²</td>
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="action-group">
               <a href="{% url 'cutless:editar_material' material.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="edit"> Editar</a>
               {% if not material.es_predefinido %}
               <a href="{% url 'cutless:eliminar_material' material.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
@@ -119,37 +119,37 @@
     <h4 class="mb-3">Materiales del sistema</h4>
     <p class="management-note">Están disponibles para preparar cortes. Solo los administradores pueden modificarlos.</p>
     <div class="table-responsive">
-      <table class="table table-hover">
-        <thead>
-          <tr>
-            <th>Nombre</th>
-            <th>Dimensiones</th>
-            <th>Precio</th>
-            <th>Área</th>
-            <th>Acciones</th>
+      <table role="table" class="table table-hover mobile-table-cards">
+        <thead role="rowgroup">
+          <tr role="row">
+            <th role="columnheader" scope="col">Nombre</th>
+            <th role="columnheader" scope="col">Dimensiones</th>
+            <th role="columnheader" scope="col">Precio</th>
+            <th role="columnheader" scope="col">Área</th>
+            <th role="columnheader" scope="col">Acciones</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody role="rowgroup">
           {% for material in materiales_sistema %}
-          <tr>
-            <td>
+          <tr role="row">
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Nombre</span>
               <strong>{{ material.nombre }}</strong>
               {% if material.descripcion %}
                 <br><small class="text-muted">{{ material.descripcion|truncatewords:10 }}</small>
               {% endif %}
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Dimensiones</span>
               {{ material.ancho|floatformat:2 }} × {{ material.alto|floatformat:2 }} cm
             </td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Precio</span>
               {% if material.precio != None %}
                 {{ material.precio|clp }}
               {% else %}
                 <span class="text-muted">Sin precio</span>
               {% endif %}
             </td>
-            <td>{{ material.get_area|floatformat:2 }} cm²</td>
-            <td>
+            <td role="cell"><span class="mobile-table-label" aria-hidden="true">Área</span>{{ material.get_area|floatformat:2 }} cm²</td>
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
               {% if user.is_superuser or user.perfil.rol == "admin" %}
               <a href="{% url 'cutless:editar_material' material.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="edit"> Editar</a>
               {% endif %}

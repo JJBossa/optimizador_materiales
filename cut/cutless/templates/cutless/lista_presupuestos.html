@@ -69,37 +69,37 @@
   <!-- Lista de Presupuestos -->
   {% if presupuestos %}
   <div class="table-responsive fade-in">
-    <table class="table table-hover">
-      <thead>
-        <tr>
-          <th>Número</th>
-          <th>Cliente</th>
-          <th>Fecha de creación</th>
-          <th>Válido hasta</th>
-          <th>Costo total</th>
-          <th>Estado</th>
-          <th>Acciones</th>
+    <table role="table" class="table table-hover mobile-table-cards">
+      <thead role="rowgroup">
+        <tr role="row">
+          <th role="columnheader" scope="col">Número</th>
+          <th role="columnheader" scope="col">Cliente</th>
+          <th role="columnheader" scope="col">Fecha de creación</th>
+          <th role="columnheader" scope="col">Válido hasta</th>
+          <th role="columnheader" scope="col">Costo total</th>
+          <th role="columnheader" scope="col">Estado</th>
+          <th role="columnheader" scope="col">Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {% for presupuesto in presupuestos %}
-        <tr>
-          <td><strong>{{ presupuesto.numero }}</strong></td>
-          <td>{{ presupuesto.cliente_cotizado.nombre|default:"Sin cliente" }}</td>
-          <td>{{ presupuesto.fecha_creacion|date:"d/m/Y" }}</td>
-          <td>
+        <tr role="row">
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Número</span><strong>{{ presupuesto.numero }}</strong></td>
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Cliente</span>{{ presupuesto.cliente_cotizado.nombre|default:"Sin cliente" }}</td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de creación</span>{{ presupuesto.fecha_creacion|date:"d/m/Y" }}</td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Válido hasta</span>
             {{ presupuesto.fecha_validez|date:"d/m/Y" }}
             {% if presupuesto.esta_vencido %}
               <span class="badge bg-danger">Vencido</span>
             {% endif %}
           </td>
-          <td><strong>{{ presupuesto.total_vigente|clp }}</strong></td>
-          <td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo total</span><strong>{{ presupuesto.total_vigente|clp }}</strong></td>
+          <td role="cell"><span class="mobile-table-label" aria-hidden="true">Estado</span>
             <span class="badge bg-{% if presupuesto.estado == 'aceptado' %}success{% elif presupuesto.estado == 'enviado' %}primary{% elif presupuesto.estado == 'rechazado' or presupuesto.estado == 'vencido' %}danger{% else %}secondary{% endif %}">
               {{ presupuesto.get_estado_display }}
             </span>
           </td>
-          <td>
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
             <a href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver detalle</a>
             <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
             <a href="{% url 'cutless:generar_pdf_presupuesto' presupuesto.pk %}" class="btn btn-primary" target="_blank" rel="noopener" data-action="primary" data-icon="pdf">PDF</a>

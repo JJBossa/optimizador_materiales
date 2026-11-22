@@ -168,6 +168,7 @@ La base local y los archivos generados se excluyen del seguimiento de Git. Los c
 - [Lupa de lectura compartida](docs/CAMBIOS_LUPA_LECTURA.md)
 - [Visor del Historial: controles y armonía visual](docs/CAMBIOS_VISOR_HISTORIAL.md)
 - [Navegación de los visores de Estadísticas e Historial](docs/CAMBIOS_NAVEGACION_VISORES.md)
+- [Tablas de CutLess en teléfonos móviles](docs/CAMBIOS_TABLAS_RESPONSIVE_MOVIL.md)
 - [Decisión de mantenimiento: sqlparse y Pillow sin actualizar](docs/DEPENDENCIAS_APLAZADAS_SQLPARSE_PILLOW.md)
 - [Matriz consolidada de evidencias de pruebas y seguridad](docs/MATRIZ_EVIDENCIAS_PRUEBAS_CUTLESS.md)
 - [Leyenda compacta y legible en los planos PNG](docs/CAMBIOS_LEYENDA_PLANOS.md)

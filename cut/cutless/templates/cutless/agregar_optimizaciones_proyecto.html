@@ -57,47 +57,48 @@
         </div>
 
         <div class="table-responsive">
-          <table class="table table-hover">
-            <thead>
-              <tr>
-                <th class="checkbox-column">
+          <table role="table" class="table table-hover mobile-table-cards mobile-table-select">
+            <thead role="rowgroup">
+              <tr role="row">
+                <th role="columnheader" scope="col" class="checkbox-column">
                   <input type="checkbox" id="select-all" aria-label="Seleccionar las optimizaciones de esta página" title="Seleccionar esta página">
+                  <label class="mobile-table-label" for="select-all">Seleccionar esta página</label>
                 </th>
-                <th>Optimización y fecha</th>
-                <th>Dimensiones</th>
-                <th>Aprovechamiento</th>
-                <th>Tableros</th>
-                <th>Costo</th>
-                <th>Acciones</th>
+                <th role="columnheader" scope="col">Optimización y fecha</th>
+                <th role="columnheader" scope="col">Dimensiones</th>
+                <th role="columnheader" scope="col">Aprovechamiento</th>
+                <th role="columnheader" scope="col">Tableros</th>
+                <th role="columnheader" scope="col">Costo</th>
+                <th role="columnheader" scope="col">Acciones</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody role="rowgroup">
               {% for opt in optimizaciones_disponibles %}
-              <tr>
-                <td>
+              <tr role="row">
+                <td role="cell">
                   <input type="checkbox" name="optimizaciones" value="{{ opt.pk }}" class="optimizacion-checkbox"{% if opt.pk in seleccionadas %} checked{% endif %} aria-label="Seleccionar {{ opt.etiqueta }}, del {{ opt.fecha|date:'d/m/Y H:i' }}">
                 </td>
-                <td><strong>{{ opt.etiqueta }}</strong><br>{{ opt.fecha|date:"d/m/Y H:i" }}</td>
-                <td>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
-                <td>
+                <td role="cell"><span class="mobile-table-label" aria-hidden="true">Optimización y fecha</span><strong>{{ opt.etiqueta }}</strong><br>{{ opt.fecha|date:"d/m/Y H:i" }}</td>
+                <td role="cell"><span class="mobile-table-label" aria-hidden="true">Dimensiones</span>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
+                <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
                   <span class="badge bg-{% if opt.aprovechamiento_total >= 80 %}success{% elif opt.aprovechamiento_total >= 60 %}warning{% else %}danger{% endif %}">
                     {{ opt.aprovechamiento_total|floatformat:1 }}%
                   </span>
                 </td>
-                <td>{{ opt.num_tableros|default:"0" }}</td>
-                <td>
+                <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tableros</span>{{ opt.num_tableros|default:"0" }}</td>
+                <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo</span>
                   {% if opt.precio_tablero != None %}
                     {{ opt.get_costo_total|clp }}
                   {% else %}
                     <span class="text-muted">—</span>
                   {% endif %}
                 </td>
-                <td>
+                <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
                   <a href="{% url 'cutless:resultado' opt.pk %}" class="btn btn-sm btn-secondary" target="_blank" data-action="secondary" data-icon="eye">Ver resultado</a>
                 </td>
               </tr>
               {% empty %}
-              <tr><td colspan="7">No hay coincidencias. Prueba otro nombre o identificador; tu selección se conserva.</td></tr>
+              <tr role="row"><td role="cell" colspan="7">No hay coincidencias. Prueba otro nombre o identificador; tu selección se conserva.</td></tr>
               {% endfor %}
             </tbody>
           </table>

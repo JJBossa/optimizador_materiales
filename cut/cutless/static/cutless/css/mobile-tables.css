@@ -1,0 +1,113 @@
+.mobile-table-cards .mobile-table-label { display: none !important; }
+
+@media screen and (max-width: 575px) {
+  .mobile-table-context { overflow-wrap: anywhere; }
+
+  body .table-responsive:has(> .mobile-table-cards) {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+  }
+
+  body .table.mobile-table-cards {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+  }
+
+  /* Keep the column headers in the accessibility tree. */
+  .mobile-table-cards:not(.mobile-table-select) > thead,
+  .mobile-table-select > thead th:not(.checkbox-column) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .mobile-table-cards > :is(tbody, tfoot) { display: grid; gap: .75rem; }
+  .mobile-table-cards > tfoot { margin-top: .75rem; }
+
+  .mobile-table-cards > :is(tbody, tfoot) > tr:not([hidden]) {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: .65rem .8rem;
+    padding: .75rem;
+    border: 1px solid var(--cl-border);
+    border-radius: 10px;
+    background: var(--cl-bg-card);
+  }
+
+  .mobile-table-cards > :is(tbody, tfoot) > .table-primary { background: var(--cl-bg-surface); }
+
+  body .table.mobile-table-cards > :is(tbody, tfoot) > tr[role="row"] > td {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    color: var(--cl-text-primary);
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-table-cards > :is(tbody, tfoot) > tr > :is(.mobile-table-wide, [colspan]) { grid-column: 1 / -1; }
+  .mobile-table-cards > tfoot td:empty { display: none; }
+
+  .mobile-table-cards .mobile-table-label {
+    display: block !important;
+    margin-bottom: .15rem;
+    color: var(--cl-text-secondary);
+    font-size: .875em;
+    font-weight: 600;
+  }
+
+  body .mobile-table-cards :is(.badge, .btn) { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  body .mobile-table-cards .action-group { flex-wrap: wrap; }
+
+  .mobile-table-cards .mobile-table-total > td { align-self: center; }
+  .mobile-table-cards .mobile-table-total > td:first-child { grid-column: auto; text-align: start !important; }
+  .mobile-table-total > .costo-total { text-align: end; }
+
+  .mobile-table-select > thead,
+  .mobile-table-select > thead > tr { display: block; }
+  body .mobile-table-select > thead .checkbox-column {
+    display: flex;
+    align-items: center;
+    gap: .75rem;
+    width: auto;
+    padding: .65rem .75rem;
+  }
+  .mobile-table-select > thead .mobile-table-label { margin: 0; cursor: pointer; }
+  :is(.mobile-table-select, .mobile-table-budget) > tbody > tr:not([hidden], :has(> [colspan])) {
+    grid-template-columns: auto repeat(2, minmax(0, 1fr));
+  }
+  :is(.mobile-table-select, .mobile-table-budget) > tbody > tr > td:nth-child(2) { grid-column: 2 / -1; }
+  :is(.mobile-table-select, .mobile-table-budget) > tbody > tr > td:nth-child(n+3):nth-child(odd) { grid-column: 1 / 3; }
+  :is(.mobile-table-select, .mobile-table-budget) > tbody > tr > td.mobile-table-wide { grid-column: 1 / -1; }
+
+  body.comparison-page .mobile-table-comparison {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+  }
+  body.comparison-page .mobile-table-comparison :is(th, td) {
+    padding: .4rem .3rem;
+    vertical-align: top;
+    font-size: .875rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .budget-plan-selector--project .budget-plan-table .budget-plan-name {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+
+  .mobile-table-cards [hidden] { display: none !important; }
+
+  body .mobile-table-placeholder { width: 100%; min-width: 0; table-layout: fixed; }
+  body .mobile-table-placeholder :is(th, td) { padding: .4rem .3rem; overflow-wrap: anywhere; }
+}

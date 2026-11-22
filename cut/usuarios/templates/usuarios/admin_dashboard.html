@@ -48,26 +48,26 @@
 
   {% if usuarios %}
   <div class="table-responsive fade-in admin-users-table-wrap">
-    <table class="admin-user-table table">
+    <table role="table" class="admin-user-table table">
       <colgroup>
         <col class="admin-col-user">
         <col class="admin-col-role">
         <col class="admin-col-state">
         <col class="admin-col-actions">
       </colgroup>
-      <thead>
-        <tr>
+      <thead role="rowgroup">
+        <tr role="row">
           <th scope="col">Usuario</th>
           <th scope="col">Rol</th>
           <th scope="col">Estado</th>
           <th scope="col" class="admin-actions-heading">Acciones</th>
         </tr>
       </thead>
-      <tbody>
+      <tbody role="rowgroup">
         {% for u in usuarios %}
         {% with current_role=u.perfil.rol|default:'usuario' %}
-        <tr{% if u == request.user %} class="admin-user-row--current"{% endif %}>
-          <td class="admin-user-identity">
+        <tr role="row"{% if u == request.user %} class="admin-user-row--current"{% endif %}>
+          <td role="cell" class="admin-user-identity">
             <div class="admin-user-summary">
               <span class="admin-user-avatar" aria-hidden="true">{{ u.username|slice:':1'|upper }}</span>
               <div class="admin-user-copy">
@@ -83,8 +83,8 @@
               </div>
             </div>
           </td>
-          <td class="admin-user-role">
-            <span class="admin-mobile-label">Rol</span>
+          <td role="cell" class="admin-user-role">
+            <span class="admin-mobile-label" aria-hidden="true">Rol</span>
             <form method="post" action="{% url 'usuarios:actualizar_rol' u.pk %}" class="admin-role-form" data-admin-role-form data-saved-role="{{ current_role }}" data-user-name="{{ u.username }}">
               {% csrf_token %}
               <select name="rol" class="form-select admin-role-select" aria-label="Rol de {{ u.username }}"{% if u.pk not in cuentas_administrables or not request.user.is_superuser %} disabled{% endif %}>
@@ -96,8 +96,8 @@
               {% endif %}
             </form>
           </td>
-          <td class="admin-user-state">
-            <span class="admin-mobile-label">Estado</span>
+          <td role="cell" class="admin-user-state">
+            <span class="admin-mobile-label" aria-hidden="true">Estado</span>
             <div class="admin-state-badges">
               {% if u.is_staff %}
                 <span class="admin-badge admin-badge--staff">Staff</span>
@@ -111,7 +111,7 @@
               {% endif %}
             </div>
           </td>
-          <td class="admin-user-actions-cell">
+          <td role="cell" class="admin-user-actions-cell">
             <div class="admin-user-actions">
               {% if u.pk in cuentas_administrables %}
                 <a href="{% url 'usuarios:editar_usuario' u.pk %}" class="btn btn-sm btn-secondary admin-action-btn" data-action="secondary" data-icon="edit" aria-label="Editar a {{ u.username }}">Editar</a>

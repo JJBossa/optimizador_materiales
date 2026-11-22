@@ -81,29 +81,29 @@ try {
 <details class="result-details" data-result-stage="fold"><summary>Ver resumen de todos los tableros</summary><div class="result-stage-placeholder" aria-hidden="true">{% include 'cutless/includes/optimization-loading-block.html' with zone='fold' %}</div>
   <div class="card fade-in">
   <div class="table-responsive">
-  <table class="table table-striped table-hover mb-0">
-    <thead class="table-dark">
-      <tr>
-        <th>Tablero</th>
-        <th>Piezas</th>
-        <th>Área utilizada</th>
-        <th>Desperdicio</th>
-        <th>Aprovechamiento</th>
+  <table role="table" class="table table-striped table-hover mb-0 mobile-table-cards">
+    <thead role="rowgroup" class="table-dark">
+      <tr role="row">
+        <th role="columnheader" scope="col">Tablero</th>
+        <th role="columnheader" scope="col">Piezas</th>
+        <th role="columnheader" scope="col">Área utilizada</th>
+        <th role="columnheader" scope="col">Desperdicio</th>
+        <th role="columnheader" scope="col">Aprovechamiento</th>
       </tr>
     </thead>
-    <tbody>
+    <tbody role="rowgroup">
       {% for info in info_desperdicio.info_tableros %}
-      <tr>
-        <td><strong>Tablero {{ info.numero }}</strong></td>
-        <td>{{ info.num_piezas }}</td>
-        <td>{{ info.area_usada|stringformat:".1f" }} {{ simbolo_area|default:"cm²" }}</td>
-        <td class="fw-semibold
+      <tr role="row">
+        <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Tablero</span><strong>Tablero {{ info.numero }}</strong></td>
+        <td role="cell"><span class="mobile-table-label" aria-hidden="true">Piezas</span>{{ info.num_piezas }}</td>
+        <td role="cell"><span class="mobile-table-label" aria-hidden="true">Área utilizada</span>{{ info.area_usada|stringformat:".1f" }} {{ simbolo_area|default:"cm²" }}</td>
+        <td role="cell" class="fw-semibold
             {% if info.porcentaje_uso < 30 %}text-danger
             {% elif info.porcentaje_uso < 60 %}text-warning-emphasis
-            {% else %}text-success{% endif %}">
+            {% else %}text-success{% endif %}"><span class="mobile-table-label" aria-hidden="true">Desperdicio</span>
           {{ info.desperdicio|stringformat:".1f" }} {{ simbolo_area|default:"cm²" }}
         </td>
-        <td>
+        <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
           <div class="progress-utilization">
             <div class="progress">
               <div class="progress-bar
