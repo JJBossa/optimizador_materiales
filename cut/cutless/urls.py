@@ -25,6 +25,11 @@ urlpatterns = [
     # Estadísticas y exportaciones de desperdicio
     path('estadisticas/', auth_perm('puede_ver_estadisticas', views.estadisticas), name='estadisticas'),
     path(
+        'estadisticas/grafico-miniatura/',
+        auth_perm('puede_ver_estadisticas', views.grafico_estadisticas_miniatura),
+        name='grafico_estadisticas_miniatura',
+    ),
+    path(
         'estadisticas/grafico-hd/',
         auth_perm('puede_ver_estadisticas', views.grafico_estadisticas_hd),
         name='grafico_estadisticas_hd',

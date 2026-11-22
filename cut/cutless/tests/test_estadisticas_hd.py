@@ -13,7 +13,7 @@ from cutless.models import Optimizacion
 from cutless.views import analytics
 
 
-class EstadisticasHdTests(TestCase):
+class GraficosEstadisticasTests(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.usuario = User.objects.create_user('estadisticas-hd')
@@ -26,22 +26,22 @@ class EstadisticasHdTests(TestCase):
 
     def setUp(self):
         self.client.force_login(self.usuario)
-        self.url = reverse('cutless:grafico_estadisticas_hd')
+        self.url_hd = reverse('cutless:grafico_estadisticas_hd')
+        self.url_miniatura = reverse('cutless:grafico_estadisticas_miniatura')
+        self.url = self.url_hd
 
-    def test_pagina_inicial_solo_genera_miniaturas_y_conserva_resumen(self):
+    def test_pagina_inicial_no_genera_graficos_y_conserva_resumen(self):
         with (
             patch.object(analytics, 'generar_grafico_aprovechamiento', return_value='YWJj') as aprovechar,
             patch.object(analytics, 'generar_grafico_desperdicio', return_value='ZGVm') as desperdiciar,
         ):
             respuesta = self.client.get(reverse('cutless:estadisticas'), {'periodo': 'semanal'})
         for generar in (aprovechar, desperdiciar):
-            generar.assert_called_once()
-            consulta, periodo = generar.call_args.args
-            self.assertEqual(list(consulta), [self.reciente])
-            self.assertEqual(periodo, 'semanal')
-            self.assertEqual(generar.call_args.kwargs, {'alta_resolucion': False})
-        self.assertContains(respuesta, 'data:image/png;base64,', count=2)
-        self.assertContains(respuesta, f'data-grafico-url="{self.url}" data-periodo="semanal"')
+            generar.assert_not_called()
+        self.assertNotContains(respuesta, 'data:image/png;base64,')
+        for url in (self.url_hd, self.url_miniatura):
+            self.assertContains(respuesta, f'data-grafico-url="{url}" data-periodo="semanal"')
+        self.assertContains(respuesta, 'role="status">Cargando gráfico…', count=2)
         self.assertEqual(respuesta.context['total_optimizaciones'], 1)
         self.assertEqual(respuesta.context['promedio_aprovechamiento'], 82)
         self.assertEqual(respuesta.context['promedio_desperdicio'], 18)
@@ -115,3 +115,42 @@ class EstadisticasHdTests(TestCase):
             respuesta = self.client.get(self.url, params)
         self.assertContains(respuesta, 'No se pudo generar el gráfico.', status_code=503)
         self.assertNotContains(respuesta, 'detalle privado', status_code=503)
+
+    def test_historial_vacio_no_solicita_miniaturas(self):
+        Optimizacion.objects.filter(usuario=self.usuario).delete()
+        respuesta = self.client.get(reverse('cutless:estadisticas'))
+        self.assertContains(respuesta, 'No hay datos')
+        self.assertNotContains(respuesta, 'id="miniaturasEstadisticas"')
+
+    def test_miniaturas_equivalen_al_original_y_solo_incluyen_datos_del_usuario_y_periodo(self):
+        planes = Optimizacion.objects.filter(pk=self.reciente.pk)
+        for tipo, generar in (
+            ('aprovechamiento', analytics.generar_grafico_aprovechamiento),
+            ('desperdicio', analytics.generar_grafico_desperdicio),
+        ):
+            with self.subTest(tipo=tipo):
+                esperado = b64decode(generar(planes, 'semanal', alta_resolucion=False))
+                respuesta = self.client.get(self.url_miniatura, {
+                    'tipo': tipo, 'periodo': 'semanal', 'usuario': self.otro.pk,
+                })
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual(respuesta['Content-Type'], 'image/png')
+                self.assertEqual(respuesta.content, esperado)
+                self.assertIn('private', respuesta['Cache-Control'])
+                self.assertIn('no-store', respuesta['Cache-Control'])
+
+    def test_miniatura_rechaza_parametros_y_protege_acceso(self):
+        params = {'tipo': 'aprovechamiento', 'periodo': 'todos'}
+        with patch.object(analytics, 'generar_grafico_aprovechamiento') as generar:
+            self.assertEqual(self.client.get(self.url_miniatura, {**params, 'periodo': 'diario'}).status_code, 400)
+            self.assertEqual(self.client.get(self.url_miniatura, {**params, 'tipo': 'otro'}).status_code, 400)
+            self.assertEqual(self.client.post(self.url_miniatura, params).status_code, 405)
+            self.client.logout()
+            self.assertEqual(self.client.get(self.url_miniatura, params).status_code, 302)
+            perfil = self.otro.perfil
+            perfil.puede_ver_estadisticas = False
+            perfil.save(update_fields=['puede_ver_estadisticas'])
+            self.client.force_login(self.otro)
+            self.assertRedirects(self.client.get(self.url_miniatura, params), reverse('cutless:index'),
+                                 fetch_redirect_response=False)
+            generar.assert_not_called()

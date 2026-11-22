@@ -4,7 +4,7 @@
 {% block body_class %}statistics-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'cutless/css/estadisticas.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/estadisticas.css' %}?v=miniaturas-1">
 {% endblock %}
 
 {% block content %}
@@ -93,24 +93,24 @@
 
     <p class="stats-explanation">Cada optimización cuenta por igual en el promedio. El desperdicio es la parte del tablero que no se aprovecha: 100% menos el aprovechamiento.</p>
     <!-- Gráficos -->
-    <div class="row mb-4 fade-in">
+    <div id="miniaturasEstadisticas" class="row mb-4 fade-in"
+         data-grafico-url="{% url 'cutless:grafico_estadisticas_miniatura' %}" data-periodo="{{ periodo }}">
       <div class="col-md-6 mb-4">
         <div class="card">
           <div class="card-header card-header-section">
             <h5 class="mb-0">Aprovechamiento en el tiempo</h5>
           </div>
           <div class="card-body">
-            {% if grafico_aprovechamiento %}
-              <button type="button" class="chart-container"
-                   onclick="abrirModalGrafico('aprovechamiento')" aria-label="Ampliar gráfico de aprovechamiento" data-action="secondary">
-                <img src="data:image/png;base64,{{ grafico_aprovechamiento }}"
-                     alt="Aprovechamiento en el tiempo"
-                     class="img-fluid chart-thumbnail">
+            <div class="chart-slot" data-tipo="aprovechamiento" data-titulo="Aprovechamiento en el tiempo">
+              <div class="chart-placeholder">
+                <p class="small text-muted mb-2" role="status">Cargando gráfico…</p>
+                <button type="button" class="btn btn-secondary" data-action="secondary" hidden>Reintentar</button>
+              </div>
+              <button type="button" class="chart-container" hidden
+                      onclick="abrirModalGrafico('aprovechamiento')" aria-label="Ampliar gráfico de aprovechamiento" data-action="secondary">
                 <span class="chart-hint">Ampliar gráfico</span>
               </button>
-            {% else %}
-              <p class="text-muted">No hay datos para mostrar</p>
-            {% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -121,17 +121,16 @@
             <h5 class="mb-0">Desperdicio en el tiempo</h5>
           </div>
           <div class="card-body">
-            {% if grafico_desperdicio %}
-              <button type="button" class="chart-container"
-                   onclick="abrirModalGrafico('desperdicio')" aria-label="Ampliar gráfico de desperdicio" data-action="secondary">
-                <img src="data:image/png;base64,{{ grafico_desperdicio }}"
-                     alt="Desperdicio en el tiempo"
-                     class="img-fluid chart-thumbnail">
+            <div class="chart-slot" data-tipo="desperdicio" data-titulo="Desperdicio en el tiempo">
+              <div class="chart-placeholder">
+                <p class="small text-muted mb-2" role="status">Cargando gráfico…</p>
+                <button type="button" class="btn btn-secondary" data-action="secondary" hidden>Reintentar</button>
+              </div>
+              <button type="button" class="chart-container" hidden
+                      onclick="abrirModalGrafico('desperdicio')" aria-label="Ampliar gráfico de desperdicio" data-action="secondary">
                 <span class="chart-hint">Ampliar gráfico</span>
               </button>
-            {% else %}
-              <p class="text-muted">No hay datos para mostrar</p>
-            {% endif %}
+            </div>
           </div>
         </div>
       </div>
@@ -244,15 +243,28 @@
 
 <script>
 const modalGrafico = document.getElementById('modalGrafico');
-const graficosHD = new Map();
+const miniaturasEstadisticas = document.getElementById('miniaturasEstadisticas');
+const graficos = new Map();
+const solicitudesGraficos = new AbortController();
+
+window.addEventListener('pagehide', evento => {
+    if (!evento.persisted) solicitudesGraficos.abort();
+});
 let aperturaGrafico = 0;
 
-function cargarGraficoHD(tipo) {
-    if (!graficosHD.has(tipo)) {
-        const url = new URL(modalGrafico.dataset.graficoUrl, window.location.href);
-        url.searchParams.set('tipo', tipo);
-        url.searchParams.set('periodo', modalGrafico.dataset.periodo);
-        const solicitud = fetch(url, {cache: 'no-store', redirect: 'error'}).then(async respuesta => {
+function cargarGrafico(origen, tipo) {
+    const url = new URL(origen.dataset.graficoUrl, window.location.href);
+    url.searchParams.set('tipo', tipo);
+    url.searchParams.set('periodo', origen.dataset.periodo);
+    const clave = url.href;
+    if (!graficos.has(clave)) {
+        const control = new AbortController();
+        const cancelar = () => control.abort();
+        solicitudesGraficos.signal.addEventListener('abort', cancelar, {once: true});
+        const limite = setTimeout(cancelar, 30000);
+        const solicitud = fetch(url, {
+            cache: 'no-store', redirect: 'error', signal: control.signal,
+        }).then(async respuesta => {
             if (!respuesta.ok || respuesta.headers.get('Content-Type')?.split(';')[0] !== 'image/png') {
                 throw new Error('Gráfico no disponible');
             }
@@ -266,12 +278,54 @@ function cargarGraficoHD(tipo) {
                 throw error;
             }
         }).catch(error => {
-            graficosHD.delete(tipo);
+            graficos.delete(clave);
             throw error;
+        }).finally(() => {
+            clearTimeout(limite);
+            solicitudesGraficos.signal.removeEventListener('abort', cancelar);
         });
-        graficosHD.set(tipo, solicitud);
+        graficos.set(clave, solicitud);
     }
-    return graficosHD.get(tipo);
+    return graficos.get(clave);
+}
+
+async function cargarMiniatura(espacio) {
+    const estado = espacio.querySelector('.chart-placeholder');
+    const mensaje = estado.querySelector('[role="status"]');
+    const reintentar = estado.querySelector('button');
+    const ampliar = espacio.querySelector('.chart-container');
+
+    reintentar.hidden = true;
+    mensaje.textContent = 'Cargando gráfico…';
+    try {
+        const imagen = await cargarGrafico(miniaturasEstadisticas, espacio.dataset.tipo);
+        imagen.alt = espacio.dataset.titulo;
+        imagen.className = 'img-fluid chart-thumbnail';
+        ampliar.prepend(imagen);
+        ampliar.hidden = false;
+        estado.hidden = true;
+    } catch (_) {
+        if (solicitudesGraficos.signal.aborted) return;
+        mensaje.textContent = 'No se pudo cargar el gráfico.';
+        reintentar.hidden = false;
+    }
+}
+
+if (miniaturasEstadisticas) {
+    const espacios = miniaturasEstadisticas.querySelectorAll('.chart-slot');
+    for (const espacio of espacios) {
+        const reintentar = espacio.querySelector('.chart-placeholder button');
+        reintentar.addEventListener('click', () => {
+            if (!reintentar.hidden) cargarMiniatura(espacio);
+        });
+    }
+    // Dar al navegador una oportunidad de pintar antes de pedir los PNG.
+    requestAnimationFrame(() => requestAnimationFrame(async () => {
+        for (const espacio of espacios) {
+            if (solicitudesGraficos.signal.aborted) break;
+            await cargarMiniatura(espacio);
+        }
+    }));
 }
 
 function actualizarZoomGrafico() {
@@ -308,7 +362,7 @@ async function abrirModalGrafico(tipo) {
     resetearZoom();
     bootstrap.Modal.getOrCreateInstance(modalGrafico).show();
     try {
-        const imagen = await cargarGraficoHD(tipo);
+        const imagen = await cargarGrafico(modalGrafico, tipo);
         if (apertura !== aperturaGrafico) return;
         imagen.alt = titulo;
         contenido.replaceChildren(imagen);
@@ -320,7 +374,9 @@ async function abrirModalGrafico(tipo) {
         reintentar.type = 'button';
         reintentar.className = 'btn btn-secondary mx-3';
         reintentar.textContent = 'Reintentar';
-        reintentar.addEventListener('click', () => abrirModalGrafico(tipo));
+        reintentar.addEventListener('click', () => {
+            if (reintentar.isConnected) abrirModalGrafico(tipo);
+        });
         contenido.append(reintentar);
     }
 }
