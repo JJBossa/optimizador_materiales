@@ -2,7 +2,7 @@
 
 ## Objetivo y alcance
 
-La auditoría SEC-01 identificó avisos de seguridad aplicables a Django 5.2.8, incluidos problemas de disponibilidad en el procesamiento de solicitudes. El objetivo es incorporar los parches de la misma serie LTS y conservar el comportamiento de la aplicación. CutLess actualiza el pin de Django **5.2.8 → 5.2.19** en la rama local `fix/sec-01-django-5.2-lts`, sobre `6087aa322653793606d08f520653d374d1caf7e8`. Django 5.2.19 era el último parche publicado de la serie 5.2 LTS al 22 de noviembre de 2026. Se mantuvieron Python 3.13.12 y las otras versiones de la línea base. Los avisos aplicables a dependencias distintas de Django se gestionan por separado. [Serie 5.2 LTS](https://www.djangoproject.com/download/#supported-versions) · [Django 5.2.19 en PyPI](https://pypi.org/project/Django/5.2.19/)
+La auditoría SEC-01 identificó avisos de seguridad aplicables a Django 5.2.8, incluidos problemas de disponibilidad en el procesamiento de solicitudes. El objetivo es incorporar los parches de la misma serie LTS y conservar el comportamiento de la aplicación. CutLess actualiza el pin de Django **5.2.8 → 5.2.19** en la rama `fix/sec-01-django-5.2-lts`, sobre `6087aa322653793606d08f520653d374d1caf7e8`. Django 5.2.19 era el último parche publicado de la serie 5.2 LTS al 22 de noviembre de 2026. Se mantuvieron Python 3.13.12 y las otras versiones de la línea base. Los avisos aplicables a dependencias distintas de Django se gestionan por separado. [Serie 5.2 LTS](https://www.djangoproject.com/download/#supported-versions) · [Django 5.2.19 en PyPI](https://pypi.org/project/Django/5.2.19/)
 
 La verificación se realizó en Linux con un entorno virtual aislado, SQLite y PostgreSQL **16.2** local. Se usaron bases de prueba desechables, cuentas sintéticas y directorios temporales para archivos. Antes de crear la base PostgreSQL se comprobaron por socket Unix privado la versión, el directorio de datos temporal y la ausencia de escucha TCP. Las suites Python se ejecutaron sin credenciales heredadas y con bloqueo de DNS y conexiones IP en el arnés. La recuperación de contraseña se probó con dobles locales. La seguridad efectiva de producción y **SEC-07** permanecen pendientes.
 
@@ -10,9 +10,9 @@ La verificación se realizó en Linux con un entorno virtual aislado, SQLite y P
 
 | Entorno | Estado |
 | --- | --- |
-| Local | Cambio preparado para revisión en `fix/sec-01-django-5.2-lts`. El SHA indicado arriba corresponde a la base. El parche está pendiente de commit. |
-| GitHub | Rama del parche sin publicar en el fork. Pendientes el SHA del commit de SEC-01 y el enlace al PR. El registro mensual los incorporará cuando exista un commit o una fusión que cumpla su criterio. |
-| Producción | Parche pendiente de despliegue. Render y Supabase quedaron fuera de la verificación. |
+| Local | La actualización, las pruebas y el informe se validaron en `fix/sec-01-django-5.2-lts`. El commit inicial publicado es `b379be71e4e6dc2b3c76be6a1c30717e67469d7e`. |
+| GitHub | Rama publicada en el fork y [PR #14](https://github.com/gy0kuroo/optimizador_materiales/pull/14) abierto para revisión, sin fusionar. Su título contiene `[skip preview]` para evitar vistas previas automáticas; eso no desactiva Auto Deploy de la rama monitorizada. |
+| Producción | Según lo informado por el usuario, Render tiene Auto Deploy habilitado. No se consultó la configuración del servicio ni la rama conectada; no se ha verificado el despliegue de SEC-01 ni la versión de Django en producción. Supabase quedó fuera de la revisión. |
 
 ## Compatibilidad de dependencias
 
@@ -94,7 +94,8 @@ En la etapa 4 se repitieron las suites Django completas con las seis pruebas añ
 - **sqlparse 0.5.1 y Pillow 11.0.0** conservan avisos propios. Revisar su alcance y sus actualizaciones por separado. [Avisos de sqlparse](https://github.com/andialbrecht/sqlparse/security/advisories) · [Avisos de Pillow](https://github.com/python-pillow/Pillow/security/advisories)
 - Las solicitudes acotadas cubren regresiones funcionales. Quedan fuera la medición de capacidad, las pruebas de agotamiento de recursos y el temporizador de sesión en un navegador real.
 - **SEC-07 sigue pendiente.** Los avisos de HSTS sobre subdominios y preload ya existían en la comprobación sintética de la etapa 2. La configuración efectiva de proxy, cookies, cabeceras, TLS y privilegios de PostgreSQL requiere evidencia de producción por separado.
-- Antes de un eventual despliegue, revisar y aprobar el diff, confirmar el parche 5.2 vigente y los avisos relevantes, registrar el conjunto resuelto de dependencias, validar el artefacto en un entorno aislado y acordar la comprobación operativa y el procedimiento de reversión. El cambio sigue local.
+- **Auto Deploy de Render:** el usuario confirmó que está habilitado. Fusionar el PR puede iniciar un despliegue si la rama de destino coincide con la rama configurada en Render. `[skip preview]` evita vistas previas automáticas del PR, pero no impide ese despliegue. Antes de fusionar, el administrador debe confirmar la rama conectada, contar con respaldo y reversión, y planificar la validación posterior. La configuración real no fue consultada.
+- Antes de un eventual despliegue, revisar y aprobar el diff, confirmar el parche 5.2 vigente y los avisos relevantes, registrar el conjunto resuelto de dependencias, validar el artefacto en un entorno aislado y acordar la comprobación operativa y el procedimiento de reversión. La rama y el PR están publicados, pero el PR no se ha fusionado y la actualización en producción no se ha verificado.
 
 ## Reversión
 
@@ -102,4 +103,4 @@ En una copia aislada, restaurar únicamente el pin anterior desde el commit base
 
 ## Conclusión técnica
 
-El parche y las nuevas regresiones están listos para revisión previa a commit y PR. No se observaron regresiones en las suites repetidas. El único cambio de dependencia es Django. El estado operativo de SEC-01 queda pendiente de revisión y de un despliegue autorizado. Esta etapa no publicó cambios.
+El parche y las nuevas regresiones están publicados para revisión en el [PR #14](https://github.com/gy0kuroo/optimizador_materiales/pull/14), aún sin fusionar. No se observaron regresiones en las suites repetidas y el único cambio de dependencia es Django. Dado que Render tiene Auto Deploy habilitado según lo informado, la fusión requiere coordinación con quien administra el servicio. El despliegue efectivo y el estado operativo de SEC-01 siguen sin verificar.
