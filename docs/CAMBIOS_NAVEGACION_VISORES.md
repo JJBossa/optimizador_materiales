@@ -3,7 +3,7 @@
 - Fecha de validación: 22 de noviembre de 2026.
 - Rama: `fix/navegacion-modales-estadisticas-historial`.
 - Base: `175433f688eb469de163d16a9cd953b997040d08` (`upstream/main`, con el PR #14).
-- Estado de GitHub al 22/11/2026: commit [`b8f7474`](https://github.com/JJBossa/optimizador_materiales/commit/b8f74743a35413ec4fa3107fcc202cc97a529213) publicado en el fork; [PR #15](https://github.com/gy0kuroo/optimizador_materiales/pull/15) abierto contra `main`, aún sin fusionar y no marcado como borrador. El despliegue de esta corrección no está verificado.
+- Estado de GitHub al 22/11/2026: commit [`b8f7474`](https://github.com/JJBossa/optimizador_materiales/commit/b8f74743a35413ec4fa3107fcc202cc97a529213) publicado en el fork; [PR #15](https://github.com/gy0kuroo/optimizador_materiales/pull/15) fusionado en `main` mediante [`9310dce`](https://github.com/gy0kuroo/optimizador_materiales/commit/9310dcea07037874dc5d827f6863f4e802e993ff). El despliegue de esta corrección no está verificado.
 
 ## Problema
 
@@ -68,5 +68,5 @@ Playwright debe estar disponible para Node. `CUTLESS_TEST_CHROMIUM` permite indi
 
 - La restauración depende de que la URL y la entrada de historial del navegador sigan disponibles. Un tablero eliminado puede mostrar el error recuperable del visor al solicitarlo de nuevo.
 - La validación de navegación usa Chromium local. El comportamiento de restauración puede variar según la disponibilidad de la caché de navegación en cada navegador.
-- El commit y el PR ya están publicados para revisión, sin fusionar. Render tiene Auto Deploy habilitado según lo informado. Antes de fusionar el PR, el administrador debe confirmar la rama vinculada al servicio, el plan de reversión y las verificaciones posteriores al despliegue; la etiqueta `[skip preview]` en el título no desactiva Auto Deploy al fusionar.
-- Para revertir antes de publicar, revisar el diff contra el commit base y restaurar únicamente los cambios de esta corrección en los archivos rastreados. Retirar los tres archivos nuevos cuando se haya comprobado que contienen solo el trabajo de esta rama. Una vez registrada la corrección, revertir su commit completo con `git revert <SHA>` previa autorización. La reversión no requiere migraciones ni restaurar datos.
+- El PR ya fue fusionado. Render tiene Auto Deploy habilitado según lo informado, pero no se comprobó si el servicio está conectado a `main` ni si se inició o completó el despliegue. El administrador debe verificar el despliegue, la versión servida y los recorridos de Estadísticas e Historial. La etiqueta `[skip preview]` del PR no garantiza que se omita el despliegue posterior a la fusión.
+- Para revertir la corrección ya fusionada, coordinar previamente con el administrador del servicio una reversión controlada del cambio introducido por el PR #15, revisando los commits exactos y las dependencias entre archivos. No revertir ciegamente el commit de fusión ni ejecutar cambios en producción sin autorización. La corrección no requiere migraciones ni restauración de datos.
