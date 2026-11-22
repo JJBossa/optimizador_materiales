@@ -148,6 +148,7 @@ Toda corrección o nueva funcionalidad debe incluir la actualización correspond
 - [Ayuda: presentación y recorrido contextual](docs/CAMBIOS_VISUALES_AYUDA.md)
 - [Auditoría de reapertura y diseño móvil de tutoriales](docs/AUDITORIA_TUTORIALES_CUTLESS.md)
 - [Estadísticas: presentación y claridad](docs/CAMBIOS_VISUALES_ESTADISTICAS.md)
+- [Estadísticas: rendimiento y gráficos HD bajo demanda](docs/OPTIMIZACION_RENDIMIENTO_ESTADISTICAS.md)
 - [Análisis: comparación y costos](docs/CAMBIOS_VISUALES_ANALISIS.md)
 - [Plantillas: presentación, unidades y copias personales](docs/CAMBIOS_VISUALES_PLANTILLAS.md)
 - [Presupuestos: revisión visual y claridad](docs/CAMBIOS_VISUALES_PRESUPUESTOS.md)

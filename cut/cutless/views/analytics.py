@@ -1,12 +1,16 @@
+import logging
+from base64 import b64decode
 from datetime import timedelta
 from decimal import Decimal
 from math import ceil, isfinite
 
 from django.contrib import messages
 from django.db.models import Avg
-from django.http import FileResponse, HttpResponseBadRequest
+from django.http import FileResponse, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
+from django.views.decorators.cache import never_cache
+from django.views.decorators.http import require_GET
 
 from ..formato_clp import formatear_clp
 from ..models import Optimizacion
@@ -19,6 +23,42 @@ from ..utils import (
     generar_pdf_resumen_desperdicio,
     parsear_piezas_desde_texto,
 )
+
+
+logger = logging.getLogger(__name__)
+DIAS_ESTADISTICAS = {'todos': None, 'semanal': 7, 'mensual': 30, 'anual': 365}
+
+
+def _optimizaciones_estadisticas(usuario, periodo):
+    optimizaciones = Optimizacion.objects.filter(usuario=usuario).order_by('fecha')
+    dias = DIAS_ESTADISTICAS[periodo]
+    if dias is not None:
+        optimizaciones = optimizaciones.filter(fecha__gte=timezone.now() - timedelta(days=dias))
+    return optimizaciones
+
+
+@never_cache
+@require_GET
+def grafico_estadisticas_hd(request):
+    generadores = {
+        'aprovechamiento': generar_grafico_aprovechamiento,
+        'desperdicio': generar_grafico_desperdicio,
+    }
+    tipo = request.GET.get('tipo')
+    periodo = request.GET.get('periodo')
+    if tipo not in generadores or periodo not in DIAS_ESTADISTICAS:
+        return HttpResponseBadRequest('Gráfico o período no válido.')
+
+    optimizaciones = _optimizaciones_estadisticas(request.user, periodo)
+    try:
+        grafico = generadores[tipo](optimizaciones, periodo, alta_resolucion=True)
+        png = b64decode(grafico, validate=True) if grafico else None
+    except Exception:
+        logger.exception('No se pudo generar la ampliación de Estadísticas.')
+        return HttpResponse('No se pudo generar el gráfico.', status=503)
+    if not png:
+        return HttpResponse('No hay datos para mostrar en este período.', status=404)
+    return HttpResponse(png, content_type='image/png')
 
 
 def calcular_tiempo_corte(request, pk):
@@ -272,30 +312,13 @@ def estadisticas(request):
     IMPORTANTE: Todos los datos están filtrados por usuario (request.user).
     Cada usuario solo ve sus propias optimizaciones y estadísticas.
     """
-    # Obtener todas las optimizaciones del usuario actual (filtrado por seguridad)
-    todas_optimizaciones = Optimizacion.objects.filter(usuario=request.user).order_by('fecha')
-    
     # Obtener período seleccionado
     periodo = request.GET.get('periodo', 'todos')
-    if periodo not in ('todos', 'semanal', 'mensual', 'anual'):
+    if periodo not in DIAS_ESTADISTICAS:
         messages.warning(request, 'Período no reconocido. Se muestra todo el historial.')
         periodo = 'todos'
 
-    
-    # Filtrar por período
-    ahora = timezone.now()
-    optimizaciones_filtradas = todas_optimizaciones
-    
-    if periodo == 'semanal':
-        fecha_limite = ahora - timedelta(days=7)
-        optimizaciones_filtradas = todas_optimizaciones.filter(fecha__gte=fecha_limite)
-    elif periodo == 'mensual':
-        fecha_limite = ahora - timedelta(days=30)
-        optimizaciones_filtradas = todas_optimizaciones.filter(fecha__gte=fecha_limite)
-    elif periodo == 'anual':
-        fecha_limite = ahora - timedelta(days=365)
-        optimizaciones_filtradas = todas_optimizaciones.filter(fecha__gte=fecha_limite)
-    # 'todos' no necesita filtro
+    optimizaciones_filtradas = _optimizaciones_estadisticas(request.user, periodo)
     
     # Calcular estadísticas generales
     total_optimizaciones = optimizaciones_filtradas.count()
@@ -318,18 +341,12 @@ def estadisticas(request):
         # Top 10 optimizaciones (mayor aprovechamiento)
         top_optimizaciones = optimizaciones_filtradas.order_by('-aprovechamiento_total')[:10]
         
-        # Generar gráficos (versión normal y alta resolución)
+        # Las versiones HD se generan desde su propia ruta al abrir el modal.
         grafico_aprovechamiento = generar_grafico_aprovechamiento(
             optimizaciones_filtradas.order_by('fecha'), periodo, alta_resolucion=False
         )
-        grafico_aprovechamiento_hd = generar_grafico_aprovechamiento(
-            optimizaciones_filtradas.order_by('fecha'), periodo, alta_resolucion=True
-        )
         grafico_desperdicio = generar_grafico_desperdicio(
             optimizaciones_filtradas.order_by('fecha'), periodo, alta_resolucion=False
-        )
-        grafico_desperdicio_hd = generar_grafico_desperdicio(
-            optimizaciones_filtradas.order_by('fecha'), periodo, alta_resolucion=True
         )
     else:
         promedio_aprovechamiento = 0
@@ -338,9 +355,7 @@ def estadisticas(request):
         promedio_desperdicio = 0
         top_optimizaciones = []
         grafico_aprovechamiento = None
-        grafico_aprovechamiento_hd = None
         grafico_desperdicio = None
-        grafico_desperdicio_hd = None
     
     # Procesar top optimizaciones para el template
     top_optimizaciones_list = []
@@ -369,9 +384,7 @@ def estadisticas(request):
         'promedio_desperdicio': round(promedio_desperdicio, 2),
         'top_optimizaciones': top_optimizaciones_list,
         'grafico_aprovechamiento': grafico_aprovechamiento,
-        'grafico_aprovechamiento_hd': grafico_aprovechamiento_hd,
         'grafico_desperdicio': grafico_desperdicio,
-        'grafico_desperdicio_hd': grafico_desperdicio_hd,
         'periodo': periodo,
         'optimizaciones_filtradas': optimizaciones_filtradas,
     })

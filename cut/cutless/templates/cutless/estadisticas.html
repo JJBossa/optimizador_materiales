@@ -138,7 +138,8 @@
     </div>
 
     <!-- Modal para gráficos en pantalla completa -->
-    <div class="modal fade" id="modalGrafico" tabindex="-1" aria-labelledby="modalGraficoLabel" aria-hidden="true">
+    <div class="modal fade" id="modalGrafico" tabindex="-1" aria-labelledby="modalGraficoLabel" aria-hidden="true"
+         data-grafico-url="{% url 'cutless:grafico_estadisticas_hd' %}" data-periodo="{{ periodo }}">
       <div class="modal-dialog modal-fullscreen">
         <div class="modal-content">
           <div class="modal-header modal-header-app">
@@ -242,19 +243,44 @@
   {% endif %}
 
 <script>
-// Datos de gráficos en alta resolución
-const graficosHD = {
-    aprovechamiento: {% if grafico_aprovechamiento_hd %}'data:image/png;base64,{{ grafico_aprovechamiento_hd }}'{% else %}null{% endif %},
-    desperdicio: {% if grafico_desperdicio_hd %}'data:image/png;base64,{{ grafico_desperdicio_hd }}'{% else %}null{% endif %}
-};
+const modalGrafico = document.getElementById('modalGrafico');
+const graficosHD = new Map();
+let aperturaGrafico = 0;
+
+function cargarGraficoHD(tipo) {
+    if (!graficosHD.has(tipo)) {
+        const url = new URL(modalGrafico.dataset.graficoUrl, window.location.href);
+        url.searchParams.set('tipo', tipo);
+        url.searchParams.set('periodo', modalGrafico.dataset.periodo);
+        const solicitud = fetch(url, {cache: 'no-store', redirect: 'error'}).then(async respuesta => {
+            if (!respuesta.ok || respuesta.headers.get('Content-Type')?.split(';')[0] !== 'image/png') {
+                throw new Error('Gráfico no disponible');
+            }
+            const imagen = new Image();
+            imagen.src = URL.createObjectURL(await respuesta.blob());
+            try {
+                await imagen.decode();
+                return imagen;
+            } catch (error) {
+                URL.revokeObjectURL(imagen.src);
+                throw error;
+            }
+        }).catch(error => {
+            graficosHD.delete(tipo);
+            throw error;
+        });
+        graficosHD.set(tipo, solicitud);
+    }
+    return graficosHD.get(tipo);
+}
 
 function actualizarZoomGrafico() {
     const slider = document.getElementById('zoomSlider');
     const contenido = document.getElementById('modalGraficoContenido');
     const imagen = contenido?.querySelector('img');
-    if (!imagen || !slider) return;
+    if (!slider) return;
     const porcentaje = Number(slider.value);
-    imagen.style.width = porcentaje + '%';
+    if (imagen) imagen.style.width = porcentaje + '%';
     document.getElementById('zoomValue').textContent = porcentaje + '%';
 }
 
@@ -268,20 +294,38 @@ function resetearZoom() {
     contenido.scrollLeft = 0;
 }
 
-function abrirModalGrafico(tipo) {
-    const fuente = graficosHD[tipo];
-    const elemento = document.getElementById('modalGrafico');
-    if (!fuente || !elemento) return;
+async function abrirModalGrafico(tipo) {
+    if (!modalGrafico) return;
+    const apertura = ++aperturaGrafico;
     const contenido = document.getElementById('modalGraficoContenido');
-    const imagen = document.createElement('img');
-    imagen.src = fuente;
-    imagen.alt = tipo === 'aprovechamiento' ? 'Aprovechamiento en el tiempo' : 'Desperdicio en el tiempo';
-    contenido.replaceChildren(imagen);
-    document.getElementById('modalGraficoLabel').textContent = imagen.alt;
+    const titulo = tipo === 'aprovechamiento' ? 'Aprovechamiento en el tiempo' : 'Desperdicio en el tiempo';
+    document.getElementById('modalGraficoLabel').textContent = titulo;
+    const estado = document.createElement('p');
+    estado.className = 'small text-muted m-3';
+    estado.setAttribute('role', 'status');
+    estado.textContent = 'Cargando gráfico…';
+    contenido.replaceChildren(estado);
     resetearZoom();
-    bootstrap.Modal.getOrCreateInstance(elemento).show();
+    bootstrap.Modal.getOrCreateInstance(modalGrafico).show();
+    try {
+        const imagen = await cargarGraficoHD(tipo);
+        if (apertura !== aperturaGrafico) return;
+        imagen.alt = titulo;
+        contenido.replaceChildren(imagen);
+        actualizarZoomGrafico();
+    } catch (_) {
+        if (apertura !== aperturaGrafico) return;
+        estado.textContent = 'No se pudo cargar el gráfico.';
+        const reintentar = document.createElement('button');
+        reintentar.type = 'button';
+        reintentar.className = 'btn btn-secondary mx-3';
+        reintentar.textContent = 'Reintentar';
+        reintentar.addEventListener('click', () => abrirModalGrafico(tipo));
+        contenido.append(reintentar);
+    }
 }
 
+modalGrafico?.addEventListener('hide.bs.modal', () => { aperturaGrafico++; });
 document.getElementById('zoomSlider')?.addEventListener('input', actualizarZoomGrafico);
 </script>
 {% endblock %}
