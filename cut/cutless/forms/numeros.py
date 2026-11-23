@@ -2,7 +2,7 @@ import re
 
 from django import forms
 
-from ..formatos_numericos import AYUDA_DECIMAL, FORMATO_DECIMAL, FORMATO_ENTERO, preparar_decimal
+from ..formatos_numericos import AYUDA_DECIMAL, FORMATO_DECIMAL, FORMATO_ENTERO, preparar_decimal, preparar_importe
 
 
 class EntradaDecimal:
@@ -25,6 +25,19 @@ class EntradaDecimal:
 
 
 class DecimalEntradaField(EntradaDecimal, forms.DecimalField):
+    pass
+
+
+class PresentacionImporte:
+    def prepare_value(self, value):
+        return super().prepare_value(preparar_importe(value))
+
+
+class ImporteDecimalField(PresentacionImporte, forms.DecimalField):
+    pass
+
+
+class ImporteEntradaField(PresentacionImporte, DecimalEntradaField):
     pass
 
 

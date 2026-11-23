@@ -7,7 +7,7 @@ from ..formatos_numericos import AYUDA_DECIMAL
 from ..materiales import dimension_material_valida, precio_material_valido, validar_precio_material
 from ..models import Material
 from ..units import convertir_a_cm, convertir_desde_cm
-from .numeros import DecimalEntradaField as DecimalMaterialField
+from .numeros import DecimalEntradaField, ImporteEntradaField
 
 _AYUDA_DECIMAL = AYUDA_DECIMAL
 _AYUDA_DIMENSION = f'{_AYUDA_DECIMAL} Para tres decimales ambiguos, añade un cero final (ej.: 12,3450).'
@@ -22,7 +22,7 @@ class MaterialBaseForm(forms.ModelForm):
     class Meta:
         model = Material
         fields = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'descripcion')
-        field_classes = dict.fromkeys(('ancho', 'alto', 'precio'), DecimalMaterialField)
+        field_classes = {'ancho': DecimalEntradaField, 'alto': DecimalEntradaField, 'precio': ImporteEntradaField}
         help_texts = {
             'ancho': _AYUDA_DIMENSION,
             'alto': _AYUDA_DIMENSION,

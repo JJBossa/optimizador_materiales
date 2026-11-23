@@ -18,3 +18,15 @@ def preparar_decimal(valor):
         if 'e' in texto.lower():
             return format(Decimal(texto), 'f')
     return valor
+
+
+def preparar_importe(valor):
+    """Quita ceros decimales de un importe para mostrarlo. Conserva los textos enviados."""
+    if not isinstance(valor, Decimal) or not valor.is_finite():
+        return valor
+    if valor.is_zero():
+        return Decimal(0)
+    texto = format(valor, 'f')
+    if '.' in texto:
+        texto = texto.rstrip('0').rstrip('.')
+    return Decimal(texto)
