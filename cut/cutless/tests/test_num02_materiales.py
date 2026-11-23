@@ -247,7 +247,7 @@ class MaterialesFormulariosTests(TestCase):
         self.assertEqual(self.enviar(False, self.datos, compartido).status_code, 302)
         self.assertEqual(self.enviar(True, self.datos, compartido).status_code, 403)
         cambio = self.enviar(False, {**self.datos, 'nombre': 'Ajeno'}, personal)
-        self.assertRedirects(cambio, reverse('cutless:lista_materiales'))
+        self.assertEqual(cambio.status_code, 404)
 
         self.client.force_login(staff)
         self.assertEqual(self.client.get(self.ruta(True, propio_staff)).status_code, 200)
@@ -255,7 +255,7 @@ class MaterialesFormulariosTests(TestCase):
         staff.user_permissions.add(permiso.get(codename='change_material'), permiso.get(codename='add_material'))
         self.assertEqual(self.enviar(True, self.datos, propio_staff, usuario=staff.pk).status_code, 302)
         self.assertEqual(self.enviar(True, self.datos, None, usuario=staff.pk).status_code, 302)
-        self.assertEqual(self.enviar(True, self.datos, compartido, usuario='', es_predefinido='on').status_code, 302)
+        self.assertEqual(self.enviar(True, self.datos, compartido).status_code, 403)
         intento = self.enviar(True, {**self.datos, 'nombre': 'Bloqueado'}, personal)
         self.assertRedirects(intento, reverse('admin:index'), fetch_redirect_response=False)
         personal.refresh_from_db()

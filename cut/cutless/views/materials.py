@@ -9,12 +9,16 @@ from ..forms import MaterialForm
 from ..models import Material, Optimizacion
 
 
+def material_visible(request, pk):
+    return get_object_or_404(Material, Q(usuario=request.user) | Q(es_predefinido=True), pk=pk)
+
+
 def lista_materiales(request):
     """
     Lista todos los materiales del usuario y los predefinidos del sistema.
     """
     # Materiales del usuario
-    materiales_usuario = Material.objects.filter(usuario=request.user)
+    materiales_usuario = Material.objects.filter(usuario=request.user, es_predefinido=False)
     
     # Materiales predefinidos del sistema
     materiales_sistema = Material.objects.filter(es_predefinido=True)
@@ -55,11 +59,7 @@ def eliminar_material(request, pk):
     """
     Elimina un material (incluyendo predefinidos).
     """
-        # Permitir eliminar materiales predefinidos también
-    material = get_object_or_404(
-        Material,
-        Q(pk=pk, usuario=request.user) | Q(pk=pk, es_predefinido=True)
-    )
+    material = material_visible(request, pk)
     
     if material.es_predefinido and not es_admin(request.user):
         return HttpResponseForbidden("Solo administradores pueden modificar materiales del sistema.")
@@ -90,27 +90,16 @@ def editar_material(request, pk):
     Edita un material existente.
     Permite editar materiales del usuario y materiales predefinidos del sistema.
     """
-    # Permitir editar materiales del usuario o predefinidos
-    material = get_object_or_404(Material, pk=pk)
+    material = material_visible(request, pk)
     
     if material.es_predefinido and not es_admin(request.user):
         return HttpResponseForbidden("Solo administradores pueden modificar materiales del sistema.")
 
-    # Verificar permisos: solo puede editar si es suyo o es predefinido
-    if not material.es_predefinido and material.usuario != request.user:
-        messages.error(request, "No tienes permiso para editar este material.")
-        return redirect('cutless:lista_materiales')
-    
     if request.method == "POST":
         form = MaterialForm(request.POST, instance=material)
         if form.is_valid():
             material_actualizado = form.save(commit=False)
             campos = form.campos_actualizacion()
-            # Si es predefinido, asegurar que siga siendo predefinido
-            if material.es_predefinido:
-                material_actualizado.es_predefinido = True
-                material_actualizado.usuario = None
-                campos.add('usuario')
             material_actualizado.save(update_fields=campos)
             messages.success(request, f'✅ Material "{material_actualizado.nombre}" actualizado exitosamente.')
             return redirect('cutless:lista_materiales')

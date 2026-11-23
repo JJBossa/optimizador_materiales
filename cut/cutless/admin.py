@@ -1,4 +1,8 @@
 from django.contrib import admin
+from django.db.models import Q
+
+from usuarios.views import es_admin
+
 from .forms.materials import MaterialAdminForm
 from .forms.numeros import ImporteDecimalField
 from .formato_clp import formatear_clp
@@ -31,14 +35,55 @@ class MaterialAdmin(admin.ModelAdmin):
     list_filter = ('es_predefinido', 'unidad_medida', 'fecha_creacion')
     ordering = ('-es_predefinido', 'nombre')
 
+    def get_exclude(self, request, obj=None):
+        if not request.user.is_superuser:
+            return ('usuario', 'es_predefinido')
+        return super().get_exclude(request, obj)
+
+    def get_list_display(self, request):
+        columnas = super().get_list_display(request)
+        if not request.user.is_superuser:
+            return tuple(columna for columna in columnas if columna != 'usuario')
+        return columnas
+
+    def lookup_allowed(self, lookup, value, request):
+        if not request.user.is_superuser and lookup.split('__', 1)[0] in ('usuario', 'usuario_id'):
+            return False
+        return super().lookup_allowed(lookup, value, request)
+
+    def puede_gestionar(self, request, obj):
+        if obj is None or request.user.is_superuser:
+            return True
+        if obj.es_predefinido:
+            return es_admin(request.user)
+        return obj.usuario_id == request.user.pk
+
+    def has_change_permission(self, request, obj=None):
+        return super().has_change_permission(request, obj) and self.puede_gestionar(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return super().has_delete_permission(request, obj) and self.puede_gestionar(request, obj)
+
+    def get_deleted_objects(self, objs, request):
+        eliminados, cantidades, permisos, protegidos = super().get_deleted_objects(objs, request)
+        if Optimizacion.objects.filter(material__in=objs).exists():
+            protegidos.append('La selección incluye materiales asociados a optimizaciones.')
+        return eliminados, cantidades, permisos, protegidos
+
     @admin.display(description='Precio', ordering='precio')
     def precio_display(self, obj):
         return formatear_clp(obj.precio)
     
     def save_model(self, request, obj, form, change):
         if change:
-            obj.save(update_fields=form.campos_actualizacion())
+            campos = form.campos_actualizacion()
+            if not request.user.is_superuser:
+                campos.difference_update(('usuario', 'es_predefinido'))
+            obj.save(update_fields=campos)
         else:
+            if not request.user.is_superuser:
+                obj.usuario = request.user
+                obj.es_predefinido = False
             super().save_model(request, obj, form, change)
 
     def get_queryset(self, request):
@@ -46,4 +91,4 @@ class MaterialAdmin(admin.ModelAdmin):
         if request.user.is_superuser:
             return qs
         # Los usuarios normales solo ven sus materiales y los predefinidos
-        return qs.filter(usuario=request.user) | qs.filter(es_predefinido=True)
+        return qs.filter(Q(usuario=request.user) | Q(es_predefinido=True))
