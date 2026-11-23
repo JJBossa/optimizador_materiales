@@ -4,7 +4,7 @@
 {% block body_class %}management-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=cliente-direccion-1">
 {% endblock %}
 
 {% block content %}
@@ -45,8 +45,11 @@
           {% endif %}
         </div>
         <div class="col-md-6">
-          {% if cliente.direccion %}
-          <p><strong>Dirección:</strong> {{ cliente.direccion }}</p>
+          {% if cliente.direccion_activa %}
+          <p><strong>Dirección:</strong> <span class="cliente-direccion-texto">{{ cliente.direccion_activa }}</span></p>
+          {% endif %}
+          {% if cliente.direccion_modo == 'estructurada' and cliente.direccion_referencia %}
+          <p><strong>Referencia (solo en la ficha):</strong> <span class="cliente-direccion-texto">{{ cliente.direccion_referencia }}</span></p>
           {% endif %}
           {% if cliente.notas %}
           <p><strong>Notas:</strong> {{ cliente.notas }}</p>

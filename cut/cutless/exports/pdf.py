@@ -324,10 +324,13 @@ def generar_pdf_presupuesto(presupuesto, archivo_salida=None):
     cliente = presupuesto.cliente_cotizado
     if cliente:
         parrafo(f'Cliente: {cliente.nombre}', 'Heading2')
-        for campo, etiqueta in (('rut', 'RUT'), ('email', 'Correo'), ('telefono', 'Teléfono'), ('direccion', 'Dirección')):
+        for campo, etiqueta in (('rut', 'RUT'), ('email', 'Correo'), ('telefono', 'Teléfono')):
             valor = getattr(cliente, campo)
             if valor:
                 parrafo(f'{etiqueta}: {valor}')
+        direccion = presupuesto.direccion_cotizada
+        if direccion:
+            parrafo(f'Dirección: {direccion}')
     else:
         parrafo('Sin cliente asignado', 'Heading2')
 

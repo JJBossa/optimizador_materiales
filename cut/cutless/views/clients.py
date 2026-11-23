@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib import messages
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 
@@ -64,12 +65,16 @@ def lista_clientes(request):
         'total_clientes': total_clientes,
     })
 
+@transaction.atomic
 def editar_cliente(request, pk):
     """
     Edita un cliente existente.
     """
+    clientes = Cliente.objects.filter(usuario=request.user)
+    if request.method == 'POST':
+        clientes = clientes.select_for_update()
     try:
-        cliente = Cliente.objects.get(pk=pk, usuario=request.user)
+        cliente = clientes.get(pk=pk)
     except Cliente.DoesNotExist:
         messages.error(request, "No se encontró el cliente o no tienes permiso para editarlo.")
         return redirect('cutless:lista_clientes')

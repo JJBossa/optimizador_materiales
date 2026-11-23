@@ -1,0 +1,330 @@
+from datetime import date
+from io import StringIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+from django.contrib.auth.models import User
+from django.core.files.base import ContentFile
+from django.core.management import call_command
+from django.db import DatabaseError, connection
+from django.db.migrations.executor import MigrationExecutor
+from django.test import Client, TestCase, TransactionTestCase
+from django.urls import reverse
+from reportlab import rl_config
+
+from cutless.models import Cliente, Optimizacion, Presupuesto, Proyecto
+from usuarios.models import PerfilUsuario
+
+
+LEGADO = '  Pasaje legado 12-B\r\nUnidad S/N\n  Referencia <original>  '
+ESTRUCTURADA = {
+    'direccion_pais': 'CL',
+    'direccion_calle': 'Avenida de prueba',
+    'direccion_numero': 'S/N',
+    'direccion_unidad': 'Unidad 4B',
+    'direccion_region': 'Región de prueba',
+    'direccion_comuna': 'Comuna de prueba',
+    'direccion_localidad': 'Comuna de prueba',
+    'direccion_referencia': 'Referencia interna',
+}
+
+
+class DireccionesClientesTests(TestCase):
+    def setUp(self):
+        self.propietario = User.objects.create_user('direccion_propietario')
+        self.propietario.perfil.puede_crear_clientes = True
+        self.propietario.perfil.puede_crear_presupuestos = True
+        self.propietario.perfil.save(update_fields=['puede_crear_clientes', 'puede_crear_presupuestos'])
+        self.client.force_login(self.propietario)
+        self.ficha = Cliente.objects.create(
+            usuario=self.propietario, nombre='Ficha histórica sintética', direccion=LEGADO,
+            telefono='Contacto legado', rut='FISCAL-HISTORICO', notas='Texto anterior',
+        )
+        self.alta = reverse('cutless:crear_cliente')
+        self.edicion = reverse('cutless:editar_cliente', args=[self.ficha.pk])
+        self.historial = reverse('cutless:historial_cliente', args=[self.ficha.pk])
+
+    def editar(self, **datos):
+        return self.client.post(self.edicion, {'nombre': self.ficha.nombre, **datos})
+
+    def cerrar_direccion(self):
+        respuesta = self.editar(direccion_accion='estructurada', **ESTRUCTURADA)
+        self.assertEqual(respuesta.status_code, 302)
+        self.ficha.refresh_from_db()
+
+    def pdf(self, presupuesto):
+        ruta = reverse('cutless:generar_pdf_presupuesto', args=[presupuesto.pk])
+        with patch.object(rl_config, 'pageCompression', 0):
+            respuesta = self.client.get(ruta)
+            self.assertEqual((respuesta.status_code, respuesta['Content-Type']), (200, 'application/pdf'))
+            return b''.join(respuesta.streaming_content)
+
+    def asociar(self):
+        proyecto = Proyecto.objects.create(usuario=self.propietario, cliente=self.ficha, nombre='Proyecto sintético')
+        plan = Optimizacion.objects.create(
+            usuario=self.propietario, cliente=self.ficha, proyecto=proyecto, ancho_tablero=122,
+            alto_tablero=244, piezas='Pieza,20,30,1', num_tableros=1,
+        )
+        return proyecto, plan
+
+    def cotizar(self, proyecto, plan, estado='borrador'):
+        respuesta = self.client.post(reverse('cutless:crear_presupuesto'), {
+            'cliente': self.ficha.pk, 'proyecto': proyecto.pk, 'optimizaciones': [plan.pk],
+            'precio_tablero': '1500.50', 'mano_obra': '43.20', 'fecha_validez': date.today().isoformat(),
+            'estado': estado,
+        })
+        self.assertEqual(respuesta.status_code, 302)
+        return Presupuesto.objects.filter(usuario=self.propietario).latest('pk')
+
+    def test_alta_estructurada_opcional_y_numero_como_texto(self):
+        for indice, numero in enumerate(('S/N', '0012-B')):
+            nombre = f'Cliente de prueba {indice}'
+            self.assertEqual(self.client.post(self.alta, {
+                'nombre': nombre, **ESTRUCTURADA, 'direccion_numero': numero,
+            }).status_code, 302)
+            guardado = Cliente.objects.get(nombre=nombre)
+            self.assertEqual((guardado.direccion_modo, guardado.direccion, guardado.direccion_numero),
+                             ('estructurada', '', numero))
+            self.assertEqual(guardado.direccion_activa,
+                             f'Avenida de prueba {numero}, Unidad 4B, Comuna de prueba, Región de prueba')
+            self.assertEqual(guardado.direccion_referencia, 'Referencia interna')
+
+        self.assertEqual(self.client.post(self.alta, {'nombre': 'Sin dirección'}).status_code, 302)
+        vacio = Cliente.objects.get(nombre='Sin dirección')
+        self.assertEqual((vacio.direccion_activa, vacio.direccion_modo, vacio.direccion_pais), ('', None, None))
+
+    def test_direccion_internacional_y_escape_en_interfaz(self):
+        self.assertEqual(self.editar(
+            direccion_accion='estructurada', direccion_pais='JP', direccion_calle='通り <literal>',
+            direccion_localidad='Ciudad de prueba', direccion_unidad='Árvore', direccion_numero='8-A',
+        ).status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertIsNone(self.ficha.direccion_region)
+        self.assertIsNone(self.ficha.direccion_comuna)
+        self.assertEqual(self.ficha.direccion_activa, '通り <literal> 8-A, Árvore, Ciudad de prueba, Japón')
+        res = self.client.get(self.historial)
+        self.assertContains(res, '通り &lt;literal&gt;')
+        self.assertNotContains(res, '通り <literal>')
+
+    def test_editar_contacto_preserva_espacios_saltos_telefono_historico_y_omision(self):
+        antes = self.ficha.fecha_creacion
+        self.assertContains(self.client.get(self.edicion), 'Ver dirección histórica original')
+        self.assertEqual(self.editar(
+            email='correo@example.test', direccion_legada=LEGADO.replace('\r\n', '\n').replace('\n', '\r\n'),
+            direccion='Un campo anterior no solicitado', direccion_calle='Borrador sin acción',
+        ).status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion, self.ficha.direccion_activa, self.ficha.direccion_modo,
+                          self.ficha.email, self.ficha.rut, self.ficha.telefono, self.ficha.notas,
+                          self.ficha.fecha_creacion),
+                         (LEGADO, LEGADO, None, 'correo@example.test', 'FISCAL-HISTORICO',
+                          'Contacto legado', 'Texto anterior', antes))
+
+        self.assertEqual(self.editar(telefono_pais='CL', telefono='9 8765 4321').status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion, self.ficha.telefono), (LEGADO, '+56987654321'))
+        self.assertEqual(self.ficha.email, 'correo@example.test')
+
+    def test_conversion_edicion_y_vuelta_a_legado_preservan_el_original(self):
+        self.cerrar_direccion()
+        self.assertEqual((self.ficha.direccion, self.ficha.direccion_modo), (LEGADO, 'estructurada'))
+        self.assertContains(self.client.get(self.historial), 'Referencia interna')
+        self.assertEqual(self.editar(direccion_accion='estructurada', direccion_numero='12-B').status_code, 302)
+        self.assertEqual(self.editar(email='segundo@example.test', direccion_calle='Ignorado').status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion_numero, self.ficha.direccion_calle), ('12-B', 'Avenida de prueba'))
+        self.assertEqual(self.editar(direccion_accion='sin_dato').status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion_activa, self.ficha.direccion_calle), ('', 'Avenida de prueba'))
+
+        self.assertEqual(self.editar(direccion_accion='editar_legado',
+                                     direccion_legada=LEGADO.replace('\r\n', '\n')).status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion_legada_editada, self.ficha.direccion_activa), (None, LEGADO))
+        texto = '  Edición deliberada\r\nLocalidad ficticia  '
+        self.assertEqual(self.editar(direccion_accion='editar_legado', direccion_legada=texto).status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion, self.ficha.direccion_activa), (LEGADO, texto))
+        self.cerrar_direccion()
+        self.assertEqual(self.editar(direccion_accion='legado').status_code, 302)
+        self.ficha.refresh_from_db()
+        self.assertEqual((self.ficha.direccion, self.ficha.direccion_activa), (LEGADO, texto))
+
+    def test_extranjero_sin_division_chilena_y_validacion_sin_escrituras(self):
+        antes = Cliente.objects.filter(pk=self.ficha.pk).values().get()
+        entradas_invalidas = [
+            (dict(direccion_calle='A' * 161), 'direccion_calle'),
+            (dict(direccion_calle='Calle con\ncorte'), 'direccion_calle'),
+            (dict(direccion_pais='ZZ', direccion_calle='Pasaje'), 'direccion_pais'),
+            (dict(direccion_numero='8-A', direccion_referencia='Solo referencia'), None),
+        ]
+        for datos, campo in entradas_invalidas:
+            with self.subTest(datos=datos):
+                res = self.editar(direccion_accion='estructurada', email='cambio@example.test', **datos)
+                self.assertEqual(res.status_code, 200)
+                self.assertTrue(res.context['form'].non_field_errors())
+                self.assertContains(res, 'data-cliente-direccion open')
+                if campo:
+                    direccion = res.context['form'].direccion_estructurada
+                    self.assertTrue(direccion.has_error(campo))
+                    self.assertEqual(direccion[campo].value(), datos[campo])
+                    self.assertContains(res, f'id="id_{campo}_error"')
+                self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
+
+        res = self.editar(direccion_accion='editar_legado')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
+
+        res = self.editar(direccion_accion='estructurada', **ESTRUCTURADA, email='correo sin arroba')
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.context['form'].direccion_estructurada['direccion_numero'].value(), 'S/N')
+        self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
+
+    def test_propietario_y_csrf_en_edicion(self):
+        datos = {'nombre': self.ficha.nombre, 'direccion_accion': 'estructurada', **ESTRUCTURADA}
+        otro = User.objects.create_user('direccion_otro')
+        otro.perfil.puede_crear_clientes = True
+        otro.perfil.save(update_fields=['puede_crear_clientes'])
+        otra_sesion = Client()
+        otra_sesion.force_login(otro)
+        self.assertRedirects(otra_sesion.post(self.edicion, datos), reverse('cutless:lista_clientes'),
+                             fetch_redirect_response=False)
+        self.assertEqual(otra_sesion.get(self.historial).status_code, 404)
+        segura = Client(enforce_csrf_checks=True)
+        segura.force_login(self.propietario)
+        self.assertEqual(segura.get(self.edicion).status_code, 200)
+        self.assertEqual(segura.post(self.edicion, datos).status_code, 403)
+        self.assertEqual(Cliente.objects.get(pk=self.ficha.pk).direccion_activa, LEGADO)
+        datos['csrfmiddlewaretoken'] = segura.cookies['csrftoken'].value
+        self.assertEqual(segura.post(self.edicion, datos).status_code, 302)
+        self.assertEqual(Cliente.objects.get(pk=self.ficha.pk).direccion_modo, 'estructurada')
+
+    def test_snapshot_de_alta_y_emision_de_borrador_queda_inmutable(self):
+        proyecto, plan = self.asociar()
+        borrador = self.cotizar(proyecto, plan)
+        emitido_legado = self.cotizar(proyecto, plan, 'enviado')
+        json_legado = emitido_legado.detalle_emitido
+        self.cerrar_direccion()
+        self.assertIn(b'Avenida de prueba S/N', self.pdf(borrador))
+        self.assertNotIn(b'Referencia interna', self.pdf(borrador))
+        nuevo = self.cotizar(proyecto, plan, 'enviado')
+        self.assertEqual(nuevo.detalle_emitido['cliente']['direccion'], self.ficha.direccion_activa)
+
+        res = self.client.post(reverse('cutless:editar_presupuesto', args=[borrador.pk]), {
+            'cliente': self.ficha.pk, 'proyecto': proyecto.pk, 'optimizaciones': [plan.pk],
+            'precio_tablero': '1500.50', 'mano_obra': '43.20', 'fecha_validez': date.today().isoformat(),
+            'estado': 'enviado',
+        })
+        self.assertEqual(res.status_code, 302)
+        borrador.refresh_from_db()
+        instantanea = borrador.detalle_emitido
+        self.assertEqual(instantanea['cliente']['direccion'], self.ficha.direccion_activa)
+        self.assertEqual(self.editar(direccion_accion='sin_dato').status_code, 302)
+
+        emitido_legado.refresh_from_db()
+        self.assertEqual(emitido_legado.detalle_emitido, json_legado)
+        self.assertEqual(json_legado['cliente']['direccion'], LEGADO)
+        self.assertIn(b'Pasaje legado', self.pdf(emitido_legado))
+        self.assertIn(b'Avenida de prueba S/N', self.pdf(borrador))
+        borrador.refresh_from_db()
+        borrador.cerrar_detalle()
+        self.assertEqual(borrador.detalle_emitido, instantanea)
+
+        for registro in (proyecto, plan, borrador, nuevo):
+            registro.refresh_from_db()
+            self.assertEqual(registro.cliente_id, self.ficha.pk)
+        self.assertEqual((plan.proyecto_id, borrador.proyecto_id), (proyecto.pk, proyecto.pk))
+        self.assertEqual(list(borrador.optimizaciones.values_list('pk', flat=True)), [plan.pk])
+        Presupuesto.objects.filter(pk=nuevo.pk).update(cliente=None)
+        nuevo.refresh_from_db()
+        self.assertIn(b'Avenida de prueba S/N', self.pdf(nuevo))
+
+    def test_historico_sin_snapshot_pdf_archivado_y_regeneracion_legada(self):
+        proyecto, plan = self.asociar()
+        antiguo = self.cotizar(proyecto, plan)
+        antiguo.estado = 'enviado'
+        antiguo.save(update_fields=['estado'])
+        self.cerrar_direccion()
+        guardado = '%PDF-1.4\n% Archivo sintético CLI-01\n'.encode('utf-8')
+        with TemporaryDirectory() as medios, self.settings(MEDIA_ROOT=Path(medios)):
+            antiguo.pdf.save('historico-cli01.pdf', ContentFile(guardado))
+            self.assertEqual(self.pdf(antiguo), guardado)
+            antiguo.pdf.storage.delete(antiguo.pdf.name)
+            pdf = self.pdf(antiguo)
+            self.assertIn(b'Pasaje legado', pdf)
+            self.assertNotIn(b'Avenida de prueba', pdf)
+        antiguo.refresh_from_db()
+        self.assertIsNone(antiguo.detalle_emitido)
+
+
+class MigracionDireccionesClientesTests(TransactionTestCase):
+    origen = [('cutless', '0008_restricciones_correlativo_optimizacion')]
+    destino = '0009_cliente_direcciones_estructuradas'
+
+    def restaurar_esquema(self):
+        ejecutor = MigrationExecutor(connection)
+        ejecutor.migrate(ejecutor.loader.graph.leaf_nodes())
+
+    def test_esquema_antiguo_migracion_expansiva_y_reejecucion_idempotente(self):
+        self.addCleanup(self.restaurar_esquema)
+        ejecutor = MigrationExecutor(connection)
+        ejecutor.migrate(self.origen)
+        historico = ejecutor.loader.project_state(self.origen).apps
+        persona = historico.get_model('auth', 'User').objects.create(username='migracion-direccion')
+        ClienteAnterior = historico.get_model('cutless', 'Cliente')
+        ficha = ClienteAnterior.objects.create(usuario_id=persona.pk, nombre='Histórico de migración', direccion=LEGADO)
+        vacio = ClienteAnterior.objects.create(usuario_id=persona.pk, nombre='Opcional de migración')
+        proyecto = historico.get_model('cutless', 'Proyecto').objects.create(
+            usuario_id=persona.pk, cliente_id=ficha.pk, nombre='Proyecto de migración',
+        )
+        opt = historico.get_model('cutless', 'Optimizacion').objects.create(
+            usuario_id=persona.pk, cliente_id=ficha.pk, proyecto_id=proyecto.pk, correlativo=1,
+            ancho_tablero=122, alto_tablero=244, piezas='Pieza,20,30,1',
+        )
+        ppto = historico.get_model('cutless', 'Presupuesto').objects.create(
+            usuario_id=persona.pk, cliente_id=ficha.pk, proyecto_id=proyecto.pk,
+            numero='PRE-CLI01', precio_tablero=25, costo_total=25, fecha_validez=date.today(), estado='enviado',
+            detalle_emitido={'cliente': {'direccion': LEGADO}, 'optimizaciones': []},
+        )
+        ppto.optimizaciones.add(opt)
+        campos_originales = [campo.attname for campo in ClienteAnterior._meta.concrete_fields]
+        esperado = list(ClienteAnterior.objects.order_by('pk').values(*campos_originales))
+
+        self.assertEqual(self.client.get(reverse('usuarios:login')).status_code, 200)
+        session = Client(raise_request_exception=False)
+        usuario = User.objects.get(pk=persona.pk)
+        PerfilUsuario.objects.create(usuario=usuario, puede_crear_clientes=True)
+        session.force_login(usuario)
+        lista = reverse('cutless:lista_clientes')
+        res = session.get(lista)
+        self.assertEqual(res.status_code, 500)
+        self.assertIsInstance(res.exc_info[1], DatabaseError)
+
+        for intento in (1, 2):
+            salida = StringIO()
+            call_command('migrate', interactive=False, stdout=salida)
+            self.assertIn(self.destino if intento == 1 else 'No migrations to apply', salida.getvalue())
+            self.assertEqual(list(Cliente.objects.order_by('pk').values(*campos_originales)), esperado)
+            self.assertEqual(Cliente.objects.get(pk=ficha.pk).direccion_activa, LEGADO)
+            self.assertEqual(Cliente.objects.get(pk=vacio.pk).direccion_activa, '')
+            columnas_nuevas = [campo.attname for campo in Cliente._meta.concrete_fields
+                               if campo.attname not in campos_originales]
+            self.assertTrue(all(valor is None for fila in Cliente.objects.values_list(*columnas_nuevas)
+                                for valor in fila))
+            presupuesto = Presupuesto.objects.get(pk=ppto.pk)
+            self.assertEqual(presupuesto.detalle_emitido, ppto.detalle_emitido)
+            self.assertEqual((presupuesto.cliente_id, presupuesto.proyecto_id, presupuesto.fecha_actualizacion),
+                             (ficha.pk, proyecto.pk, ppto.fecha_actualizacion))
+            self.assertEqual(list(presupuesto.optimizaciones.values_list('pk', flat=True)), [opt.pk])
+            plan = Optimizacion.objects.get(pk=opt.pk)
+            self.assertEqual((plan.cliente_id, plan.proyecto_id, plan.correlativo, plan.fecha),
+                             (ficha.pk, proyecto.pk, 1, opt.fecha))
+            self.assertEqual(Proyecto.objects.get(pk=proyecto.pk).fecha_actualizacion, proyecto.fecha_actualizacion)
+            self.assertEqual(session.get(lista).status_code, 200)
+
+        Cliente.objects.filter(pk=ficha.pk).update(direccion_modo='estructurada', direccion_calle='Pasaje nuevo')
+        ClienteAnterior.objects.filter(pk=ficha.pk).update(email='edicion-anterior@example.test')
+        actual = Cliente.objects.get(pk=ficha.pk)
+        self.assertEqual((actual.direccion, actual.direccion_activa, actual.email),
+                         (LEGADO, 'Pasaje nuevo', 'edicion-anterior@example.test'))
