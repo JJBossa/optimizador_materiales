@@ -45,6 +45,16 @@ def handler500(request):
     return render(request, 'cutless/500.html', status=500)
 
 
+def leer_id_optimizacion(valor):
+    """Devuelve una clave positiva que cabe en el BigAutoField de Optimización."""
+    if len(valor) > 19 or not valor.isascii() or not valor.isdecimal():
+        return None
+    numero = int(valor)
+    if 0 < numero <= 2**63 - 1:
+        return numero
+    return None
+
+
 def _materiales_data_index(user):
     """Datos de materiales para serializar con json_script (errores / reintentos)."""
     if not usuario_tiene_permiso(user, 'puede_ver_historial_costos'):

@@ -6,7 +6,7 @@ from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Q
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponseBadRequest, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_GET
@@ -18,7 +18,7 @@ from ..pieces import parsear_piezas_desde_texto
 from ..models import Presupuesto, Optimizacion, Cliente
 from ..services import enviar_notificacion
 from ..services.indicadores import obtener_indicadores
-from .common import exigir_piezas_completas
+from .common import exigir_piezas_completas, leer_id_optimizacion
 from .media import media_privada
 
 
@@ -80,9 +80,13 @@ def crear_presupuesto(request):
     Crea un nuevo presupuesto desde una optimización.
     """
     # Si viene desde una optimización específica
-    optimizacion_id = request.GET.get('optimizacion')
+    referencia = request.GET.get('optimizacion')
     optimizacion = None
-    if optimizacion_id:
+    if referencia:
+        optimizacion_id = leer_id_optimizacion(referencia)
+        if optimizacion_id is None:
+            return HttpResponseBadRequest('La optimización seleccionada tiene un identificador inválido.',
+                                          content_type='text/plain; charset=utf-8')
         optimizacion = get_object_or_404(Optimizacion, pk=optimizacion_id, usuario=request.user)
     
     if request.method == "POST":

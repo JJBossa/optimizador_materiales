@@ -1,5 +1,8 @@
 from django.contrib import messages
+from django.db import transaction
+from django.http import Http404, HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
@@ -7,28 +10,30 @@ from ..pieces import parsear_piezas_desde_texto
 from ..models import Optimizacion
 from ..services.board_presentation import preparar_plano_horizontal
 from ..utils import convertir_desde_cm
+from .common import leer_id_optimizacion
 
 
+@require_POST
+@transaction.atomic
 def borrar_seleccion(request):
-    if request.method == "POST":
-        seleccion = request.POST.getlist('seleccion')
-        if not seleccion:
-            messages.warning(request, "No se seleccionó ninguna optimización para borrar.")
-            return redirect('cutless:historial')
-
-        optimizaciones = Optimizacion.objects.filter(id__in=seleccion, usuario=request.user)
-        count = optimizaciones.count()
-        optimizaciones.delete()
-
-        if count > 0:
-            messages.success(request, f"Se eliminaron {count} optimizaciones seleccionadas del historial.")
-        else:
-            messages.warning(request, "No se encontraron optimizaciones válidas para eliminar.")
-
+    seleccion = request.POST.getlist('seleccion')
+    if not seleccion:
+        messages.warning(request, 'No se seleccionó ninguna optimización para borrar.')
         return redirect('cutless:historial')
-    else:
-        messages.error(request, "Operación no permitida.")
-        return redirect('cutless:historial')
+
+    ids = {leer_id_optimizacion(valor) for valor in seleccion}
+    if None in ids:
+        return HttpResponseBadRequest('La selección contiene identificadores de optimización inválidos.',
+                                      content_type='text/plain; charset=utf-8')
+
+    optimizaciones = Optimizacion.objects.filter(pk__in=ids, usuario=request.user)
+    if set(optimizaciones.order_by('pk').select_for_update().values_list('pk', flat=True)) != ids:
+        raise Http404
+
+    optimizaciones.delete()
+    messages.success(request, f'Se eliminaron {len(ids)} optimizaciones seleccionadas del historial.')
+    return redirect('cutless:historial')
+
 
 def borrar_historial(request):
     if request.method == "POST":
@@ -77,21 +82,25 @@ def historial(request):
     fecha_desde = request.GET.get('fecha_desde', '').strip()
     fecha_hasta = request.GET.get('fecha_hasta', '').strip()
     
-    if fecha_desde:
-        try:
-            from datetime import datetime
-            fecha_desde_obj = datetime.strptime(fecha_desde, '%Y-%m-%d')
-            optimizaciones = optimizaciones.filter(fecha__gte=fecha_desde_obj)
-        except ValueError:
-            pass
-    
-    if fecha_hasta:
-        try:
-            from datetime import datetime, timedelta
-            fecha_hasta_obj = datetime.strptime(fecha_hasta, '%Y-%m-%d') + timedelta(days=1)
-            optimizaciones = optimizaciones.filter(fecha__lt=fecha_hasta_obj)
-        except ValueError:
-            pass
+    estado = 200
+    try:
+        desde, hasta = parse_date(fecha_desde), parse_date(fecha_hasta)
+    except ValueError:
+        desde = hasta = None
+    if (fecha_desde and desde is None) or (fecha_hasta and hasta is None):
+        messages.error(request, 'Fecha no válida. Usa el selector de calendario.')
+        estado = 400
+    elif desde and hasta and desde > hasta:
+        messages.error(request, 'La fecha inicial no puede ser posterior a la fecha final.')
+        estado = 400
+
+    if estado == 400:
+        optimizaciones = optimizaciones.none()
+    else:
+        if desde:
+            optimizaciones = optimizaciones.filter(fecha__date__gte=desde)
+        if hasta:
+            optimizaciones = optimizaciones.filter(fecha__date__lte=hasta)
     
     # PAGINACIÓN
     from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
@@ -135,7 +144,7 @@ def historial(request):
         'total_sin_filtro': total_absoluto,
         'page_obj': optimizaciones_page,
         'paginator': paginator,
-    })
+    }, status=estado)
 
 def borrar_optimizacion(request, pk):
     """
