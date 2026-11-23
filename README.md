@@ -158,6 +158,7 @@ Todo cambio técnico, corrección de seguridad, nueva funcionalidad u optimizaci
 - [Proyectos: revisión visual y claridad](docs/CAMBIOS_VISUALES_PROYECTOS.md)
 - [Clientes: revisión visual y claridad](docs/CAMBIOS_VISUALES_CLIENTES.md)
 - [Materiales: revisión visual y claridad](docs/CAMBIOS_VISUALES_MATERIALES.md)
+- [NUM-01 · Correcciones de validación numérica](docs/NUM_01_CORRECCIONES_VALIDACION.md)
 
 La base local y los archivos generados se excluyen del seguimiento de Git. Los commits anteriores conservan sus copias; no se reescribió el historial.
 

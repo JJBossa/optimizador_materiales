@@ -1,13 +1,14 @@
 from django.contrib import messages
 from django.db.models import Q
 from django.forms import formset_factory
+from django.http import HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 
 from ..forms import PlantillaForm, TableroForm, PiezaForm
 from ..models import Plantilla, Optimizacion, Material
 from ..pieces import piezas_como_csv
 from ..utils import convertir_desde_cm
-from .common import exigir_piezas_completas
+from .common import exigir_piezas_completas, leer_id_optimizacion
 
 
 def editar_plantilla(request, pk):
@@ -48,9 +49,13 @@ def crear_plantilla(request):
     Crea una nueva plantilla desde una optimización o desde cero.
     """
     # Si viene desde una optimización específica
-    optimizacion_id = request.GET.get('optimizacion')
+    referencia = request.GET.get('optimizacion')
     optimizacion = None
-    if optimizacion_id:
+    if referencia:
+        optimizacion_id = leer_id_optimizacion(referencia)
+        if optimizacion_id is None:
+            return HttpResponseBadRequest('La optimización seleccionada tiene un identificador inválido.',
+                                          content_type='text/plain; charset=utf-8')
         optimizacion = get_object_or_404(Optimizacion, pk=optimizacion_id, usuario=request.user)
     
     if request.method == "POST":
