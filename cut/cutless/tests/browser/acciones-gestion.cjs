@@ -23,7 +23,6 @@ const celda = 'tbody tr > td:last-child';
 const modulos = {
   proyectos: celda, presupuestos: celda, clientes: celda, materiales: celda,
   plantillas: '.card-footer.action-group, .card-footer.management-action-set',
-  historial: '.action-buttons',
   proyecto: '.management-actions, .management-action-set--wide',
   presupuesto: '.form-action-bar',
   admin: '.admin-user-actions:has(.admin-action-btn)',
