@@ -641,6 +641,10 @@ img.cl-icon--hint {
 .card.fade-in:nth-of-type(3) { animation-delay: .22s; }
 .form-action-bar.fade-in     { animation-delay: .28s; }
 
+#optimizacion-form :is(#precio_tablero, #mano_obra)::placeholder {
+  font: inherit;
+}
+
 /* ══════════════════════════════════════════════════════════════
    RESPONSIVE
    ══════════════════════════════════════════════════════════════ */

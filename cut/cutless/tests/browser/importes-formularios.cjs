@@ -18,6 +18,7 @@ async function abrir(page, caso) {
 }
 
 function esperado(caso) {
+  if (caso === 'opt_nueva') return ['', ''];
   const clave = caso.split('_').at(-1);
   if (caso.startsWith('material_')) return [precioMaterial[clave]];
   if (caso === 'perfil_admin') return importes.entero;
