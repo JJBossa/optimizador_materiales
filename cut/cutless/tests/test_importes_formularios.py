@@ -94,17 +94,29 @@ class OperacionesConImportesTests(TestCase):
                          (Decimal('12500.50'), Decimal('12500.25'), Decimal('37501.25')))
 
     def test_alta_y_edicion_de_optimizacion_preservan_centavos_y_calculo(self):
+        alta = reverse('cutless:index')
+        form = self.client.get(alta).context['tablero_form']
+        for campo in ('precio_tablero', 'mano_obra'):
+            self.assertIsNone(form[campo].value())
+            self.assertEqual(form[campo].field.widget.attrs['placeholder'], '0')
         datos = {
             'nombre_optimizacion': 'Vis 05', 'unidad_medida': 'cm', 'ancho': '122', 'alto': '244',
             'margen_corte': '1.25', 'precio_tablero': '12500,50', 'mano_obra': '12500.25',
             'form-TOTAL_FORMS': 1, 'form-INITIAL_FORMS': 0, 'form-0-nombre': 'Pieza',
             'form-0-ancho': '20', 'form-0-alto': '30', 'form-0-cantidad': '1',
         }
-        self.assertEqual(self.client.post(reverse('cutless:index'), datos).status_code, 302)
+        self.assertEqual(self.client.post(alta, {**datos, 'mano_obra': ''}).status_code, 302)
         plan = Optimizacion.objects.get()
         ruta = reverse('cutless:editar_optimizacion', args=[plan.pk])
-        self.assertEqual(str(self.client.get(ruta).context['tablero_form']['precio_tablero'].value()), '12500.5')
+        form = self.client.get(ruta).context['tablero_form']
+        self.assertEqual(str(form['precio_tablero'].value()), '12500.5')
+        self.assertEqual(str(form['mano_obra'].value()), '0')
+        self.assertEqual(plan.get_costo_total(), Decimal('12500.50'))
         self.assertEqual(self.client.post(ruta, {**datos, 'precio_tablero': '12500.5', 'mano_obra': '12500,25'}).status_code, 302)
         plan.refresh_from_db()
         self.assertEqual((plan.precio_tablero, plan.mano_obra, plan.get_costo_total()),
                          (Decimal('12500.50'), Decimal('12500.25'), Decimal('25000.75')))
+        self.assertEqual(str(self.client.get(ruta).context['tablero_form']['mano_obra'].value()), '12500.25')
+        self.assertEqual(self.client.post(ruta, {**datos, 'mano_obra': ''}).status_code, 302)
+        plan.refresh_from_db()
+        self.assertEqual((plan.mano_obra, plan.get_costo_total()), (Decimal('0'), Decimal('12500.50')))

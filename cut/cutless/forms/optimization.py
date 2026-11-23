@@ -227,7 +227,6 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         decimal_places=2,
         required=False,
         min_value=0,
-        initial=0,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '0',
