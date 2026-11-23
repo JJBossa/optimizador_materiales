@@ -6,6 +6,10 @@
   function fromCm(value, unit) {
     return Math.round(value * factors[symbol(unit)] * 1e6) / 1e6;
   }
+  function entradaDesdeCm(value, unit) {
+    const texto = String(value * factors[symbol(unit)]);
+    return /^0*[1-9][0-9]{0,2}\.[0-9]{3}$/.test(texto) ? texto + '0' : texto;
+  }
   function updateMaterialOptions() {
     const unit = document.getElementById('unidad_medida_selector');
     const select = document.getElementById('material_select');
@@ -30,5 +34,5 @@
     if (kerf) kerf.textContent = '(mm)';
     if (materialOptions) updateMaterialOptions();
   }
-  window.CutlessUnits = {fromCm,symbol,updateLabels,updateMaterialOptions};
+  window.CutlessUnits = {fromCm,entradaDesdeCm,symbol,updateLabels,updateMaterialOptions};
 })();

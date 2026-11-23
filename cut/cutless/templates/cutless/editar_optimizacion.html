@@ -6,7 +6,7 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'cutless/js/dimension-feedback.js' %}?v=5" defer></script>
+<script src="{% static 'cutless/js/dimension-feedback.js' %}?v=num03" defer></script>
 <script src="{% static 'cutless/js/units.js' %}?v=1"></script>
 <script src="{% static 'cutless/js/piece-formset.js' %}?v=2"></script>
 {{ materiales_data|json_script:"materiales-data" }}
@@ -281,13 +281,11 @@ document.addEventListener('DOMContentLoaded', function() {
         // Obtener precios de materiales desde el contexto de Django
         const materialPrices = JSON.parse(document.getElementById('materiales-data').textContent);
 
+        let precioManual = precioTableroInput.value !== '';
+        precioTableroInput.addEventListener('input', () => { precioManual = true; });
         materialSelect.addEventListener('change', function() {
-            const selectedMaterialId = this.value;
-            if (selectedMaterialId && materialPrices[selectedMaterialId] && materialPrices[selectedMaterialId].precio) {
-                precioTableroInput.value = materialPrices[selectedMaterialId].precio;
-            } else if (!selectedMaterialId) {
-                // Si se deselecciona, no cambiar el precio (dejar que el usuario lo edite)
-            }
+            const material = materialPrices[this.value];
+            if (!precioManual && material) precioTableroInput.value = material.precio ?? '';
         });
     }
 });

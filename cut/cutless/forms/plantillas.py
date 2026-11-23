@@ -1,21 +1,37 @@
-import math
+import csv
 
 from django import forms
 
+from ..formatos_numericos import FORMATO_DECIMAL, FORMATO_ENTERO, preparar_decimal
 from ..models import Plantilla
-from ..pieces import FormatoPiezasInvalido, parsear_piezas_desde_texto, piezas_como_csv, serializar_piezas
-from ..units import convertir_a_cm, convertir_desde_cm
+from ..pieces import FormatoPiezasInvalido, filas_piezas, parsear_piezas_desde_texto, piezas_como_csv, serializar_piezas
+from ..units import (
+    CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
+    margen_en_cm, margen_en_mm, medida_editable, medida_tablero_en_cm,
+)
+from .numeros import DecimalEntradaField, MedidaEntradaField
+
+CONTRATO_PIEZAS = {
+    'factores': CENTIMETROS_POR_UNIDAD, 'minCm': LADO_PIEZA_MIN_CM, 'maxCm': LADO_MAX_CM,
+    'decimal': FORMATO_DECIMAL, 'entero': FORMATO_ENTERO,
+}
 
 class PlantillaForm(forms.ModelForm):
-    """Formulario para crear y editar plantillas"""
+    """Formulario para crear y editar plantillas."""
+
+    margen_corte = DecimalEntradaField(
+        label='Margen de Corte (mm)', required=False, min_value=0, max_value=10,
+        widget=forms.TextInput(attrs={'class': 'form-control'}),
+    )
     
-    def __init__(self, *args, user=None, **kwargs):
+    def __init__(self, *args, user=None, origen_tablero=None, **kwargs):
         self.user = user
         super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
+        self.origen_tablero = origen_tablero if origen_tablero is not None else self.instance
+        if self.instance.pk:
             unidad = self.instance.unidad_medida or 'cm'
-            self.initial['ancho_tablero'] = convertir_desde_cm(self.instance.ancho_tablero, unidad)
-            self.initial['alto_tablero'] = convertir_desde_cm(self.instance.alto_tablero, unidad)
+            self.initial['ancho_tablero'] = medida_editable(self.instance.ancho_tablero, unidad)
+            self.initial['alto_tablero'] = medida_editable(self.instance.alto_tablero, unidad)
             if not self.is_bound:
                 try:
                     self.initial['piezas'] = piezas_como_csv(self.instance.piezas)
@@ -25,9 +41,23 @@ class PlantillaForm(forms.ModelForm):
                     self.fields['piezas'].help_text = (
                         'El listado guardado necesita revisión. Comprueba todas las filas antes de guardar.'
                     )
-            self.initial['margen_corte'] = self.instance.margen_corte * 10
+            self.initial['margen_corte'] = margen_en_mm(self.instance.margen_corte)
         else:
             self.initial.setdefault('margen_corte', 3)
+
+    @property
+    def contrato_piezas(self):
+        return CONTRATO_PIEZAS
+
+    @property
+    def filas_editor(self):
+        try:
+            filas = list(filas_piezas(self['piezas'].value() or '', csv_editable=True))
+        except (csv.Error, FormatoPiezasInvalido):
+            return None
+        if len(filas) <= 20 and all(len(fila) == 4 for fila in filas):
+            return [[str(preparar_decimal(valor)) for valor in fila] for fila in filas]
+        return None
 
     def clean(self):
         datos = super().clean()
@@ -36,18 +66,19 @@ class PlantillaForm(forms.ModelForm):
             for campo in ('ancho_tablero', 'alto_tablero'):
                 valor = datos.get(campo)
                 if valor is not None:
-                    if not math.isfinite(valor) or not 10 <= convertir_a_cm(valor, unidad) <= 300:
-                        self.add_error(campo, 'Cada lado del tablero debe medir entre 10 y 300 cm; revisa la unidad seleccionada.')
+                    cm = medida_tablero_en_cm(valor, unidad, getattr(self.origen_tablero, campo), self.origen_tablero.unidad_medida)
+                    if not LADO_TABLERO_MIN_CM <= cm <= LADO_MAX_CM:
+                        self.add_error(campo, 'Cada lado del tablero debe medir entre 10 y 300 cm. Revisa la unidad seleccionada.')
                     else:
-                        datos[campo] = convertir_a_cm(valor, unidad)
+                        datos[campo] = cm
         piezas = datos.get('piezas')
         if piezas and unidad:
-            filas = parsear_piezas_desde_texto(piezas, unidad)
+            filas = parsear_piezas_desde_texto(piezas, unidad, estricto=True)
             if len(filas) > 20:
                 self.add_error('piezas', 'Puedes guardar hasta 20 tipos de pieza.')
             for numero, pieza in enumerate(filas, 1):
                 ancho, alto = pieza['ancho_cm'], pieza['alto_cm']
-                if not .1 <= ancho <= 300 or not .1 <= alto <= 300:
+                if not LADO_PIEZA_MIN_CM <= ancho <= LADO_MAX_CM or not LADO_PIEZA_MIN_CM <= alto <= LADO_MAX_CM:
                     self.add_error('piezas', f'Pieza {numero}: cada lado debe medir entre 0,1 y 300 cm.')
                 elif datos.get('ancho_tablero') and datos.get('alto_tablero'):
                     w, h = datos['ancho_tablero'], datos['alto_tablero']
@@ -67,6 +98,7 @@ class PlantillaForm(forms.ModelForm):
     class Meta:
         model = Plantilla
         fields = ['nombre', 'descripcion', 'categoria', 'ancho_tablero', 'alto_tablero', 'unidad_medida', 'piezas', 'permitir_rotacion', 'margen_corte']
+        field_classes = dict.fromkeys(('ancho_tablero', 'alto_tablero'), MedidaEntradaField)
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -80,16 +112,8 @@ class PlantillaForm(forms.ModelForm):
             'categoria': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'ancho_tablero': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0.1'
-            }),
-            'alto_tablero': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.01',
-                'min': '0.1'
-            }),
+            'ancho_tablero': forms.TextInput(attrs={'class': 'form-control'}),
+            'alto_tablero': forms.TextInput(attrs={'class': 'form-control'}),
             'unidad_medida': forms.Select(attrs={
                 'class': 'form-select'
             }),
@@ -100,12 +124,6 @@ class PlantillaForm(forms.ModelForm):
             }),
             'permitir_rotacion': forms.CheckboxInput(attrs={
                 'class': 'form-check-input'
-            }),
-            'margen_corte': forms.NumberInput(attrs={
-                'class': 'form-control',
-                'step': '0.1',
-                'min': '0',
-                'max': '10'
             }),
         }
         labels = {
@@ -125,7 +143,9 @@ class PlantillaForm(forms.ModelForm):
         try:
             piezas = parsear_piezas_desde_texto(texto, estricto=True, csv_editable=True)
         except (ValueError, TypeError):
-            raise forms.ValidationError('Usa nombre,ancho,alto,cantidad y medidas positivas.') from None
+            raise forms.ValidationError(
+                'Usa nombre,ancho,alto,cantidad. En CSV escribe medidas positivas con punto decimal y cantidades enteras.'
+            ) from None
         if not piezas:
             raise forms.ValidationError('Debes ingresar al menos una pieza.')
         for pieza in piezas:
@@ -133,13 +153,18 @@ class PlantillaForm(forms.ModelForm):
                 raise forms.ValidationError('Cada pieza necesita un nombre de hasta 50 caracteres.')
             if pieza['cantidad'] > 100:
                 raise forms.ValidationError('La cantidad debe estar entre 1 y 100 por tipo de pieza.')
+        if self.instance.pk:
+            try:
+                if piezas == parsear_piezas_desde_texto(self.instance.piezas, estricto=True):
+                    return self.instance.piezas
+            except FormatoPiezasInvalido:
+                pass  # El usuario puede corregir un listado histórico ilegible.
         return serializar_piezas(piezas)
 
     def clean_margen_corte(self):
-        margen = self.cleaned_data.get('margen_corte')
-        if margen is not None:
-            if not math.isfinite(margen) or not 0 <= margen <= 10:
-                raise forms.ValidationError('El margen debe estar entre 0 y 10 mm.')
-            # Convertir de mm a cm para almacenar
-            return margen / 10.0
-        return 0.3  # Valor por defecto
+        margen = self.cleaned_data['margen_corte']
+        if margen is None:
+            return 0.3
+        if self.origen_tablero.pk and float(margen) == margen_en_mm(self.origen_tablero.margen_corte):
+            return self.origen_tablero.margen_corte
+        return margen_en_cm(margen)

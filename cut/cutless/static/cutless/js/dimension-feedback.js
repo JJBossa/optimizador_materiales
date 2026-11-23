@@ -19,17 +19,17 @@
     if (value === '') return '';
     if (kind === 'cantidad') {
       const quantity = Number(value);
-      if (!Number.isFinite(quantity) || !Number.isInteger(quantity)) return `La cantidad debe ser un número entero. ${help(kind)}`;
+      if (!/^-?[0-9]+$/.test(value)) return `La cantidad debe ser un número entero. ${help(kind)}`;
       if (quantity < 1 || quantity > 100) return `Cantidad fuera de rango: ingresaste ${number(value)}. ${help(kind)}`;
       return '';
     }
     if (kind === 'sierra') {
-      const mm = Number(value);
+      const mm = Number(value.replace(',', '.'));
       if (!Number.isFinite(mm)) return 'Escribe un número válido para el ancho de sierra, en mm.';
       if (mm < 0 || mm > 10) return `El ancho de sierra es demasiado ${mm > 10 ? 'alto' : 'bajo'}: ingresaste ${number(value)} mm. ${help(kind)} Revisa el valor; este campo siempre se expresa en mm.`;
       return '';
     }
-    const cm = Math.round(Number(value) * (factors[unit] || 1) * 1e6) / 1e6;
+    const cm = Math.round(Number(value.replace(',', '.')) * (factors[unit] || 1) * 1e6) / 1e6;
     const min = kind === 'pieza' ? .1 : 10;
     if (!Number.isFinite(cm)) return `Escribe un número válido para el ${side} del ${kind}, en ${unit}.`;
     if (cm < min - 1e-9 || cm > 300 + 1e-9) {

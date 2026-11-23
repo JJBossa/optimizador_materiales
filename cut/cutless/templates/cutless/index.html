@@ -8,8 +8,8 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static 'cutless/js/dimension-feedback.js' %}?v=5" defer></script>
-<script src="{% static 'cutless/js/units.js' %}?v=1"></script>
+<script src="{% static 'cutless/js/dimension-feedback.js' %}?v=num03" defer></script>
+<script src="{% static 'cutless/js/units.js' %}?v=num03"></script>
 <script src="{% static 'cutless/js/piece-formset.js' %}?v=2"></script>
 <!-- Datos de materiales serializados de forma segura -->
 {{ materiales_data|json_script:"materiales-data" }}
@@ -18,7 +18,7 @@
     const materialData = JSON.parse(document.getElementById('materiales-data').textContent);
     window.materialData = materialData;
 </script>
-<script src="{% static 'cutless/js/medidas-pred.js' %}?v=presets-2"></script>
+<script src="{% static 'cutless/js/medidas-pred.js' %}?v=num03"></script>
 {% endblock %}
 
 {% block content %}
@@ -49,6 +49,7 @@
 
   <form method="post" action="{% url 'cutless:index' %}" id="optimizacion-form" data-loading-optimization>
     {% csrf_token %}
+    {{ tablero_form.origen_medidas }}
     {% include 'cutless/includes/optimization-name-field.html' with field=tablero_form.nombre_optimizacion %}
 
     <div class="dashboard-columns"><div class="dashboard-board">
@@ -89,14 +90,7 @@
               {% inline_asset 'icons/ancho.svg' 'cl-icon cl-icon--label' 18 %}
               Ancho del tablero <span id="unidad_ancho">({{ tablero_form.unidad_medida.value|default:"cm" }})</span>
             </label>
-            <input type="number"
-                   name="ancho"
-                   id="ancho_tablero"
-                   aria-describedby="ancho_rango"
-                   class="form-control"
-                   placeholder="{{ tablero_form.ancho.field.widget.attrs.placeholder }}"
-                   step="any"
-                   value="{{ tablero_form.ancho.value|default_if_none:''|unlocalize }}">
+            {{ tablero_form.ancho }}
             <small class="form-text text-muted">Medida horizontal del tablero completo.</small>
             <small id="ancho_rango" class="form-text text-muted dimension-range" data-dimension-kind="tablero">{{ tablero_form.ancho.help_text }}</small>
             {% if tablero_form.ancho.errors %}
@@ -108,14 +102,7 @@
               {% inline_asset 'icons/alto.png' 'cl-icon cl-icon--label' 18 %}
               Alto del tablero <span id="unidad_alto">({{ tablero_form.unidad_medida.value|default:"cm" }})</span>
             </label>
-            <input type="number"
-                   name="alto"
-                   id="alto_tablero"
-                   aria-describedby="alto_rango"
-                   class="form-control"
-                   placeholder="{{ tablero_form.alto.field.widget.attrs.placeholder }}"
-                   step="any"
-                   value="{{ tablero_form.alto.value|default_if_none:''|unlocalize }}">
+            {{ tablero_form.alto }}
             <small class="form-text text-muted">Medida vertical del tablero completo.</small>
             <small id="alto_rango" class="form-text text-muted dimension-range" data-dimension-kind="tablero">{{ tablero_form.alto.help_text }}</small>
             {% if tablero_form.alto.errors %}
@@ -144,16 +131,7 @@
               {% inline_asset 'icons/margen.png' 'cl-icon cl-icon--label' 18 %}
               Ancho de corte de la sierra <span class="unidad-margen">(mm)</span>
             </label>
-            <input type="number"
-                   name="margen_corte"
-                   id="margen_corte"
-                   aria-describedby="margen_corte_rango"
-                   class="form-control"
-                   placeholder="3"
-                   step="0.1"
-                   min="0"
-                   max="10"
-                   value="{{ tablero_form.margen_corte.value|default_if_none:'3'|unlocalize }}">
+            {{ tablero_form.margen_corte }}
             <small class="form-text text-muted">Ancho que consume la sierra en cada corte. Siempre en milímetros; 0 significa sin separación.</small>
             <small id="margen_corte_rango" class="form-text text-muted dimension-range" data-dimension-kind="sierra">Rango permitido: de 0 a 10 mm. 0 significa sin separación.</small>
             {% if tablero_form.margen_corte.errors %}
@@ -270,13 +248,7 @@
             </div>
             <div class="col-md-3 mb-3">
               <label for="{{ tablero_form.precio_tablero.id_for_label }}">{{ tablero_form.precio_tablero.label }}</label>
-              <input type="number"
-                     name="precio_tablero"
-                     id="precio_tablero"
-                     class="form-control"
-                     step="0.01"
-                     min="0"
-                     value="{{ tablero_form.precio_tablero.value|default_if_none:''|unlocalize }}">
+              {{ tablero_form.precio_tablero }}
               <small class="form-text text-muted">{{ tablero_form.precio_tablero.help_text }}</small>
               {% if tablero_form.precio_tablero.errors %}
                 <div class="text-danger">{{ tablero_form.precio_tablero.errors }}</div>
@@ -284,13 +256,7 @@
             </div>
             <div class="col-md-3 mb-3">
               <label for="{{ tablero_form.mano_obra.id_for_label }}">{{ tablero_form.mano_obra.label }}</label>
-              <input type="number"
-                     name="mano_obra"
-                     id="mano_obra"
-                     class="form-control"
-                     step="0.01"
-                     min="0"
-                     value="{{ tablero_form.mano_obra.value|default_if_none:''|unlocalize }}">
+              {{ tablero_form.mano_obra }}
               <small class="form-text text-muted">{{ tablero_form.mano_obra.help_text }}</small>
               {% if tablero_form.mano_obra.errors %}
                 <div class="text-danger">{{ tablero_form.mano_obra.errors }}</div>
@@ -402,96 +368,35 @@ document.addEventListener('DOMContentLoaded', function() {
     const altoTableroInput = document.getElementById('alto_tablero');
     const unidadMedidaSelector = document.getElementById('unidad_medida_selector');
 
-    // Variables para rastrear si el usuario ingresó medidas manualmente
-    let medidasManuales = false;
-    let ultimoMaterialSeleccionado = null;
-
-    // Detectar cuando el usuario ingresa medidas manualmente
-    if (anchoTableroInput && altoTableroInput) {
-        anchoTableroInput.addEventListener('input', function() {
-            medidasManuales = true;
-        });
-        altoTableroInput.addEventListener('input', function() {
-            medidasManuales = true;
-        });
-    }
-
     if (materialSelect && precioTableroInput) {
-        // Función para actualizar precio y dimensiones cuando se selecciona un material
-        function actualizarDesdeMaterial() {
-            const selectedMaterialId = materialSelect.value;
+        // Las precargas y el POST repuesto tienen prioridad sobre el catálogo.
+        const manuales = new Set();
+        for (const campo of [anchoTableroInput, altoTableroInput, precioTableroInput]) {
+            if (campo.value !== '') manuales.add(campo);
+            campo.addEventListener('input', event => {
+                if (event.isTrusted) manuales.add(campo);
+            });
+        }
 
-            if (selectedMaterialId && materialData[selectedMaterialId]) {
-                const material = materialData[selectedMaterialId];
-
-                // Actualizar precio siempre que el material tenga precio
-                if (material.precio) {
-                    precioTableroInput.value = material.precio;
-                } else if (!material.precio) {
-                    // Si el material no tiene precio, limpiar el campo
-                    precioTableroInput.value = '';
+        function actualizarMedidas(material) {
+            if (!material?.ancho || !material?.alto) return;
+            const unidad = unidadMedidaSelector.value;
+            for (const [campo, lado] of [[anchoTableroInput, 'ancho'], [altoTableroInput, 'alto']]) {
+                if (!manuales.has(campo)) {
+                    campo.value = window.CutlessUnits.entradaDesdeCm(material[lado], unidad);
                 }
-
-                // Actualizar dimensiones solo si:
-                // 1. El material tiene dimensiones
-                // 2. NO se ingresaron medidas manualmente
-                // 3. O si se cambió de material (nuevo material seleccionado)
-                if (material.ancho && material.alto) {
-                    const esNuevoMaterial = ultimoMaterialSeleccionado !== selectedMaterialId;
-
-                    if (!medidasManuales || esNuevoMaterial) {
-                        // Obtener unidad actual del selector
-                        const unidadActual = unidadMedidaSelector ? unidadMedidaSelector.value : 'cm';
-
-                        // Convertir dimensiones del material (que están en cm) a la unidad actual
-                        const anchoConvertido = window.CutlessUnits.fromCm(material.ancho, unidadActual);
-                        const altoConvertido = window.CutlessUnits.fromCm(material.alto, unidadActual);
-
-                        // Actualizar campos de ancho y alto
-                        if (anchoTableroInput) {
-                            anchoTableroInput.value = anchoConvertido.toFixed(6);
-                        }
-                        if (altoTableroInput) {
-                            altoTableroInput.value = altoConvertido.toFixed(6);
-                        }
-
-                        // Si se cambió de material, resetear la bandera de medidas manuales
-                        if (esNuevoMaterial) {
-                            medidasManuales = false;
-                        }
-
-                        // Actualizar el dropdown de tableros predefinidos si existe
-                        // Solo resetear si no hay un tablero seleccionado previamente
-                        const dropdownButton = document.getElementById('tableros-dropdown');
-                        if (dropdownButton && !dropdownButton.getAttribute('data-tablero-seleccionado')) {
-                            dropdownButton.textContent = 'Seleccionar tablero predefinido...';
-                        }
-                    }
-                }
-
-                ultimoMaterialSeleccionado = selectedMaterialId;
             }
         }
 
-        // Event listener para cambios en el selector de material
-        materialSelect.addEventListener('change', actualizarDesdeMaterial);
+        materialSelect.addEventListener('change', () => {
+            const material = materialData[materialSelect.value];
+            if (!manuales.has(precioTableroInput)) precioTableroInput.value = material?.precio ?? '';
+            if (!window.cambioDesdeDropdown) actualizarMedidas(material);
+        });
 
-        // Si hay un material preseleccionado, actualizar al cargar
-        if (materialSelect.value) {
-            ultimoMaterialSeleccionado = materialSelect.value;
-            setTimeout(actualizarDesdeMaterial, 100);
-            setTimeout(actualizarDesdeMaterial, 500);
-        }
-
-        // Actualizar dimensiones cuando cambia la unidad de medida (si hay un material seleccionado)
-        if (unidadMedidaSelector) {
-            unidadMedidaSelector.addEventListener('change', function() {
-                // Solo actualizar si hay un material seleccionado y no se ingresaron medidas manuales
-                if (materialSelect.value && !medidasManuales) {
-                    actualizarDesdeMaterial();
-                }
-            });
-        }
+        unidadMedidaSelector.addEventListener('change', () => {
+            actualizarMedidas(materialData[materialSelect.value]);
+        });
     }
 });
 </script>

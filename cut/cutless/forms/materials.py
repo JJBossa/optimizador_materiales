@@ -1,43 +1,16 @@
 import math
-import re
 from decimal import Decimal
 
 from django import forms
 
+from ..formatos_numericos import AYUDA_DECIMAL
 from ..materiales import dimension_material_valida, precio_material_valido, validar_precio_material
 from ..models import Material
 from ..units import convertir_a_cm, convertir_desde_cm
+from .numeros import DecimalEntradaField as DecimalMaterialField
 
-
-_AGRUPACION_AMBIGUA = r'[+\-]?0*[1-9][0-9]{0,2}[.,][0-9]{3}'
-_FORMATO_DECIMAL = rf'(?!{_AGRUPACION_AMBIGUA}$)[+\-]?(?:[0-9]+(?:[.,][0-9]+)?|[.,][0-9]+)'
-_AYUDA_DECIMAL = 'Usa coma o punto decimal, sin separadores de miles.'
+_AYUDA_DECIMAL = AYUDA_DECIMAL
 _AYUDA_DIMENSION = f'{_AYUDA_DECIMAL} Para tres decimales ambiguos, añade un cero final (ej.: 12,3450).'
-
-
-class DecimalMaterialField(forms.DecimalField):
-    widget = forms.TextInput
-
-    def widget_attrs(self, widget):
-        return {**super().widget_attrs(widget), 'inputmode': 'decimal', 'pattern': _FORMATO_DECIMAL}
-
-    def prepare_value(self, value):
-        if isinstance(value, (float, Decimal)):
-            texto = str(value)
-            # Los decimales iniciales provienen del modelo y ya tienen un significado conocido.
-            if re.fullmatch(_AGRUPACION_AMBIGUA, texto):
-                return f'{texto}0'
-            if 'e' in texto.lower():
-                return format(Decimal(texto), 'f')
-        return super().prepare_value(value)
-
-    def to_python(self, value):
-        if value in self.empty_values:
-            return None
-        texto = str(self.prepare_value(value))
-        if not re.fullmatch(_FORMATO_DECIMAL, texto):
-            raise forms.ValidationError(f'Escribe un número válido. {_AYUDA_DECIMAL}', code='invalid')
-        return super().to_python(texto.replace(',', '.'))
 
 
 class MaterialBaseForm(forms.ModelForm):
