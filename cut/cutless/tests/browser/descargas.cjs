@@ -232,7 +232,8 @@ async function verificarRegreso(page, context) {
 
     const sinJs = await contexto(browser, origen, { javaScriptEnabled: false });
     const sinScript = await sinJs.newPage();
-    for (const caso of [['historial', 'png'], ['presupuesto', 'pdf'], ['estadisticas', 'excel', '.export-actions']]) {
+    for (const caso of [...casos.filter(([lugar]) => lugar === 'historial'),
+      ['presupuesto', 'pdf'], ['estadisticas', 'excel', '.export-actions']]) {
       await verificarDescarga(sinScript, sinJs, caso, { js: false });
     }
     await sinJs.close();
