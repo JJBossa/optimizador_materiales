@@ -3,6 +3,10 @@ django==5.2.19
 psycopg[binary]==3.3.6
 cryptography==50.0.2
 
+# Teléfonos internacionales y nombres de países en español
+phonenumbers==9.0.44
+Babel==2.18.0
+
 # Servidor de producción (Gunicorn requiere un sistema Unix, como Render)
 gunicorn==26.2.0; sys_platform != "win32"
 

@@ -146,7 +146,7 @@ class RevisionHerramientasTests(TestCase):
         self.assertContains(response, '122,00 × 244,00 cm')
 
     def test_rut_se_normaliza_sin_puntos_y_con_guion(self):
-        for entrada, esperado in [('12.345.678-9', '12345678-9'), ('123456789', '12345678-9'), ('12345678-k', '12345678-K'), ('', '')]:
+        for entrada, esperado in [('12.345.678-5', '12345678-5'), ('123456785', '12345678-5'), ('1000005-k', '1000005-K'), ('', '')]:
             form = ClienteForm({'nombre': 'Cliente', 'rut': entrada}, user=self.user)
             self.assertTrue(form.is_valid(), form.errors)
             self.assertEqual(form.cleaned_data['rut'], esperado)
