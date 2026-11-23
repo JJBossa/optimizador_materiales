@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
 
+from ..direcciones import DPA_CHILE
 from ..forms import ClienteForm
 from ..models import Cliente, Optimizacion, Proyecto
 
@@ -79,38 +80,42 @@ def editar_cliente(request, pk):
         messages.error(request, "No se encontró el cliente o no tienes permiso para editarlo.")
         return redirect('cutless:lista_clientes')
     
-    if request.method == "POST":
-        form = ClienteForm(request.POST, instance=cliente, user=request.user)
-        if form.is_valid():
-            form.save()
-            messages.success(request, f'✅ Cliente "{cliente.nombre}" actualizado exitosamente.')
-            return redirect('cutless:lista_clientes')
-    else:
-        form = ClienteForm(instance=cliente, user=request.user)
-    
+    form = formulario_cliente(request, instance=cliente)
+    if form.is_bound and form.is_valid():
+        form.save()
+        messages.success(request, f'✅ Cliente "{cliente.nombre}" actualizado exitosamente.')
+        return redirect('cutless:lista_clientes')
+
     return render(request, 'cutless/editar_cliente.html', {
         'form': form,
         'cliente': cliente,
+        'catalogo_chile': DPA_CHILE,
+        'mostrar_aviso_direccion': request.method == 'GET',
     })
 
+
+def formulario_cliente(request, **kwargs):
+    datos = request.POST if request.method == 'POST' else None
+    if datos is not None and 'actualizar_ubicacion' in datos:
+        return ClienteForm(user=request.user, actualizacion=datos, **kwargs)
+    return ClienteForm(datos, user=request.user, **kwargs)
+
+
 def crear_cliente(request):
-    """
-    Crea un nuevo cliente.
-    """
-    if request.method == "POST":
-        form = ClienteForm(request.POST, user=request.user)
-        if form.is_valid():
-            cliente = form.save(commit=False)
-            cliente.usuario = request.user
-            cliente.save()
-            messages.success(request, f'✅ Cliente "{cliente.nombre}" creado exitosamente.')
-            return redirect('cutless:lista_clientes')
-    else:
-        form = ClienteForm(user=request.user)
-    
+    """Crea un cliente con su dirección opcional."""
+    form = formulario_cliente(request)
+    if form.is_bound and form.is_valid():
+        cliente = form.save(commit=False)
+        cliente.usuario = request.user
+        cliente.save()
+        messages.success(request, f'✅ Cliente "{cliente.nombre}" creado exitosamente.')
+        return redirect('cutless:lista_clientes')
+
     return render(request, 'cutless/crear_cliente.html', {
         'form': form,
+        'catalogo_chile': DPA_CHILE,
     })
+
 
 def eliminar_cliente(request, pk):
     """

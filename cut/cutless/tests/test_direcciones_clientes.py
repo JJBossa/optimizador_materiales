@@ -13,6 +13,7 @@ from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
 from reportlab import rl_config
 
+from cutless.direcciones import DPA_CHILE
 from cutless.models import Cliente, Optimizacion, Presupuesto, Proyecto
 from usuarios.models import PerfilUsuario
 
@@ -23,9 +24,8 @@ ESTRUCTURADA = {
     'direccion_calle': 'Avenida de prueba',
     'direccion_numero': 'S/N',
     'direccion_unidad': 'Unidad 4B',
-    'direccion_region': 'Región de prueba',
-    'direccion_comuna': 'Comuna de prueba',
-    'direccion_localidad': 'Comuna de prueba',
+    'direccion_region': '08',
+    'direccion_comuna': '08109',
     'direccion_referencia': 'Referencia interna',
 }
 
@@ -49,7 +49,7 @@ class DireccionesClientesTests(TestCase):
         return self.client.post(self.edicion, {'nombre': self.ficha.nombre, **datos})
 
     def cerrar_direccion(self):
-        respuesta = self.editar(direccion_accion='estructurada', **ESTRUCTURADA)
+        respuesta = self.editar(**ESTRUCTURADA)
         self.assertEqual(respuesta.status_code, 302)
         self.ficha.refresh_from_db()
 
@@ -87,7 +87,7 @@ class DireccionesClientesTests(TestCase):
             self.assertEqual((guardado.direccion_modo, guardado.direccion, guardado.direccion_numero),
                              ('estructurada', '', numero))
             self.assertEqual(guardado.direccion_activa,
-                             f'Avenida de prueba {numero}, Unidad 4B, Comuna de prueba, Región de prueba')
+                             f'Avenida de prueba {numero}, Unidad 4B\nSanta Juana, Región del Biobío\nChile')
             self.assertEqual(guardado.direccion_referencia, 'Referencia interna')
 
         self.assertEqual(self.client.post(self.alta, {'nombre': 'Sin dirección'}).status_code, 302)
@@ -96,60 +96,91 @@ class DireccionesClientesTests(TestCase):
 
     def test_direccion_internacional_y_escape_en_interfaz(self):
         self.assertEqual(self.editar(
-            direccion_accion='estructurada', direccion_pais='JP', direccion_calle='通り <literal>',
-            direccion_localidad='Ciudad de prueba', direccion_unidad='Árvore', direccion_numero='8-A',
+            direccion_pais='JP', direccion_calle='通り <literal>',
+            direccion_comuna='Ciudad de prueba', direccion_unidad='Árvore', direccion_numero='8-A',
         ).status_code, 302)
         self.ficha.refresh_from_db()
         self.assertIsNone(self.ficha.direccion_region)
         self.assertIsNone(self.ficha.direccion_comuna)
-        self.assertEqual(self.ficha.direccion_activa, '通り <literal> 8-A, Árvore, Ciudad de prueba, Japón')
+        self.assertEqual(self.ficha.direccion_activa, '通り <literal> 8-A, Árvore\nCiudad de prueba\nJapón')
         res = self.client.get(self.historial)
         self.assertContains(res, '通り &lt;literal&gt;')
         self.assertNotContains(res, '通り <literal>')
 
-    def test_editar_contacto_preserva_espacios_saltos_telefono_historico_y_omision(self):
-        antes = self.ficha.fecha_creacion
-        self.assertContains(self.client.get(self.edicion), 'Ver dirección histórica original')
-        self.assertEqual(self.editar(
-            email='correo@example.test', direccion_legada=LEGADO.replace('\r\n', '\n').replace('\n', '\r\n'),
-            direccion='Un campo anterior no solicitado', direccion_calle='Borrador sin acción',
-        ).status_code, 302)
+    def test_legado_exige_direccion_antes_de_guardar_y_conserva_contacto(self):
+        antes = Cliente.objects.filter(pk=self.ficha.pk).values().get()
+        res = self.client.get(self.edicion)
+        self.assertContains(res, 'data-mostrar-aviso')
+        self.assertContains(res, 'Referencia &lt;original&gt;')
+        self.assertContains(res, 'Volver al listado')
+        self.assertNotContains(res, 'direccion_accion')
+        self.assertEqual(self.client.get(reverse('cutless:lista_clientes')).status_code, 200)
+        res = self.editar(email='correo@example.test', direccion_legada='Intento de sustituir el original')
+        self.assertContains(res, 'Actualiza la dirección histórica para guardar')
+        self.assertContains(res, 'correo@example.test')
+        self.assertNotContains(res, 'data-mostrar-aviso')
+        self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
+
+        self.assertEqual(self.editar(email='correo@example.test', **ESTRUCTURADA).status_code, 302)
         self.ficha.refresh_from_db()
-        self.assertEqual((self.ficha.direccion, self.ficha.direccion_activa, self.ficha.direccion_modo,
-                          self.ficha.email, self.ficha.rut, self.ficha.telefono, self.ficha.notas,
-                          self.ficha.fecha_creacion),
-                         (LEGADO, LEGADO, None, 'correo@example.test', 'FISCAL-HISTORICO',
-                          'Contacto legado', 'Texto anterior', antes))
+        self.assertEqual((self.ficha.direccion, self.ficha.direccion_modo, self.ficha.email, self.ficha.rut,
+                          self.ficha.telefono, self.ficha.notas, self.ficha.fecha_creacion),
+                         (LEGADO, 'estructurada', 'correo@example.test', 'FISCAL-HISTORICO',
+                          'Contacto legado', 'Texto anterior', antes['fecha_creacion']))
+        self.assertNotContains(self.client.get(self.edicion), 'Referencia &lt;original&gt;')
 
         self.assertEqual(self.editar(telefono_pais='CL', telefono='9 8765 4321').status_code, 302)
         self.ficha.refresh_from_db()
         self.assertEqual((self.ficha.direccion, self.ficha.telefono), (LEGADO, '+56987654321'))
-        self.assertEqual(self.ficha.email, 'correo@example.test')
 
-    def test_conversion_edicion_y_vuelta_a_legado_preservan_el_original(self):
-        self.cerrar_direccion()
-        self.assertEqual((self.ficha.direccion, self.ficha.direccion_modo), (LEGADO, 'estructurada'))
-        self.assertContains(self.client.get(self.historial), 'Referencia interna')
-        self.assertEqual(self.editar(direccion_accion='estructurada', direccion_numero='12-B').status_code, 302)
-        self.assertEqual(self.editar(email='segundo@example.test', direccion_calle='Ignorado').status_code, 302)
+    def test_compatibilidad_cli01_y_cliente_sin_direccion(self):
+        Cliente.objects.filter(pk=self.ficha.pk).update(
+            direccion_modo='estructurada', direccion_pais='CL', direccion_region='Región del Bío-Bío',
+            direccion_comuna='Santa Juana', direccion_localidad='Sector sintético', direccion_calle='Pasaje',
+        )
+        pagina = self.client.get(self.edicion)
+        self.assertNotContains(pagina, 'data-aviso-direccion')
+        campos = pagina.context['form'].direccion_estructurada
+        self.assertEqual((campos['direccion_region'].value(), campos['direccion_comuna'].value()), ('08', '08109'))
+        self.assertEqual(self.editar(email='segundo@example.test').status_code, 302)
         self.ficha.refresh_from_db()
-        self.assertEqual((self.ficha.direccion_numero, self.ficha.direccion_calle), ('12-B', 'Avenida de prueba'))
-        self.assertEqual(self.editar(direccion_accion='sin_dato').status_code, 302)
+        self.assertEqual((self.ficha.direccion_region, self.ficha.direccion_localidad),
+                         ('Región del Bío-Bío', 'Sector sintético'))
+        self.assertEqual(self.editar(direccion_numero='12-B', direccion_codigo_postal='0001234').status_code, 302)
         self.ficha.refresh_from_db()
-        self.assertEqual((self.ficha.direccion_activa, self.ficha.direccion_calle), ('', 'Avenida de prueba'))
+        self.assertEqual(self.ficha.direccion_localidad, 'Sector sintético')
 
-        self.assertEqual(self.editar(direccion_accion='editar_legado',
-                                     direccion_legada=LEGADO.replace('\r\n', '\n')).status_code, 302)
+        sin_direccion = Cliente.objects.create(usuario=self.propietario, nombre='Ficha sin dirección')
+        editar = reverse('cutless:editar_cliente', args=[sin_direccion.pk])
+        self.assertNotContains(self.client.get(editar), 'data-aviso-direccion')
+        self.assertEqual(self.client.post(editar, {'nombre': sin_direccion.nombre}).status_code, 302)
+
+    def test_catalogo_y_refresco_de_ubicacion_sin_escritura(self):
+        self.assertEqual(len(DPA_CHILE), 16)
+        comunas = [codigo for region in DPA_CHILE.values() for codigo in region['comunas']]
+        self.assertEqual(len(comunas), 346)
+        self.assertEqual(len(set(comunas)), 346)
+        for codigo, region in DPA_CHILE.items():
+            self.assertTrue(all(comuna.startswith(codigo) for comuna in region['comunas']))
+        res = self.editar(actualizar_ubicacion='1', ubicacion_pais='CL', direccion_pais='CL',
+                          direccion_region='08', direccion_calle='Dato retenido', email='borrador@example.test')
+        self.assertContains(res, 'Santa Juana')
+        campo = res.context['form'].direccion_estructurada
+        self.assertIn(('08109', 'Santa Juana'), campo.fields['direccion_comuna'].widget.choices)
+        self.assertNotIn('13101', dict(campo.fields['direccion_comuna'].widget.choices))
+        self.assertEqual(campo['direccion_calle'].value(), 'Dato retenido')
+        self.assertEqual(res.context['form']['email'].value(), 'borrador@example.test')
+        self.assertFalse(res.context['form'].is_bound)
         self.ficha.refresh_from_db()
-        self.assertEqual((self.ficha.direccion_legada_editada, self.ficha.direccion_activa), (None, LEGADO))
-        texto = '  Edición deliberada\r\nLocalidad ficticia  '
-        self.assertEqual(self.editar(direccion_accion='editar_legado', direccion_legada=texto).status_code, 302)
-        self.ficha.refresh_from_db()
-        self.assertEqual((self.ficha.direccion, self.ficha.direccion_activa), (LEGADO, texto))
-        self.cerrar_direccion()
-        self.assertEqual(self.editar(direccion_accion='legado').status_code, 302)
-        self.ficha.refresh_from_db()
-        self.assertEqual((self.ficha.direccion, self.ficha.direccion_activa), (LEGADO, texto))
+        self.assertEqual((self.ficha.email, self.ficha.direccion), ('', LEGADO))
+
+        res = self.editar(**{**ESTRUCTURADA, 'direccion_region': '13'})
+        self.assertContains(res, 'Selecciona una comuna de la región elegida.')
+        res = self.editar(**ESTRUCTURADA, direccion_codigo_postal='1234')
+        self.assertContains(res, 'El código postal chileno debe tener siete dígitos.')
+        res = self.editar(ubicacion_pais='CL', direccion_pais='PT', direccion_region='08',
+                          direccion_comuna='08109', direccion_calle='Rua de teste', direccion_numero='7')
+        self.assertContains(res, 'Confirma la ubicación para el país seleccionado.')
 
     def test_extranjero_sin_division_chilena_y_validacion_sin_escrituras(self):
         antes = Cliente.objects.filter(pk=self.ficha.pk).values().get()
@@ -161,10 +192,10 @@ class DireccionesClientesTests(TestCase):
         ]
         for datos, campo in entradas_invalidas:
             with self.subTest(datos=datos):
-                res = self.editar(direccion_accion='estructurada', email='cambio@example.test', **datos)
+                res = self.editar(email='cambio@example.test', **datos)
                 self.assertEqual(res.status_code, 200)
                 self.assertTrue(res.context['form'].non_field_errors())
-                self.assertContains(res, 'data-cliente-direccion open')
+                self.assertContains(res, 'data-cliente-direccion')
                 if campo:
                     direccion = res.context['form'].direccion_estructurada
                     self.assertTrue(direccion.has_error(campo))
@@ -172,17 +203,17 @@ class DireccionesClientesTests(TestCase):
                     self.assertContains(res, f'id="id_{campo}_error"')
                 self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
 
-        res = self.editar(direccion_accion='editar_legado')
+        res = self.editar(direccion_legada='Dato forzado')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
 
-        res = self.editar(direccion_accion='estructurada', **ESTRUCTURADA, email='correo sin arroba')
+        res = self.editar(**ESTRUCTURADA, email='correo sin arroba')
         self.assertEqual(res.status_code, 200)
         self.assertEqual(res.context['form'].direccion_estructurada['direccion_numero'].value(), 'S/N')
         self.assertEqual(Cliente.objects.filter(pk=self.ficha.pk).values().get(), antes)
 
     def test_propietario_y_csrf_en_edicion(self):
-        datos = {'nombre': self.ficha.nombre, 'direccion_accion': 'estructurada', **ESTRUCTURADA}
+        datos = {'nombre': self.ficha.nombre, **ESTRUCTURADA}
         otro = User.objects.create_user('direccion_otro')
         otro.perfil.puede_crear_clientes = True
         otro.perfil.save(update_fields=['puede_crear_clientes'])
@@ -220,7 +251,7 @@ class DireccionesClientesTests(TestCase):
         borrador.refresh_from_db()
         instantanea = borrador.detalle_emitido
         self.assertEqual(instantanea['cliente']['direccion'], self.ficha.direccion_activa)
-        self.assertEqual(self.editar(direccion_accion='sin_dato').status_code, 302)
+        self.assertEqual(self.editar(direccion_numero='20-A').status_code, 302)
 
         emitido_legado.refresh_from_db()
         self.assertEqual(emitido_legado.detalle_emitido, json_legado)
@@ -259,8 +290,8 @@ class DireccionesClientesTests(TestCase):
 
 
 class MigracionDireccionesClientesTests(TransactionTestCase):
-    origen = [('cutless', '0008_restricciones_correlativo_optimizacion')]
-    destino = '0009_cliente_direcciones_estructuradas'
+    origen = [('cutless', '0009_cliente_direcciones_estructuradas')]
+    destino = '0010_cliente_codigo_postal'
 
     def restaurar_esquema(self):
         ejecutor = MigrationExecutor(connection)
@@ -323,8 +354,9 @@ class MigracionDireccionesClientesTests(TransactionTestCase):
             self.assertEqual(Proyecto.objects.get(pk=proyecto.pk).fecha_actualizacion, proyecto.fecha_actualizacion)
             self.assertEqual(session.get(lista).status_code, 200)
 
-        Cliente.objects.filter(pk=ficha.pk).update(direccion_modo='estructurada', direccion_calle='Pasaje nuevo')
+        Cliente.objects.filter(pk=ficha.pk).update(direccion_modo='estructurada', direccion_calle='Pasaje nuevo', direccion_codigo_postal='0000100')
         ClienteAnterior.objects.filter(pk=ficha.pk).update(email='edicion-anterior@example.test')
         actual = Cliente.objects.get(pk=ficha.pk)
         self.assertEqual((actual.direccion, actual.direccion_activa, actual.email),
-                         (LEGADO, 'Pasaje nuevo', 'edicion-anterior@example.test'))
+                         (LEGADO, 'Pasaje nuevo\n0000100', 'edicion-anterior@example.test'))
+        self.assertEqual(actual.direccion_codigo_postal, '0000100')

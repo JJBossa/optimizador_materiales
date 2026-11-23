@@ -320,6 +320,7 @@ class Cliente(models.Model):
     direccion_pais = models.CharField(max_length=2, null=True, blank=True)
     direccion_calle = models.CharField(max_length=160, null=True, blank=True)
     direccion_numero = models.CharField(max_length=32, null=True, blank=True)
+    direccion_codigo_postal = models.CharField(max_length=16, null=True, blank=True)
     direccion_unidad = models.CharField(max_length=64, null=True, blank=True)
     direccion_region = models.CharField(max_length=120, null=True, blank=True)
     direccion_comuna = models.CharField(max_length=120, null=True, blank=True)
@@ -356,8 +357,9 @@ class Cliente(models.Model):
         if localidad and self.direccion_comuna and localidad.casefold() == self.direccion_comuna.casefold():
             localidad = None
         ubicacion = ', '.join(filter(None, (localidad, self.direccion_comuna, self.direccion_region)))
-        pais = NOMBRES_PAISES.get(self.direccion_pais) if self.direccion_pais != 'CL' else None
-        return ', '.join(filter(None, (calle, self.direccion_unidad, ubicacion, pais)))
+        linea_calle = ', '.join(filter(None, (calle, self.direccion_unidad)))
+        linea_ubicacion = ', '.join(filter(None, (ubicacion, self.direccion_codigo_postal)))
+        return '\n'.join(filter(None, (linea_calle, linea_ubicacion, NOMBRES_PAISES.get(self.direccion_pais))))
 
     def get_total_optimizaciones(self):
         """Retorna el número total de optimizaciones para este cliente"""

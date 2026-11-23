@@ -23,83 +23,121 @@ async function guardar(page, ruta, nombreBoton, estado) {
     page.getByRole('button', { name: nombreBoton, exact: true }).press('Enter'),
   ]);
   assert.equal(respuesta.status(), estado);
-  if (estado === 302) await page.waitForURL(origen.origin + fixture.lista);
+  if (estado === 302) await page.waitForURL(url => url.origin === origen.origin && url.pathname === fixture.lista);
 }
 
-async function abrirDireccion(page) {
-  const bloque = page.locator('[data-cliente-direccion]');
-  const resumen = bloque.locator('summary');
-  await resumen.focus();
-  assert.equal(await resumen.evaluate(e => e === document.activeElement), true);
-  await page.keyboard.press('Enter');
-  assert.equal(await bloque.evaluate(e => e.open), true);
-  await page.keyboard.press('Tab');
-  const esperado = await bloque.locator('select').first().getAttribute('id');
-  assert.equal(await page.evaluate(() => document.activeElement.id), esperado);
-  assert.equal(await page.evaluate(() =>
-    document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
-  return bloque;
+async function ubicacionChile(page, ruta, js) {
+  const pais = page.locator('#id_direccion_pais');
+  const region = page.locator('#id_direccion_region');
+  const comuna = page.locator('#id_direccion_comuna');
+  const actualizar = 'Actualizar opciones de ubicación';
+
+  await pais.selectOption('PT');
+  if (!js) await guardar(page, ruta, actualizar, 200);
+  assert.equal(await region.evaluate(e => e.tagName), 'INPUT');
+  await region.fill('Distrito sintético');
+  await pais.selectOption('CL');
+  if (!js) await guardar(page, ruta, actualizar, 200);
+  assert.equal(await region.evaluate(e => e.tagName), 'SELECT');
+  assert.equal(await region.inputValue(), '');
+  await region.selectOption('13');
+  if (!js) await guardar(page, ruta, actualizar, 200);
+  assert.equal(await comuna.locator('option[value="08109"]').count(), 0);
+
+  await region.selectOption('08');
+  if (!js) await guardar(page, ruta, actualizar, 200);
+  assert.equal(await comuna.locator('option[value="13101"]').count(), 0);
+  assert.equal(await comuna.locator('option[value="08109"]').textContent(), 'Santa Juana');
+  await comuna.selectOption('08109');
 }
 
 async function probar(context, ancho, modo) {
   const page = await context.newPage();
+  const js = modo === 'js';
   const escenario = `${modo}-${ancho}`;
   await abrir(page, fixture.crear);
-  const bloque = await abrirDireccion(page);
-  await page.getByLabel('Nombre o Razón Social').fill(`CLI-01 Crear ${escenario}`);
-  const numero = bloque.getByRole('textbox', { name: /^Número:?$/ });
-  await numero.fill('S/N');
-  await guardar(page, fixture.crear, 'Crear cliente', 200);
-  assert.equal(await bloque.evaluate(e => e.open), true);
-  await page.getByText('Indica calle, región, comuna o localidad para guardar la dirección.').waitFor();
-  assert.equal(await numero.inputValue(), 'S/N');
-  assert.equal(await numero.getAttribute('aria-describedby'), 'id_direccion_numero_helptext');
+  const bloque = page.locator('[data-cliente-direccion]');
+  await page.getByLabel('Nombre o Razón Social').fill(`CLI-02 Crear ${escenario}`);
+  await ubicacionChile(page, fixture.crear, js);
 
+  const numero = bloque.getByRole('textbox', { name: /^Número:?$/ });
   const calle = bloque.getByLabel('Calle, avenida o camino');
-  await calle.fill('Avenida Sintética  Árvore');
-  const dimensiones = await calle.evaluate(e => {
-    const caja = e.getBoundingClientRect();
-    return caja.left >= 0 && caja.right <= document.documentElement.clientWidth;
-  });
-  assert.equal(dimensiones, true);
-  await bloque.getByLabel('País o territorio de la dirección').selectOption('PT');
-  await bloque.getByLabel('Ciudad o localidad').fill('Localidad ficticia');
-  await bloque.getByLabel('Referencia adicional (solo en la ficha)').fill('Referencia privada de prueba');
-  if (evidencia && modo === 'js' && (ancho === 390 || ancho === 1280)) {
-    await bloque.scrollIntoViewIfNeeded();
-    await bloque.screenshot({ path: path.join(evidencia, `alta-${ancho}.png`) });
+  await numero.fill('S/N');
+  await calle.fill('Pasaje Sintético');
+  await bloque.getByLabel('Código postal').fill('0001250');
+  await bloque.getByLabel('Departamento, oficina o unidad').fill('Depto. 201');
+  await bloque.getByLabel('Referencia adicional').fill('Referencia sintética');
+  assert.equal(await page.evaluate(() =>
+    document.documentElement.scrollWidth - document.documentElement.clientWidth), 0);
+  if (evidencia && js && (ancho === 390 || ancho === 1280)) {
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: path.join(evidencia, `alta-${ancho}.png`), fullPage: true });
   }
+
+  await calle.fill('');
+  await guardar(page, fixture.crear, 'Crear cliente', 200);
+  await page.getByText('Indica la calle, avenida o camino.').waitFor();
+  assert.equal(await numero.inputValue(), 'S/N');
+  assert.equal(await page.locator('#id_direccion_comuna').inputValue(), '08109');
+  assert.equal(await bloque.locator('#id_direccion_calle').getAttribute('aria-invalid'), 'true');
+  await calle.fill('Pasaje Sintético');
   await guardar(page, fixture.crear, 'Crear cliente', 302);
-  await page.getByText(`CLI-01 Crear ${escenario}`, { exact: true }).waitFor();
+  await page.getByText(`CLI-02 Crear ${escenario}`, { exact: true }).waitFor();
 
   const ruta = fixture.ediciones[escenario];
   await abrir(page, ruta.editar);
-  await page.getByLabel('Correo Electrónico').fill(`${escenario}@example.test`);
-  const texto = page.getByLabel('Dirección legada editable');
-  assert.equal(await texto.inputValue(), fixture.direccion.replaceAll('\r\n', '\n'));
-  await guardar(page, ruta.editar, 'Guardar cambios', 302);
-
+  const aviso = page.locator('[data-aviso-direccion]');
+  const continuar = aviso.getByRole('link', { name: 'Continuar al formulario' });
+  const dialogo = page.getByRole('dialog');
+  if (js) {
+    await dialogo.waitFor();
+    assert.equal(await continuar.evaluate(e => e === document.activeElement), true);
+    await page.keyboard.press('Tab');
+    assert.equal(await aviso.getByRole('link', { name: 'Volver al listado' }).evaluate(e => e === document.activeElement), true);
+    await page.keyboard.press('Escape');
+    await dialogo.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
+    const revisar = aviso.getByRole('button', { name: 'Revisar aviso' });
+    await revisar.press('Enter');
+    await dialogo.waitFor();
+    await page.keyboard.press('Escape');
+    await dialogo.waitFor({ state: 'detached' });
+    assert.equal(await revisar.evaluate(e => e === document.activeElement), true);
+    await abrir(page, ruta.editar);
+    if (evidencia && (ancho === 390 || ancho === 1280)) {
+      await dialogo.screenshot({ path: path.join(evidencia, `aviso-${ancho}.png`) });
+    }
+  } else {
+    assert.equal(await dialogo.count(), 0);
+    assert.equal(await aviso.isVisible(), true);
+  }
+  await aviso.getByRole('link', { name: 'Volver al listado' }).click();
+  await page.waitForURL(url => url.origin === origen.origin && url.pathname === fixture.lista);
   await abrir(page, ruta.editar);
-  const editar = await abrirDireccion(page);
-  await editar.getByLabel('Qué hacer con la dirección').selectOption('estructurada');
-  await editar.getByLabel('Calle, avenida o camino').fill('Pasaje Sintético');
-  await editar.getByRole('textbox', { name: /^Número:?$/ }).fill('12-B');
-  await editar.getByLabel('Referencia adicional (solo en la ficha)').fill('Referencia de edición');
+  await continuar.press('Enter');
+  if (js) {
+    await dialogo.waitFor({ state: 'detached' });
+    assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
+  }
+
+  await page.getByLabel('Correo Electrónico').fill(`${escenario}@example.test`);
+  await guardar(page, ruta.editar, 'Guardar cambios', 200);
+  assert.equal(await dialogo.count(), 0);
+  await aviso.waitFor();
+  assert.equal(await page.getByLabel('Correo Electrónico').inputValue(), `${escenario}@example.test`);
+  await ubicacionChile(page, ruta.editar, js);
+  await bloque.getByLabel('Calle, avenida o camino').fill('Calle sintética');
+  await numero.fill('12-B');
   await guardar(page, ruta.editar, 'Guardar cambios', 302);
 
   await abrir(page, ruta.historial);
-  await page.getByText('Pasaje Sintético 12-B', { exact: true }).waitFor();
-  await page.getByText('Referencia de edición', { exact: true }).waitFor();
+  await page.getByText(/Calle sintética 12-B.*Santa Juana/s).waitFor();
   await abrir(page, ruta.editar);
-  const original = page.getByText('Ver dirección histórica original');
-  await original.focus();
-  await page.keyboard.press('Enter');
-  const literal = await original.locator('xpath=following-sibling::p').textContent();
-  assert.equal(literal, fixture.direccion.replaceAll('\r\n', '\n'));
-  if (evidencia && modo === 'js' && (ancho === 390 || ancho === 1280)) {
-    await original.locator('xpath=..').screenshot({ path: path.join(evidencia, `legado-${ancho}.png`) });
-  }
-  console.log(`Aprobado ${escenario}: alta, error retenido, teclado, correo, estructuración e historial.`);
+  assert.equal(await aviso.count(), 0);
+  assert.equal(await page.locator('#id_direccion_pais').inputValue(), 'CL');
+  assert.equal(await page.locator('#id_direccion_region').inputValue(), '08');
+  assert.equal(await page.locator('#id_direccion_comuna').inputValue(), '08109');
+  console.log(`Aprobado ${escenario}: CUT, cambio de país y región, aviso, corrección y persistencia.`);
 }
 
 (async () => {

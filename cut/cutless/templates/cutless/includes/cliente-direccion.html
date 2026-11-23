@@ -1,33 +1,25 @@
-{% if cliente %}
-  <p class="mb-2"><strong>Dirección activa:</strong>
-    <span class="cliente-direccion-texto">{{ cliente.direccion_activa|default:"Sin dirección" }}</span>
-  </p>
-  {% if cliente.direccion %}
-    <details class="mb-2">
-      <summary>Ver dirección histórica original</summary>
-      <p class="cliente-direccion-texto mt-2 mb-0">{{ cliente.direccion }}</p>
-    </details>
-  {% endif %}
+{% if form.direccion_estructurada.requiere_actualizacion %}
+  <section class="cliente-direccion-aviso rounded p-3 mb-3" data-aviso-direccion{% if mostrar_aviso_direccion %} data-mostrar-aviso{% endif %}>
+    <h2 class="h5" id="titulo-aviso-direccion">Actualiza la dirección histórica</h2>
+    <p id="ayuda-aviso-direccion">Completa la dirección postal para guardar los cambios de esta ficha. Puedes consultar aquí la dirección anterior.</p>
+    <p class="cliente-direccion-texto">{{ cliente.direccion_legada }}</p>
+    <div class="d-flex flex-wrap gap-2">
+      <a href="#id_direccion_pais" class="btn btn-primary" data-continuar-direccion>Continuar al formulario</a>
+      <a href="{% url 'cutless:lista_clientes' %}" class="btn btn-secondary">Volver al listado</a>
+      <button type="button" class="btn btn-secondary" data-revisar-direccion hidden>Revisar aviso</button>
+    </div>
+  </section>
 {% endif %}
 
-<details class="mb-3" data-cliente-direccion{% if form.errors %} open{% endif %}>
-  <summary>{% if cliente %}Cambiar dirección (opcional){% else %}Agregar dirección (opcional){% endif %}</summary>
-  {% if cliente %}
-    <div class="mt-2">{{ form.direccion_accion.as_field_group }}</div>
-  {% endif %}
-  <fieldset class="mt-2">
-    <legend class="h6">Dirección estructurada</legend>
-    <div class="row gy-2">
-      {% for campo in form.direccion_estructurada %}
-        <div class="col-12 col-md-6">{{ campo.as_field_group }}</div>
-      {% endfor %}
-    </div>
-  </fieldset>
-  {% if cliente %}
-    <fieldset class="mt-3">
-      <legend class="h6">Dirección legada</legend>
-      <p class="form-text">El texto histórico original se conserva al guardar una edición o al estructurar la dirección.</p>
-      {{ form.direccion_legada.direccion_legada.as_field_group }}
-    </fieldset>
-  {% endif %}
-</details>
+<fieldset class="mb-3" data-cliente-direccion>
+  <legend class="h5">Dirección{% if form.direccion_estructurada.opcional %} (opcional){% endif %}</legend>
+  <p class="form-text">Para guardar una dirección, indica el país, la ciudad o comuna, la calle y el número. Para Chile también se requiere la región.</p>
+  <noscript><p class="form-text">Después de cambiar el país o la región, usa «Actualizar opciones de ubicación» para cargar los campos correspondientes.</p></noscript>
+  {{ catalogo_chile|json_script:"catalogo-chile-direcciones" }}
+  <input type="hidden" name="ubicacion_pais" value="{{ form.direccion_estructurada.direccion_pais.value|default_if_none:'' }}">
+  <div class="row gy-2">
+    {% for campo in form.direccion_estructurada %}
+      <div class="col-12 col-md-6 cliente-direccion-campo">{{ campo.as_field_group }}</div>
+    {% endfor %}
+  </div>
+</fieldset>
