@@ -291,6 +291,9 @@ class PresupuestoFechaValidezTests(TestCase):
         normal = self.client.get(ruta)
         self.assertEqual(normal.context['form']['fecha_validez'].value(), presupuesto.fecha_validez)
         self.assertContains(normal, f'min="{self.hoy.isoformat()}"')
+        self.assertContains(normal, 'aria-describedby="id_fecha_validez_helptext"')
+        self.assertContains(normal, '<small class="form-text text-muted" id="id_fecha_validez_helptext">'
+                                    'Fecha hasta la cual el presupuesto es válido</small>', html=True)
         antes = Presupuesto.objects.values().get(pk=presupuesto.pk)
 
         respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': self.ayer.isoformat()})
@@ -324,7 +327,10 @@ class PresupuestoFechaValidezTests(TestCase):
         form = apertura.context['form']
         self.assertEqual(form['fecha_validez'].value(), self.ayer)
         self.assertNotIn('min', form.fields['fecha_validez'].widget.attrs)
-        self.assertContains(apertura, 'Puedes conservar la fecha vencida guardada')
+        self.assertContains(apertura, 'aria-describedby="id_fecha_validez_helptext"')
+        self.assertContains(apertura, '<small class="form-text text-muted" id="id_fecha_validez_helptext">'
+                                      'Puedes conservar la fecha vencida guardada o elegir hoy o una fecha posterior'
+                                      '</small>', html=True)
         respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': self.ayer.isoformat()})
         self.assertEqual(respuesta.status_code, 302)
         presupuesto.refresh_from_db()

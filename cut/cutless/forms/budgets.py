@@ -64,6 +64,9 @@ class PresupuestoForm(forms.ModelForm):
             'estado': 'Estado',
             'proyecto': 'Proyecto (Opcional)',
         }
+        help_texts = {
+            'fecha_validez': 'Fecha hasta la cual el presupuesto es válido',
+        }
     
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
@@ -78,7 +81,7 @@ class PresupuestoForm(forms.ModelForm):
 
         campo_fecha = self.fields['fecha_validez']
         if self._fecha_guardada is not None and self._fecha_guardada < self._hoy:
-            campo_fecha.help_text = 'Puedes conservar la fecha vencida guardada o elegir hoy o una fecha posterior.'
+            campo_fecha.help_text = 'Puedes conservar la fecha vencida guardada o elegir hoy o una fecha posterior'
         else:
             campo_fecha.widget.attrs['min'] = self._hoy.isoformat()
         if es_creacion and not self.is_bound:
