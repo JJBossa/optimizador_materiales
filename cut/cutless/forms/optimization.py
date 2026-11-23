@@ -8,7 +8,7 @@ from ..units import (
     CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
     margen_en_cm, margen_en_mm, medida_tablero_en_cm,
 )
-from .numeros import CantidadEntradaField, DecimalEntradaField, MedidaEntradaField
+from .numeros import CantidadEntradaField, DecimalEntradaField, ImporteEntradaField, MedidaEntradaField
 
 from ..materiales import precio_material_valido
 from ..models import Material, Cliente, Proyecto
@@ -207,7 +207,7 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         help_text="Selecciona un material de tu biblioteca para calcular costos automáticamente"
     )
     
-    precio_tablero = DecimalEntradaField(
+    precio_tablero = ImporteEntradaField(
         label="Precio por tablero",
         max_digits=10,
         decimal_places=2,
@@ -221,7 +221,7 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         help_text="Precio en pesos chilenos (se llena automáticamente si seleccionas un material)"
     )
     
-    mano_obra = DecimalEntradaField(
+    mano_obra = ImporteEntradaField(
         label="Mano de obra",
         max_digits=10,
         decimal_places=2,

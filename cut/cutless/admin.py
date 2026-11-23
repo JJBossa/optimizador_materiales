@@ -1,5 +1,6 @@
 from django.contrib import admin
 from .forms.materials import MaterialAdminForm
+from .forms.numeros import ImporteDecimalField
 from .formato_clp import formatear_clp
 from .models import Optimizacion, Material
 
@@ -9,6 +10,11 @@ class OptimizacionAdmin(admin.ModelAdmin):
     search_fields = ('usuario__username',)
     ordering = ('-fecha',)
     list_filter = ('fecha', 'aprovechamiento_total')
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name in ('precio_tablero', 'mano_obra'):
+            kwargs['form_class'] = ImporteDecimalField
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
     def get_readonly_fields(self, request, obj=None):
         return ('usuario', 'codigo') if obj else ()

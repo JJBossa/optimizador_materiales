@@ -2,6 +2,7 @@ from django import forms
 from django.utils import timezone
 
 from ..models import Presupuesto, Optimizacion, Cliente, Proyecto
+from .numeros import ImporteDecimalField
 
 class PresupuestoForm(forms.ModelForm):
     """Formulario para crear y editar presupuestos con múltiples optimizaciones"""
@@ -21,6 +22,7 @@ class PresupuestoForm(forms.ModelForm):
     class Meta:
         model = Presupuesto
         fields = ['cliente', 'optimizaciones', 'precio_tablero', 'mano_obra', 'fecha_validez', 'notas', 'estado', 'proyecto']
+        field_classes = dict.fromkeys(('precio_tablero', 'mano_obra'), ImporteDecimalField)
         widgets = {
             'cliente': forms.Select(attrs={
                 'class': 'form-select'
