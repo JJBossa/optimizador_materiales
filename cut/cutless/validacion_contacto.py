@@ -80,3 +80,8 @@ def normalizar_rut(rut):
         raise ValidationError('El dígito verificador del RUT no coincide. Revisa el número y el dígito final.',
                               code='digito_verificador')
     return f'{cuerpo}-{verificador}'
+
+
+def clave_rut_cliente(rut):
+    """Identidad comparable de un RUT chileno válido, incluidos valores históricos."""
+    return normalizar_rut(rut.strip()).lstrip('0')

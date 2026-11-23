@@ -187,3 +187,31 @@ body.admin-users-page .admin-create-form :is(input, select, button):focus-visibl
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.cliente-direccion-campo > label {
+  display: block;
+  margin-bottom: .35rem;
+  font-weight: 600;
+}
+
+.cliente-direccion-aviso {
+  border: 1px solid var(--cl-border);
+}
+
+.cliente-direccion-dialogo {
+  width: min(36rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  border: 0;
+  border-radius: .85rem;
+  padding: 0;
+  color: var(--cl-text-primary, inherit);
+  background: var(--cl-bg-card, Canvas);
+}
+
+.cliente-direccion-dialogo > .cliente-direccion-aviso {
+  margin: 0 !important;
+}
+
+.cliente-direccion-dialogo::backdrop {
+  background: rgb(0 0 0 / 55%);
+}

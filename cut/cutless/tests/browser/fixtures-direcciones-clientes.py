@@ -16,18 +16,19 @@ if settings.CUTLESS_ENV != 'development' or settings.DATABASES['default']['ENGIN
 if User.objects.exists() or Cliente.objects.exists():
     raise SystemExit('Este escenario requiere una base vacía.')
 
-usuario = User.objects.create_user('cli01_cuenta_sintetica')
+usuario = User.objects.create_user('cli02_cuenta_sintetica')
 usuario.perfil.puede_crear_clientes = True
 usuario.perfil.preferencias_menu = {'_inicio_completado': True}
 usuario.perfil.tutorial_completado = True
 usuario.perfil.save()
+Cliente.objects.create(usuario=usuario, nombre='Ficha sintética con RUT', rut='1.000.005-k')
 sesion = Client()
 sesion.force_login(usuario)
 direccion = '  Pasaje Chromium 12-A\r\nUnidad S/N\n  Texto <legado>  '
 ediciones = {}
 for modo in ('js', 'html'):
     for ancho in (320, 390, 768, 1280):
-        nombre = f'CLI-01 Editar {modo}-{ancho}'
+        nombre = f'CLI-02 Editar {modo}-{ancho}'
         cliente = Cliente.objects.create(usuario=usuario, nombre=nombre, direccion=direccion)
         ediciones[f'{modo}-{ancho}'] = {
             'editar': reverse('cutless:editar_cliente', args=[cliente.pk]),
