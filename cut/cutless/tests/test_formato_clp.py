@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import patch
@@ -10,6 +10,7 @@ from django.core import mail
 from django.template import Context, Template
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from matplotlib import pyplot as plt
 from openpyxl import load_workbook
 from reportlab import rl_config
@@ -61,7 +62,7 @@ class PresentacionClpTests(TestCase):
         perfil.save()
         respuesta = self.client.post(reverse('cutless:crear_presupuesto'), {
             'optimizaciones': [self.plan.pk], 'precio_tablero': '40000.25', 'mano_obra': '15750.80',
-            'fecha_validez': date.today().isoformat(), 'estado': 'borrador',
+            'fecha_validez': (timezone.localdate() + timedelta(days=1)).isoformat(), 'estado': 'borrador',
         }, follow=True)
         self.assertContains(respuesta, '$40.000')
         self.assertContains(respuesta, '$15.751')

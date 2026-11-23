@@ -164,6 +164,7 @@ Todo cambio técnico, corrección de seguridad, nueva funcionalidad u optimizaci
 - [NUM-03 · Formatos y precisión en Plantillas y Optimización](docs/NUM_03_CORRECCIONES_FORMATOS_PRECISION.md)
 - [CLI-01 · Direcciones estructuradas de Clientes](docs/CLI_01_DIRECCIONES_ESTRUCTURADAS_CLIENTES.md)
 - [CLI-02 · Direcciones simplificadas de Clientes](docs/CLI_02_DIRECCIONES_SIMPLIFICADAS_CLIENTES.md)
+- [UX-01 y PRE-01 · Aviso de dirección histórica y fecha de validez de presupuestos](docs/UX_01_PRE_01_AJUSTES_INTERFAZ_PRESUPUESTOS.md)
 
 La base local y los archivos generados se excluyen del seguimiento de Git. Los commits anteriores conservan sus copias; no se reescribió el historial.
 

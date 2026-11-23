@@ -1,4 +1,5 @@
 from django import forms
+from django.utils import timezone
 
 from ..models import Presupuesto, Optimizacion, Cliente, Proyecto
 
@@ -69,10 +70,16 @@ class PresupuestoForm(forms.ModelForm):
         user = kwargs.pop('user', None)
         instance = kwargs.get('instance', None)
         super().__init__(*args, **kwargs)
+        self.es_creacion = instance is None
         
         # Hacer el campo cliente opcional
         self.fields['cliente'].required = False
         self.fields['fecha_validez'].widget.format = '%Y-%m-%d'
+        if self.es_creacion:
+            hoy = timezone.localdate(timezone=timezone.get_default_timezone())
+            self.fields['fecha_validez'].widget.attrs['min'] = hoy.isoformat()
+            if not self.is_bound:
+                self.initial.setdefault('fecha_validez', hoy)
         
         for campo in ('cliente', 'optimizaciones', 'proyecto'):
             self.fields[campo].queryset = self.fields[campo].queryset.none()
@@ -99,6 +106,15 @@ class PresupuestoForm(forms.ModelForm):
         
         # No duplicar el cliente seleccionado en la alternativa de creación.
         self.fields['nombre_cliente_nuevo'].initial = ''
+
+    def clean_fecha_validez(self):
+        fecha = self.cleaned_data['fecha_validez']
+        if self.es_creacion and fecha < timezone.localdate(timezone=timezone.get_default_timezone()):
+            raise forms.ValidationError(
+                'La fecha de validez no puede ser anterior a hoy. Selecciona la fecha actual o una posterior.',
+                code='fecha_pasada',
+            )
+        return fecha
 
     def clean(self):
         from decimal import Decimal
