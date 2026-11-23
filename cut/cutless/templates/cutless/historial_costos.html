@@ -20,7 +20,7 @@
         Cómo consultar los costos
       </button>
       {% if optimizaciones_con_costo %}
-      {% if user.perfil.menu_visible.costos %}<a href="{% url 'cutless:historial_costos' %}?export=excel&amp;fecha_desde={{ fecha_desde|urlencode }}&amp;fecha_hasta={{ fecha_hasta|urlencode }}" class="btn btn-secondary" data-action="secondary" data-icon="sheet">Exportar Excel</a>{% endif %}
+      {% if user.perfil.menu_visible.costos %}<a href="{% url 'cutless:historial_costos' %}?export=excel&amp;fecha_desde={{ fecha_desde|urlencode }}&amp;fecha_hasta={{ fecha_hasta|urlencode }}" class="btn btn-secondary" data-action="secondary" data-icon="sheet" data-descarga="excel">Exportar Excel</a>{% endif %}
       {% endif %}
     </div>
   </header>

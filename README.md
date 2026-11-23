@@ -166,6 +166,7 @@ Todo cambio técnico, corrección de seguridad, nueva funcionalidad u optimizaci
 - [CLI-02 · Direcciones simplificadas de Clientes](docs/CLI_02_DIRECCIONES_SIMPLIFICADAS_CLIENTES.md)
 - [UX-01 y PRE-01 · Aviso de dirección histórica y fecha de validez de presupuestos](docs/UX_01_PRE_01_AJUSTES_INTERFAZ_PRESUPUESTOS.md)
 - [VIS-02 · Consistencia de las acciones de gestión](docs/VIS_02_CONSISTENCIA_ACCIONES_GESTION.md)
+- [VIS-03 y UX-03 · Acciones de Estadísticas e indicador de descargas](docs/VIS_03_UX_03_ESTADISTICAS_DESCARGAS.md)
 
 La base local y los archivos generados se excluyen del seguimiento de Git. Los commits anteriores conservan sus copias; no se reescribió el historial.
 

@@ -29,13 +29,13 @@ try {
     <div class="page-header__actions">
       <a href="{% url 'cutless:renombrar_optimizacion' optimizacion.id %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">{% if optimizacion.nombre %}Cambiar nombre{% else %}Nombrar trabajo{% endif %}</a>
     <div class="button-download-bar">
-<a href="{% url 'cutless:descargar_excel' optimizacion.id %}{% if numero_lista %}?ordenar_por=fecha_desc{% endif %}" class="btn btn-secondary" data-carga-texto="Generando archivo Excel..." data-action="secondary" data-icon="sheet">
+<a href="{% url 'cutless:descargar_excel' optimizacion.id %}{% if numero_lista %}?ordenar_por=fecha_desc{% endif %}" class="btn btn-secondary" data-descarga="excel" data-action="secondary" data-icon="sheet">
       Descargar Excel
     </a>
 <a href="{% url 'cutless:imprimir_plan_corte' optimizacion.id %}" class="btn btn-secondary" target="_blank" data-action="secondary" data-icon="print" title="Se abre en otra pestaña">
       Imprimir
     </a>
-<a href="{% url 'cutless:descargar_pdf' optimizacion.id %}{% if numero_lista %}?ordenar_por=fecha_desc{% endif %}" class="btn btn-primary" data-carga-texto="Descargando PDF..." data-action="primary" data-icon="pdf">
+<a href="{% url 'cutless:descargar_pdf' optimizacion.id %}{% if numero_lista %}?ordenar_por=fecha_desc{% endif %}" class="btn btn-primary" data-descarga="pdf" data-action="primary" data-icon="pdf">
       Descargar PDF
     </a>
     </div>

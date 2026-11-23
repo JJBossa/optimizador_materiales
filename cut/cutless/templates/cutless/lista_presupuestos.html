@@ -102,7 +102,7 @@
           <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="management-action-set">
             <a href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver detalle</a>
             <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
-            <a href="{% url 'cutless:generar_pdf_presupuesto' presupuesto.pk %}" class="btn btn-primary" target="_blank" rel="noopener" data-action="primary" data-icon="pdf">PDF</a>
+            <a href="{% url 'cutless:generar_pdf_presupuesto' presupuesto.pk %}" class="btn btn-primary" target="_blank" rel="noopener" data-action="primary" data-icon="pdf" data-descarga="pdf">PDF</a>
           </div></td>
         </tr>
         {% endfor %}

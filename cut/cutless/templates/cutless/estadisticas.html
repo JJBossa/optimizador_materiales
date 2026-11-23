@@ -30,11 +30,11 @@
         {% if total_optimizaciones > 0 %}
         <div class="export-actions management-action-set" role="group" aria-label="Descargar estadísticas">
           <a href="{% url 'cutless:exportar_excel_desperdicio' %}?periodo={{ periodo }}"
-             class="btn btn-secondary" data-action="secondary" data-icon="sheet">
+             class="btn btn-secondary" data-action="secondary" data-icon="sheet" data-descarga="excel">
             Exportar Excel
           </a>
           <a href="{% url 'cutless:exportar_pdf_desperdicio' %}?periodo={{ periodo }}"
-             class="btn btn-primary" data-action="primary" data-icon="pdf">
+             class="btn btn-primary" data-action="primary" data-icon="pdf" data-descarga="pdf">
             Exportar PDF
           </a>
         </div>
@@ -206,7 +206,7 @@
                         <a href="{% url 'cutless:duplicar_optimizacion' item.optimizacion.id %}"
                            class="btn btn-secondary" title="Duplicar" data-action="secondary" data-icon="copy">Duplicar</a>
                         <a href="{% url 'cutless:descargar_pdf' item.optimizacion.id %}"
-                           class="btn btn-primary" title="Descargar PDF" data-carga-texto="Descargando PDF..." data-action="primary" data-icon="pdf">PDF</a>
+                           class="btn btn-primary" title="Descargar PDF" data-descarga="pdf" data-action="primary" data-icon="pdf">PDF</a>
                       </div>
                     </td>
                   </tr>
