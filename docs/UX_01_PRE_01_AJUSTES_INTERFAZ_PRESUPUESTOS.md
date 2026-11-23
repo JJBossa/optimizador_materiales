@@ -30,6 +30,12 @@ Las ediciones con una instancia existente mantienen sus reglas. Se comprobó la 
 | Móvil, 390 × 844 | [Fecha anterior aceptada por el control](evidencia/ux01-pre01/pre-antes-390.png) | [Error del servidor y fecha conservada](evidencia/ux01-pre01/pre-despues-390.png) |
 | Escritorio, 1280 × 920 | [Fecha anterior aceptada por el control](evidencia/ux01-pre01/pre-antes-1280.png) | [Error del servidor y fecha conservada](evidencia/ux01-pre01/pre-despues-1280.png) |
 
+### Vencimiento en el listado y el detalle
+
+Ambas vistas muestran la indicación de vencimiento a partir de `Presupuesto.esta_vencido()`. El método comparaba con el día UTC, lo que podía marcar como vencido un presupuesto todavía válido a las 23:59 de Chile. Ahora usa `timezone.localdate()` con la zona predeterminada de Django, `America/Santiago`, igual que el alta. Una validez hasta hoy sigue vigente durante todo el día civil chileno.
+
+La consulta sigue leyendo por separado el estado persistido, incluido «Vencido» cuando ya figuraba en un registro. El cambio es de solo lectura. Las pruebas aíslan ayer, hoy y mañana con UTC como zona activa y cruzan la medianoche en verano e invierno. Verifican tanto el marcador del listado como el del detalle y comprueban que se conservan la fecha, el estado y la instantánea. Las pruebas previas también cubren la edición del borrador histórico y su compatibilidad con el PDF archivado. [Pruebas de presupuestos](../cut/cutless/tests/test_presupuestos.py)
+
 ## VIS-01 · Etiquetas de estado de Proyectos
 
 Planificación, En Proceso, Completado y Cancelado tomaban el ancho de su texto y del relleno compartido. El listado y el detalle aplican ahora la clase `proyecto-estado` al badge existente. El ancho de `7.5em` se ajusta a la tipografía y el máximo del 100 % respeta el espacio del contenedor. Flexbox centra el texto en ambos ejes. El relleno horizontal deja espacio para «Planificación» y se conservan el alto de línea, el relleno vertical, la tipografía, el fondo y el borde de cada estado.
@@ -68,13 +74,31 @@ UX-01 también pasó el caso de 320 × 240 px con desplazamiento dentro del diá
 
 Para reproducir las suites Django, ejecutar `python manage.py test --noinput` desde `cut/` con la configuración de desarrollo de cada motor y bases locales. Para Chromium, aplicar las migraciones existentes en una SQLite desechable. Cargar `fixtures-direcciones-clientes.py` en una base vacía y luego `fixtures-fecha-presupuestos.py` mediante `python cut/manage.py shell`, con un `CUTLESS_TEST_FIXTURE` nuevo para cada archivo. Iniciar Django en `127.0.0.1`, configurar `CUTLESS_TEST_ORIGIN` y `CUTLESS_TEST_BOOTSTRAP`, y ejecutar los dos recorridos de navegador con Playwright usando el JSON de cada caso. `CUTLESS_TEST_CHROMIUM` permite elegir el ejecutable y `CUTLESS_TEST_EVIDENCE` el directorio de capturas.
 
+## Verificación de VIS-01 y del vencimiento local
+
+| Prueba | Aprobadas | Omitidas |
+| --- | ---: | ---: |
+| Django completa · SQLite 3.50.4 | 468 | 8 |
+| Django completa · PostgreSQL 16.16 local | 476 | 0 |
+| Regresiones de Clientes, Proyectos, Presupuestos, permisos, asociaciones y exportaciones · SQLite | 95 | 3 |
+| Mismas regresiones · PostgreSQL | 98 | 0 |
+| Chromium VIS-01 · listado y cuatro detalles, en cuatro anchos y dos temas | 8 escenarios | 0 |
+| Chromium UX-01 y PRE-01 · con y sin JavaScript | 8 y 4 recorridos | 0 |
+| Node y Worker simulado | 67 y 8 | 0 |
+| `makemigrations --check --dry-run` en ambos motores | Sin cambios | |
+| `git diff --check` | Sin incidencias | |
+
+Las regresiones incluyen las ocho pruebas de alta de PRE-01 y la nueva prueba de vencimiento local. PostgreSQL ejecutó las pruebas de bloqueo de filas omitidas por SQLite.
+
 ## Archivos modificados
 
 - UX-01 actualiza el CSS de gestión, la plantilla de edición de clientes, las pruebas de navegador de CLI-02 y las capturas del aviso.
 - PRE-01 actualiza el formulario de presupuestos, la plantilla de alta, las pruebas Django de presupuesto y las fechas de alta de algunas pruebas existentes de contacto, direcciones, CLP e indicadores. Añade el recorrido de navegador, los datos sintéticos y las capturas del campo de fecha.
+- VIS-01 actualiza `lista_proyectos.html`, `detalle_proyecto.html` y `management-refinement.css`. Añade la prueba `estados-proyectos.cjs`, sus datos sintéticos y las capturas comparativas.
+- El vencimiento local actualiza `Presupuesto.esta_vencido()` en `models.py` y su cobertura en `test_presupuestos.py`.
 - El README y el registro mensual enlazan este informe.
 
 ## Límites de la verificación
 
 - Las dimensiones y el desplazamiento se probaron en Chromium, con alturas de viewport controladas. La interfaz del calendario y las barras dinámicas de los navegadores móviles físicos quedan fuera de esa comprobación.
-- La etiqueta visual «Vencido» de lista y detalle se calcula con UTC en `Presupuesto.esta_vencido()`. Durante las horas en las que UTC ya pasó de día y Chile aún no, un presupuesto con validez hasta hoy en Chile puede mostrar esa etiqueta. PRE-01 aplica la fecha civil de Chile al alta. La política existente de visualización es independiente de esta validación.
+- Para VIS-01 se compararon fuentes, colores, bordes y dimensiones en Chromium Linux con datos sintéticos. Otros motores de navegador y escalas de texto quedan fuera de esta comprobación.

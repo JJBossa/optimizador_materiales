@@ -129,6 +129,44 @@ class PresupuestoVigenciaTests(TestCase):
         self.assertIsNone(self.presupuesto.detalle_emitido)
 
 
+class PresupuestoVencimientoLocalTests(TestCase):
+    def test_lista_y_detalle_cambian_al_cruzar_medianoche_en_chile(self):
+        usuario = User.objects.create_user('vencimiento-local')
+        usuario.perfil.puede_crear_presupuestos = True
+        usuario.perfil.save(update_fields=['puede_crear_presupuestos'])
+        self.client.force_login(usuario)
+        lista = reverse('cutless:lista_presupuestos')
+        instantes = (datetime(2026, 1, 15, 2, 59, tzinfo=UTC), datetime(2026, 7, 15, 3, 59, tzinfo=UTC))
+
+        with timezone.override('UTC'), patch('django.utils.timezone.now') as reloj:
+            for instante in instantes:
+                reloj.return_value = instante
+                hoy_chile = instante.date() - timedelta(days=1)
+                for dias in (-1, 0, 1):
+                    numero = f'PRE-{instante.month}-{dias}'
+                    presupuesto = Presupuesto.objects.create(
+                        numero=numero, usuario=usuario, fecha_validez=hoy_chile + timedelta(days=dias),
+                        estado='enviado', precio_tablero=100, costo_total=100,
+                        detalle_emitido={'cliente': None, 'optimizaciones': []},
+                    )
+                    detalle = reverse('cutless:detalle_presupuesto', args=[presupuesto.pk])
+                    original = (presupuesto.fecha_validez, presupuesto.estado, presupuesto.detalle_emitido)
+                    for momento, hoy in ((instante, hoy_chile),
+                                         (instante + timedelta(minutes=1), hoy_chile + timedelta(days=1))):
+                        reloj.return_value = momento
+                        with self.subTest(momento=momento, validez=dias):
+                            vencido = presupuesto.fecha_validez < hoy
+                            self.assertEqual(presupuesto.esta_vencido(), vencido)
+                            respuesta = self.client.get(lista, {'busqueda': numero})
+                            self.assertContains(respuesta, numero)
+                            self.assertContains(respuesta, '<span class="badge bg-danger">Vencido</span>',
+                                                html=True, count=int(vencido))
+                            self.assertContains(self.client.get(detalle), 'Presupuesto vencido', count=int(vencido))
+                    presupuesto.refresh_from_db()
+                    self.assertEqual((presupuesto.fecha_validez, presupuesto.estado, presupuesto.detalle_emitido),
+                                     original)
+
+
 class PresupuestoFechaCreacionTests(TestCase):
     def setUp(self):
         self.instante = datetime(2026, 7, 15, 3, 59, tzinfo=UTC)
