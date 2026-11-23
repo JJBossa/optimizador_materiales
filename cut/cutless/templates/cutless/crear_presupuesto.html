@@ -124,7 +124,7 @@
             {% if form.fecha_validez.errors %}
               <div class="text-danger small">{{ form.fecha_validez.errors }}</div>
             {% endif %}
-            <small class="form-text text-muted">Fecha hasta la cual el presupuesto es válido</small>
+            <small class="form-text text-muted" id="{{ form.fecha_validez.auto_id }}_helptext">{{ form.fecha_validez.help_text }}</small>
           </div>
           <div class="col-md-6">
             <label for="{{ form.estado.id_for_label }}" class="form-label">

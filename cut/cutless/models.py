@@ -510,7 +510,7 @@ class Presupuesto(models.Model):
     def esta_vencido(self):
         """Verifica si el presupuesto está vencido"""
         from django.utils import timezone
-        return timezone.now().date() > self.fecha_validez
+        return self.fecha_validez < timezone.localdate(timezone=timezone.get_default_timezone())
     
     @cached_property
     def lineas_cotizadas(self):

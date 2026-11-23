@@ -1,5 +1,5 @@
 import json
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.core.cache import cache
 from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
+from django.utils import timezone
 
 from cutless.models import Optimizacion, Presupuesto
 from cutless.services import indicadores
@@ -122,15 +123,20 @@ class IndicadoresPresupuestosTests(TestCase):
         )
         respuesta = self.client.post(reverse('cutless:crear_presupuesto'), {
             'optimizaciones': [plan.pk], 'precio_tablero': '1000.00', 'mano_obra': '400.00',
-            'fecha_validez': date.today().isoformat(), 'estado': 'borrador',
+            'fecha_validez': (timezone.localdate() + timedelta(days=1)).isoformat(), 'estado': 'borrador',
         })
         self.assertEqual(respuesta.status_code, 302)
         presupuesto = Presupuesto.objects.get(usuario=self.usuario)
         listado = self.client.get(reverse('cutless:lista_presupuestos'))
         self.assertContains(listado, presupuesto.numero)
         self.assertContains(listado, 'Indicadores económicos')
-        self.assertContains(listado, 'href="https://findic.cl/">Fuente: Findic.cl</a>')
         detalle = self.client.get(reverse('cutless:detalle_presupuesto', args=[presupuesto.pk]))
+        for vista in (listado, detalle):
+            self.assertContains(
+                vista, '<a class="indicadores-presupuesto__fuente" href="https://findic.cl/" '
+                'target="_blank" rel="noopener noreferrer">Fuente: Findic.cl'
+                '<span class="visually-hidden"> (se abre en una pestaña nueva)</span></a>', html=True,
+            )
         self.assertContains(detalle, 'data-total-clp="2400.00"')
         self.assertEqual(detalle.context['total_presupuesto'], Decimal('2400.00'))
         presupuesto.refresh_from_db()

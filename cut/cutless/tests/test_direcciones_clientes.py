@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, timedelta
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,6 +11,7 @@ from django.db import DatabaseError, connection
 from django.db.migrations.executor import MigrationExecutor
 from django.test import Client, TestCase, TransactionTestCase
 from django.urls import reverse
+from django.utils import timezone
 from reportlab import rl_config
 
 from cutless.direcciones import DPA_CHILE
@@ -71,7 +72,8 @@ class DireccionesClientesTests(TestCase):
     def cotizar(self, proyecto, plan, estado='borrador'):
         respuesta = self.client.post(reverse('cutless:crear_presupuesto'), {
             'cliente': self.ficha.pk, 'proyecto': proyecto.pk, 'optimizaciones': [plan.pk],
-            'precio_tablero': '1500.50', 'mano_obra': '43.20', 'fecha_validez': date.today().isoformat(),
+            'precio_tablero': '1500.50', 'mano_obra': '43.20',
+            'fecha_validez': (timezone.localdate() + timedelta(days=1)).isoformat(),
             'estado': estado,
         })
         self.assertEqual(respuesta.status_code, 302)

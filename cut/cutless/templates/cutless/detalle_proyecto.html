@@ -4,7 +4,7 @@
 {% block body_class %}management-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=proyecto-estado-1">
 {% endblock %}
 
 {% block content %}
@@ -29,7 +29,7 @@
   <div class="card mb-4 fade-in">
     <div class="card-header card-header-section d-flex justify-content-between align-items-center">
       <h4 class="mb-0">Información del proyecto</h4>
-      <span class="badge bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
+      <span class="badge proyecto-estado bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
         {{ proyecto.get_estado_display }}
       </span>
     </div>
@@ -53,10 +53,10 @@
           {% endif %}
         </div>
       </div>
-      <div class="mt-3 management-actions">
-        <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="edit"> Editar Proyecto</a>
-        <a href="{% url 'cutless:agregar_optimizaciones_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="plus">Agregar Optimizaciones</a>
-        <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-sm btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
+      <div class="mt-3 management-action-set management-action-set--wide">
+        <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit"> Editar Proyecto</a>
+        <a href="{% url 'cutless:agregar_optimizaciones_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="plus">Agregar Optimizaciones</a>
+        <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
       </div>
     </div>
   </div>

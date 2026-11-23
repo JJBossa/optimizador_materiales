@@ -51,6 +51,27 @@ async function ubicacionChile(page, ruta, js) {
   await comuna.selectOption('08109');
 }
 
+async function comprobarPosicion(dialogo, contenidoCabe) {
+  const posicion = await dialogo.evaluate(elemento => {
+    const { left, right, top, bottom } = elemento.getBoundingClientRect();
+    return {
+      izquierda: left - visualViewport.offsetLeft,
+      derecha: visualViewport.offsetLeft + visualViewport.width - right,
+      arriba: top - visualViewport.offsetTop,
+      abajo: visualViewport.offsetTop + visualViewport.height - bottom,
+      desbordaVertical: elemento.scrollHeight > elemento.clientHeight,
+      desbordaHorizontal: elemento.scrollWidth > elemento.clientWidth,
+      fondo: getComputedStyle(elemento, '::backdrop').backgroundColor,
+    };
+  });
+  assert.ok(Math.abs(posicion.izquierda - posicion.derecha) <= 1, JSON.stringify(posicion));
+  assert.ok(Math.abs(posicion.arriba - posicion.abajo) <= 1, JSON.stringify(posicion));
+  assert.ok(Math.min(posicion.izquierda, posicion.derecha, posicion.arriba, posicion.abajo) >= 15);
+  assert.equal(posicion.desbordaVertical, !contenidoCabe);
+  assert.equal(posicion.desbordaHorizontal, false);
+  assert.equal(posicion.fondo, 'rgba(0, 0, 0, 0.55)');
+}
+
 async function probar(context, ancho, modo) {
   const page = await context.newPage();
   const js = modo === 'js';
@@ -104,12 +125,19 @@ async function probar(context, ancho, modo) {
   await abrir(page, ruta.editar);
   const aviso = page.locator('[data-aviso-direccion]');
   const continuar = aviso.getByRole('link', { name: 'Continuar al formulario' });
-  const dialogo = page.getByRole('dialog');
+  const volver = aviso.getByRole('link', { name: 'Volver al listado' });
+  const dialogo = page.getByRole('dialog', { name: 'Actualiza la dirección histórica' });
   if (js) {
     await dialogo.waitFor();
+    await comprobarPosicion(dialogo, true);
+    assert.equal(await dialogo.getAttribute('aria-describedby'), 'ayuda-aviso-direccion');
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth),
+      await page.evaluate(() => document.documentElement.clientWidth));
     assert.equal(await continuar.evaluate(e => e === document.activeElement), true);
     await page.keyboard.press('Tab');
-    assert.equal(await aviso.getByRole('link', { name: 'Volver al listado' }).evaluate(e => e === document.activeElement), true);
+    assert.equal(await volver.evaluate(e => e === document.activeElement), true);
+    await page.keyboard.press('Shift+Tab');
+    assert.equal(await continuar.evaluate(e => e === document.activeElement), true);
     await page.keyboard.press('Escape');
     await dialogo.waitFor({ state: 'detached' });
     assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
@@ -121,13 +149,34 @@ async function probar(context, ancho, modo) {
     assert.equal(await revisar.evaluate(e => e === document.activeElement), true);
     await abrir(page, ruta.editar);
     if (evidencia && (ancho === 390 || ancho === 1280)) {
-      await dialogo.screenshot({ path: path.join(evidencia, `aviso-${ancho}.png`) });
+      await dialogo.waitFor();
+      await page.screenshot({ path: path.join(evidencia, `ux-despues-${ancho}.png`) });
+    }
+    if (ancho === 320) {
+      const viewport = page.viewportSize();
+      await page.setViewportSize({ width: ancho, height: 240 });
+      await comprobarPosicion(dialogo, false);
+      await dialogo.hover();
+      await dialogo.evaluate(e => { e.scrollTop = 0; });
+      const titulo = dialogo.getByRole('heading', { name: 'Actualiza la dirección histórica' });
+      assert.ok(await titulo.evaluate(e => e.getBoundingClientRect().top >= 0));
+      await page.mouse.wheel(0, 1000);
+      await page.waitForFunction(() => document.querySelector('.cliente-direccion-dialogo').scrollTop > 0);
+      await volver.scrollIntoViewIfNeeded();
+      assert.ok(await volver.evaluate(e => e.getBoundingClientRect().bottom <= visualViewport.height));
+      await continuar.press('Enter');
+      await dialogo.waitFor({ state: 'detached' });
+      assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
+      await page.setViewportSize(viewport);
+      await abrir(page, ruta.editar);
+      await dialogo.waitFor();
+      console.log('Aprobado 320 × 240: desplazamiento del aviso y acciones accesibles.');
     }
   } else {
     assert.equal(await dialogo.count(), 0);
     assert.equal(await aviso.isVisible(), true);
   }
-  await aviso.getByRole('link', { name: 'Volver al listado' }).click();
+  await volver.click();
   await page.waitForURL(url => url.origin === origen.origin && url.pathname === fixture.lista);
   await abrir(page, ruta.editar);
   await continuar.press('Enter');
@@ -166,7 +215,8 @@ async function probar(context, ancho, modo) {
     for (const ancho of [320, 390, 768, 1280]) {
       for (const js of [true, false]) {
         const context = await browser.newContext({
-          locale: 'es-CL', viewport: { width: ancho, height: 920 }, javaScriptEnabled: js,
+          locale: 'es-CL', viewport: { width: ancho, height: { 320: 640, 390: 844 }[ancho] ?? 920 },
+          javaScriptEnabled: js,
           colorScheme: ancho === 1280 ? 'dark' : 'light', reducedMotion: 'reduce', serviceWorkers: 'block',
         });
         try {

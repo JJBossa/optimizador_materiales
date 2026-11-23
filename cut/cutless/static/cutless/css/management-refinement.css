@@ -50,6 +50,20 @@
 .project-optimization-search { padding: 16px; border: 1px solid var(--cl-border); border-radius: 12px; background: var(--cl-bg-surface); }
 .project-optimization-search .form-control { background: var(--cl-bg-card); color: var(--cl-text-primary); border-color: var(--cl-border-strong); }
 .project-optimization-option[hidden] { display: none !important; }
+.proyecto-estado {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  inline-size: 7.5em;
+  max-inline-size: 100%;
+  padding-inline: .375em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 576px) and (max-width: 991px) {
+  .management-page .proyectos-tabla :is(th, td) { padding-inline: .5rem; overflow-wrap: anywhere; }
+  .management-page .proyectos-tabla td:last-child { min-width: 0; }
+}
 
 body.admin-users-page .admin-users-header { align-items: center; margin-bottom: 24px; }
 body.admin-users-page .admin-users-header .page-header__actions { align-items: center; }
@@ -92,13 +106,13 @@ body.admin-users-page .admin-badge--active { border-color: var(--success-text); 
 body.admin-users-page .admin-badge--inactive { border-color: var(--cl-border); background: var(--cl-bg-surface); color: var(--cl-text-secondary); }
 body.admin-users-page .admin-state-dash { color: var(--cl-text-muted); font-size: 14px; }
 body.admin-users-page .admin-user-actions-cell { text-align: right; }
-body.admin-users-page .admin-user-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 16px; }
-body.admin-users-page .admin-user-actions .admin-action-btn { min-width: 0; min-height: 40px !important; height: 40px !important; margin: 0 !important; padding: 0 10px !important; font-size: 14px !important; white-space: nowrap; }
-body.admin-users-page .admin-delete-form { display: inline-flex; margin: 0; }
+body.admin-users-page .admin-user-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 16px; }
+body.admin-users-page .admin-user-actions .admin-action-btn { width: 100%; min-width: 0; min-height: 40px !important; height: auto !important; margin: 0 !important; padding: 0 9px !important; font-size: 14px !important; overflow-wrap: anywhere; }
+body.admin-users-page .admin-delete-form { display: flex; min-width: 0; margin: 0; }
 :root body.admin-users-page .admin-delete-button { --btn-tone: var(--danger-text); --btn-fill: transparent; --btn-ink: var(--danger-text); border: 1px solid var(--danger-text) !important; background: transparent !important; color: var(--danger-text) !important; box-shadow: none !important; }
 :root body.admin-users-page .admin-delete-button:hover { background: var(--danger-tint) !important; border-color: var(--danger-text) !important; color: var(--danger-text) !important; filter: none !important; }
 :root body.admin-users-page .admin-delete-button:active { background: var(--danger-tint) !important; }
-body.admin-users-page .admin-no-actions { color: var(--cl-text-muted); font-size: 13px; }
+body.admin-users-page .admin-no-actions { grid-column: 1 / -1; color: var(--cl-text-muted); font-size: 13px; }
 body.admin-users-page .admin-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px; margin: 20px 0 24px; }
 body.admin-users-page .admin-pagination .btn { min-height: 40px !important; height: 40px !important; padding: 0 14px !important; font-size: 14px !important; }
 body.admin-users-page .admin-pagination__status { min-width: 120px; color: var(--cl-text-secondary); font-size: 14px; font-weight: 600; text-align: center; }
@@ -129,10 +143,10 @@ body.admin-users-page .admin-create-form :is(input, select, button):focus-visibl
 @media (min-width: 768px) and (max-width: 1023px) {
   body.admin-users-page .admin-col-role { width: 198px; }
   body.admin-users-page .admin-col-state { width: 130px; }
-  body.admin-users-page .admin-col-actions { width: 205px; }
+  body.admin-users-page .admin-col-actions { width: 213px; }
   body.admin-users-page .admin-user-table thead th, body.admin-users-page .admin-user-table tbody td { padding-right: 10px; padding-left: 10px; }
   body.admin-users-page .admin-user-actions { gap: 8px; }
-  body.admin-users-page .admin-user-actions .admin-action-btn { padding-right: 8px !important; padding-left: 8px !important; }
+  body.admin-users-page .admin-user-actions .admin-action-btn { padding-inline: 6px !important; }
   body.admin-users-page .admin-create-card .card-body { padding: 20px; }
 }
 
@@ -160,9 +174,7 @@ body.admin-users-page .admin-create-form :is(input, select, button):focus-visibl
   body.admin-users-page .admin-user-avatar { flex-basis: 38px; width: 38px; height: 38px; }
   body.admin-users-page .admin-role-form { gap: 6px; }
   body.admin-users-page .admin-role-select { width: 100%; max-width: 150px; }
-  body.admin-users-page .admin-user-actions { justify-content: flex-start; gap: 12px; }
-  body.admin-users-page .admin-user-actions > a, body.admin-users-page .admin-user-actions > form { flex: 1 1 0; }
-  body.admin-users-page .admin-user-actions .admin-action-btn { width: 100%; }
+  body.admin-users-page .admin-user-actions { gap: 12px; }
   body.admin-users-page .admin-no-actions { padding: 10px 0; }
   body.admin-users-page .admin-create-card .card-body { padding: 18px; }
   body.admin-users-page .admin-create-grid { grid-template-columns: 1fr; gap: 16px; }
@@ -200,7 +212,10 @@ body.admin-users-page .admin-create-form :is(input, select, button):focus-visibl
 
 .cliente-direccion-dialogo {
   width: min(36rem, calc(100% - 2rem));
+  max-height: calc(100vh - 2rem);
   max-height: calc(100dvh - 2rem);
+  margin: auto;
+  overflow: auto;
   border: 0;
   border-radius: .85rem;
   padding: 0;

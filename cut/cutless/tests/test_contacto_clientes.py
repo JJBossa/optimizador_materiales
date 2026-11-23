@@ -1,5 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date
+from datetime import timedelta
 from threading import Barrier
 from unittest.mock import patch
 
@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from django.db import close_old_connections
 from django.test import Client, SimpleTestCase, TestCase, TransactionTestCase, skipUnlessDBFeature
 from django.urls import reverse
+from django.utils import timezone
 from reportlab import rl_config
 
 from cutless.forms import ClienteForm
@@ -229,7 +230,8 @@ class ContactoClienteVistasTests(TestCase):
         plan = Optimizacion.objects.create(usuario=self.usuario, cliente=self.cliente, proyecto=proyecto,
                                            ancho_tablero=122, alto_tablero=244, piezas='Pieza,20,30,1', num_tableros=1)
         entrada = {'cliente': self.cliente.pk, 'proyecto': proyecto.pk, 'optimizaciones': [plan.pk],
-                   'precio_tablero': '100', 'mano_obra': '0', 'fecha_validez': date.today().isoformat()}
+                   'precio_tablero': '100', 'mano_obra': '0',
+                   'fecha_validez': (timezone.localdate() + timedelta(days=1)).isoformat()}
         crear_presupuesto = reverse('cutless:crear_presupuesto')
         self.assertEqual(self.client.post(crear_presupuesto, {**entrada, 'estado': 'enviado'}).status_code, 302)
         emitido = Presupuesto.objects.get(usuario=self.usuario, estado='enviado')
