@@ -29,7 +29,7 @@
         });
     };
 
-    window.mostrarIndicadorCarga = function (mensaje) {
+    window.mostrarIndicadorCarga = function (mensaje, { autoCerrar = true } = {}) {
         mensaje = mensaje || 'Generando...';
         window.ocultarIndicadorCarga();
 
@@ -56,9 +56,11 @@
         if (window._loadingOverlayTimeoutId) {
             clearTimeout(window._loadingOverlayTimeoutId);
         }
-        window._loadingOverlayTimeoutId = setTimeout(function () {
-            window.ocultarIndicadorCarga();
-        }, 15000);
+        if (autoCerrar) {
+            window._loadingOverlayTimeoutId = setTimeout(function () {
+                window.ocultarIndicadorCarga();
+            }, 15000);
+        }
 
         return overlay;
     };
@@ -74,63 +76,6 @@
         }
     };
 
-    window.obtenerNombreArchivoDesdeDisposition = function (contentDisposition, fallback) {
-        if (!contentDisposition) {
-            return fallback;
-        }
-        var filenameMatch = /filename\*=UTF-8''([^;]*)/.exec(contentDisposition) || /filename="?([^";]+)"?/.exec(contentDisposition);
-        if (filenameMatch && filenameMatch[1]) {
-            try {
-                return decodeURIComponent(filenameMatch[1]);
-            } catch (e) {
-                return filenameMatch[1];
-            }
-        }
-        return fallback;
-    };
-
-    window.descargarArchivo = async function (url, mensaje, boton) {
-        window.cutlessButtonLoading?.(boton, true);
-        try {
-            window.mostrarIndicadorCarga(mensaje || 'Generando archivo... Por favor espera.');
-            var response = await fetch(url, {
-                method: 'GET',
-                credentials: 'same-origin'
-            });
-
-            if (response.redirected || response.headers.get('content-type')?.includes('text/html')) {
-                throw new Error('La sesión ha expirado. Inicia sesión antes de descargar.');
-            }
-            if (!response.ok) {
-                throw new Error('Error en la descarga: ' + response.status + ' ' + response.statusText);
-            }
-
-            var blob = await response.blob();
-            var contentDisposition = response.headers.get('content-disposition');
-            var nombreSugerido = window.obtenerNombreArchivoDesdeDisposition(contentDisposition, url.split('/').pop().split('?')[0]);
-            var enlace = document.createElement('a');
-            var objectUrl = URL.createObjectURL(blob);
-            enlace.href = objectUrl;
-            enlace.download = nombreSugerido || 'descarga';
-            document.body.appendChild(enlace);
-            enlace.click();
-            enlace.remove();
-            URL.revokeObjectURL(objectUrl);
-        } catch (error) {
-            console.error(error);
-            if (typeof window.cutlessAlerta === 'function') {
-                await window.cutlessAlerta({
-                    titulo: 'Error de descarga',
-                    mensaje: error.message || 'No se pudo descargar el archivo. Intenta de nuevo.'
-                });
-            } else {
-                alert('No se pudo descargar el archivo. Intenta de nuevo.');
-            }
-        } finally {
-            window.cutlessButtonLoading?.(boton, false);
-            window.ocultarIndicadorCarga();
-        }
-    };
 })();
 
 document.addEventListener('DOMContentLoaded', function () {
@@ -158,23 +103,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var deleteForms = document.querySelectorAll('form[data-confirm-delete], form.delete-form-inline, form[action*="borrar"], form[action*="eliminar"], form:has(button[type="submit"][data-action="delete"])');
     deleteForms.forEach(attachDeleteConfirm);
-
-    var descargaLinks = document.querySelectorAll(
-        'a[data-carga-texto], a[href*="descargar_pdf"], a[href*="descargar_excel"], a[href*="descargar_png"], a[href$=".pdf"], a[href$=".xlsx"], a[href$=".xls"]'
-    );
-    descargaLinks.forEach(function (link) {
-        if (link.href.includes('imprimir_plan_corte') || link.target === '_blank') {
-            return;
-        }
-        if (!link.dataset.descargaAjax) {
-            link.dataset.descargaAjax = 'true';
-            link.addEventListener('click', function (event) {
-                event.preventDefault();
-                var mensaje = this.dataset.cargaTexto || 'Descargando archivo... Por favor espera.';
-                window.descargarArchivo(this.href, mensaje, this);
-            });
-        }
-    });
 
     var generateForms = document.querySelectorAll('form[action*="index"], form[action*="optimizar"], form[data-loading-optimization]');
     generateForms.forEach(function (form) {

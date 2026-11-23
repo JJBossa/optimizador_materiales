@@ -33,9 +33,17 @@
   animation:cutless-loading-piece 1.6s linear infinite;
   animation-delay:calc(var(--piece-order) * 320ms);
 }
+.cutless-download-error {
+  position:fixed;
+  z-index:10000;
+  inset-inline:1rem;
+  inset-block-end:1rem;
+  max-inline-size:32rem;
+  margin:0 auto;
+}
 @keyframes cutless-loading-piece {
   0%, 16% { fill:var(--cl-blue); }
   20%, 100% { fill:var(--piece-fill); }
 }
 @media(prefers-reduced-motion:reduce) { .cutless-loading__piece { animation:none; } }
-@media print { .cutless-loading { display:none; } }
+@media print { .cutless-loading, .cutless-download-error { display:none; } }

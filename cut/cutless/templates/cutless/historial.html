@@ -7,6 +7,11 @@
 <link rel="stylesheet" href="{% static 'cutless/css/historial.css' %}?v=management-actions-2">
 <link rel="stylesheet" href="{% static 'cutless/css/history-result-refinement.css' %}?v=history-selection-4">
 <link rel="stylesheet" href="{% static 'cutless/css/board-landscape.css' %}?v=4">
+<noscript><style>
+  .history-page .management-action-menu .dropdown-menu { display: block; position: static; min-width: 0; }
+  .history-page .management-action-menu .dropdown-item { white-space: normal; }
+  .history-page .management-action-menu > button { display: none; }
+</style></noscript>
 {% endblock %}
 
 {% block content %}
@@ -226,17 +231,17 @@
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="{% url 'cutless:descargar_png' optimizacion.id %}" data-carga-texto="Generando imagen...">
+                      <a class="dropdown-item" href="{% url 'cutless:descargar_png' optimizacion.id %}" data-descarga="png">
                          Descargar PNG
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="{% url 'cutless:descargar_pdf' optimizacion.id %}?ordenar_por={{ ordenar_por }}" data-carga-texto="Descargando PDF...">
+                      <a class="dropdown-item" href="{% url 'cutless:descargar_pdf' optimizacion.id %}?ordenar_por={{ ordenar_por }}" data-descarga="pdf">
                           Descargar PDF
                       </a>
                     </li>
                     <li>
-                      <a class="dropdown-item" href="{% url 'cutless:descargar_excel' optimizacion.id %}?ordenar_por={{ ordenar_por }}" data-carga-texto="Generando archivo Excel...">
+                      <a class="dropdown-item" href="{% url 'cutless:descargar_excel' optimizacion.id %}?ordenar_por={{ ordenar_por }}" data-descarga="excel">
                           Descargar Excel
                       </a>
                     </li>
