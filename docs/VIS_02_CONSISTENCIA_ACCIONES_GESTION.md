@@ -66,3 +66,9 @@ Se usaron cuentas y registros sintéticos. Los recortes se centran en la fila, t
 | `makemigrations --check --dry-run` en ambos motores y `git diff --check` | Sin migraciones ni incidencias |
 
 La cobertura visual corresponde a las pantallas indicadas y a Chromium Linux. El escalado de página y de texto se simularon en el navegador. Quedan fuera otros motores de renderizado y los gestos de zoom en dispositivos físicos.
+
+## UX-02 · Fuente de indicadores económicos
+
+«Fuente: Findic.cl» abre `https://findic.cl/` en otra pestaña desde el listado y el detalle de Presupuestos. El enlace usa `target="_blank"` y `rel="noopener noreferrer"`. El texto visual conserva su aspecto y el nombre accesible añade «se abre en una pestaña nueva» mediante texto oculto visualmente.
+
+La plantilla compartida `includes/indicadores-presupuesto.html` contiene el cambio. `test_indicadores.py` verifica el marcado en ambas vistas. En Chromium se activó el enlace por teclado, se verificaron la pestaña nueva, la ausencia de `opener` y de referente, y la permanencia de CutLess en su URL original. El destino externo se simuló localmente. [Prueba de Chromium](../cut/cutless/tests/browser/fuente-findic.cjs)
