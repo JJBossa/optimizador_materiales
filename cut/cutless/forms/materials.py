@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from django import forms
 
+from ..materiales import dimension_material_valida, precio_material_valido, validar_precio_material
 from ..models import Material
 from ..units import convertir_a_cm, convertir_desde_cm
 
@@ -15,10 +16,19 @@ _AYUDA_DIMENSION = f'{_AYUDA_DECIMAL} Para tres decimales ambiguos, añade un ce
 
 
 class DecimalMaterialField(forms.DecimalField):
+    widget = forms.TextInput
+
+    def widget_attrs(self, widget):
+        return {**super().widget_attrs(widget), 'inputmode': 'decimal', 'pattern': _FORMATO_DECIMAL}
+
     def prepare_value(self, value):
-        # Los datos iniciales son números y ya tienen un significado conocido.
-        if isinstance(value, (float, Decimal)) and re.fullmatch(_AGRUPACION_AMBIGUA, str(value)):
-            return f'{value}0'
+        if isinstance(value, (float, Decimal)):
+            texto = str(value)
+            # Los decimales iniciales provienen del modelo y ya tienen un significado conocido.
+            if re.fullmatch(_AGRUPACION_AMBIGUA, texto):
+                return f'{texto}0'
+            if 'e' in texto.lower():
+                return format(Decimal(texto), 'f')
         return super().prepare_value(value)
 
     def to_python(self, value):
@@ -30,35 +40,103 @@ class DecimalMaterialField(forms.DecimalField):
         return super().to_python(texto.replace(',', '.'))
 
 
-class MaterialForm(forms.ModelForm):
-    """Formulario para crear y editar materiales"""
-    
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if self.instance and self.instance.pk:
-            unidad = self.instance.unidad_medida or 'cm'
-            self.initial['ancho'] = convertir_desde_cm(self.instance.ancho, unidad)
-            self.initial['alto'] = convertir_desde_cm(self.instance.alto, unidad)
+class MaterialBaseForm(forms.ModelForm):
+    """Controla la entrada decimal y conserva las cantidades históricas intactas."""
+
+    medidas_en_cm = False
+    medidas = ('ancho', 'alto')
 
     class Meta:
         model = Material
-        fields = ['nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'descripcion']
+        fields = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'descripcion')
         field_classes = dict.fromkeys(('ancho', 'alto', 'precio'), DecimalMaterialField)
+        help_texts = {
+            'ancho': _AYUDA_DIMENSION,
+            'alto': _AYUDA_DIMENSION,
+            'precio': f'Precio en pesos chilenos (opcional). Hasta dos decimales. {_AYUDA_DECIMAL}',
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.medidas_originales = {}
+        self.unidad_original = self.instance.unidad_medida
+        if self.instance.pk is None:
+            return
+
+        if self.unidad_original not in dict(Material.UNIDADES_CHOICES):
+            unidad = self.fields['unidad_medida']
+            unidad.choices = [('', 'Unidad histórica inválida. Selecciona una unidad.'), *unidad.choices]
+            self.initial['unidad_medida'] = ''
+            self.unidad_original = 'cm'
+
+        for campo in self.medidas:
+            original = getattr(self.instance, campo)
+            self.medidas_originales[campo] = original
+            self.initial[campo] = original if self.medidas_en_cm else convertir_desde_cm(
+                original, self.unidad_original
+            )
+            if not dimension_material_valida(original):
+                if math.isfinite(self.initial[campo]):
+                    aviso = 'La medida histórica está fuera de rango. Puedes conservarla o corregirla.'
+                else:
+                    aviso = 'Corrige la medida histórica para poder guardar.'
+                self.fields[campo].help_text += f' {aviso}'
+
+        if not precio_material_valido(self.instance.precio):
+            self.fields['precio'].help_text += ' El precio histórico es inválido. Puedes conservarlo o corregirlo.'
+
+    def clean(self):
+        datos = super().clean()
+        unidad = 'cm' if self.medidas_en_cm else datos.get('unidad_medida')
+        conserva_unidad = self.medidas_en_cm or unidad == self.unidad_original
+        for campo in self.medidas:
+            valor = datos.get(campo)
+            if valor is None or not unidad:
+                continue
+            if campo in self.medidas_originales and conserva_unidad and valor == Decimal(str(self.initial[campo])):
+                datos[campo] = self.medidas_originales[campo]
+                continue
+            medida = convertir_a_cm(float(valor), unidad)
+            if dimension_material_valida(medida):
+                datos[campo] = medida
+            else:
+                self.add_error(campo, 'Cada lado debe medir entre 10 y 300 cm; revisa la unidad seleccionada.')
+
+        precio = datos.get('precio')
+        if self.instance.pk is None or precio != self.instance.precio:
+            try:
+                validar_precio_material(precio)
+            except forms.ValidationError as error:
+                self.add_error('precio', error)
+        return datos
+
+    def campos_actualizacion(self):
+        campos = set(self.changed_data).difference(self.medidas)
+        campos.update(
+            campo for campo, original in self.medidas_originales.items()
+            if self.cleaned_data[campo] != original
+        )
+        campos.add('fecha_actualizacion')
+        return campos
+
+
+class MaterialForm(MaterialBaseForm):
+    """Alta y edición desde la biblioteca de CutLess."""
+
+    class Meta(MaterialBaseForm.Meta):
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Ej: MDF 18mm, Contrachapado'
             }),
-            'ancho': forms.TextInput(attrs={'class': 'form-control', 'inputmode': 'decimal',
-                                            'pattern': _FORMATO_DECIMAL, 'title': _AYUDA_DIMENSION}),
-            'alto': forms.TextInput(attrs={'class': 'form-control', 'inputmode': 'decimal',
-                                           'pattern': _FORMATO_DECIMAL, 'title': _AYUDA_DIMENSION}),
+            'ancho': forms.TextInput(attrs={'class': 'form-control', 'title': _AYUDA_DIMENSION}),
+            'alto': forms.TextInput(attrs={'class': 'form-control', 'title': _AYUDA_DIMENSION}),
             'unidad_medida': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'precio': forms.TextInput(attrs={'class': 'form-control', 'inputmode': 'decimal',
-                                             'pattern': _FORMATO_DECIMAL, 'title': _AYUDA_DECIMAL,
-                                             'placeholder': 'Opcional'}),
+            'precio': forms.TextInput(attrs={
+                'class': 'form-control', 'title': _AYUDA_DECIMAL, 'placeholder': 'Opcional',
+            }),
             'descripcion': forms.Textarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
@@ -73,28 +151,19 @@ class MaterialForm(forms.ModelForm):
             'precio': 'Precio por Tablero',
             'descripcion': 'Descripción',
         }
+
+
+class MaterialAdminForm(MaterialBaseForm):
+    """El administrador edita en cm y elige una unidad de presentación."""
+
+    medidas_en_cm = True
+
+    class Meta(MaterialBaseForm.Meta):
+        fields = ('usuario', 'nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'es_predefinido', 'descripcion')
+        labels = {'ancho': 'Ancho (cm)', 'alto': 'Alto (cm)', 'unidad_medida': 'Unidad de presentación'}
         help_texts = {
-            'ancho': _AYUDA_DIMENSION,
-            'alto': _AYUDA_DIMENSION,
-            'precio': f'Precio en pesos chilenos (opcional). Hasta dos decimales. {_AYUDA_DECIMAL}',
+            **MaterialBaseForm.Meta.help_texts,
+            'ancho': f'Ingresa el ancho en centímetros. {_AYUDA_DIMENSION}',
+            'alto': f'Ingresa el alto en centímetros. {_AYUDA_DIMENSION}',
+            'unidad_medida': 'Controla la presentación del material. Las medidas de este formulario se ingresan en cm.',
         }
-    
-    def clean(self):
-        datos = super().clean()
-        unidad = datos.get('unidad_medida')
-        for campo in ('ancho', 'alto'):
-            valor = datos.get(campo)
-            if valor is not None:
-                valor = float(valor)
-                if not math.isfinite(valor) or valor <= 0:
-                    self.add_error(campo, 'La medida debe ser un número mayor que cero.')
-                elif unidad:
-                    medida = convertir_a_cm(valor, unidad)
-                    if not 10 <= medida <= 300:
-                        self.add_error(campo, 'Cada lado debe medir entre 10 y 300 cm; revisa la unidad seleccionada.')
-                    else:
-                        datos[campo] = medida
-        precio = datos.get('precio')
-        if precio is not None and precio < 0:
-            self.add_error('precio', 'El precio no puede ser negativo.')
-        return datos

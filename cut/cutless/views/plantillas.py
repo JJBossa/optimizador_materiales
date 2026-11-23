@@ -1,14 +1,13 @@
 from django.contrib import messages
-from django.db.models import Q
 from django.forms import formset_factory
 from django.http import HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
 
 from ..forms import PlantillaForm, TableroForm, PiezaForm
-from ..models import Plantilla, Optimizacion, Material
+from ..models import Plantilla, Optimizacion
 from ..pieces import piezas_como_csv
 from ..utils import convertir_desde_cm
-from .common import exigir_piezas_completas, leer_id_optimizacion
+from .common import _materiales_data_index, exigir_piezas_completas, leer_id_optimizacion
 
 
 def editar_plantilla(request, pk):
@@ -180,22 +179,12 @@ def usar_plantilla(request, pk):
         'margen_corte': margen_mm,
     })
     
-    # Preparar datos de materiales para JavaScript
-    materiales_data = {}
-    for material in Material.objects.filter(
-        Q(usuario=request.user) | Q(es_predefinido=True)
-    ):
-        materiales_data[str(material.pk)] = {
-            'precio': float(material.precio) if material.precio is not None else None,
-            'nombre': material.nombre
-        }
-    
     messages.info(request, f'📋 Plantilla "{plantilla.nombre}" cargada. Completa los datos y genera la optimización.')
     
     return render(request, 'cutless/index.html', {
         'tablero_form': tablero_form,
         'pieza_formset': pieza_formset,
-        'materiales_data': materiales_data,
+        'materiales_data': _materiales_data_index(request.user, incluir_medidas=False),
         'plantilla_cargada': plantilla,
     })
 

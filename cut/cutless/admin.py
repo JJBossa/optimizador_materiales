@@ -1,4 +1,5 @@
 from django.contrib import admin
+from .forms.materials import MaterialAdminForm
 from .formato_clp import formatear_clp
 from .models import Optimizacion, Material
 
@@ -18,6 +19,7 @@ class OptimizacionAdmin(admin.ModelAdmin):
 
 @admin.register(Material)
 class MaterialAdmin(admin.ModelAdmin):
+    form = MaterialAdminForm
     list_display = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio_display', 'es_predefinido', 'usuario', 'fecha_creacion')
     search_fields = ('nombre', 'descripcion')
     list_filter = ('es_predefinido', 'unidad_medida', 'fecha_creacion')
@@ -27,6 +29,12 @@ class MaterialAdmin(admin.ModelAdmin):
     def precio_display(self, obj):
         return formatear_clp(obj.precio)
     
+    def save_model(self, request, obj, form, change):
+        if change:
+            obj.save(update_fields=form.campos_actualizacion())
+        else:
+            super().save_model(request, obj, form, change)
+
     def get_queryset(self, request):
         qs = super().get_queryset(request)
         if request.user.is_superuser:
