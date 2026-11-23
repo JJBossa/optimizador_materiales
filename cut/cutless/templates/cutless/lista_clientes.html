@@ -60,7 +60,7 @@
   <!-- Lista de Clientes -->
   {% if clientes %}
   <div class="table-responsive fade-in">
-    <table role="table" class="table table-hover mobile-table-cards">
+    <table role="table" class="table table-hover mobile-table-cards management-action-table">
       <thead role="rowgroup">
         <tr role="row">
           <th role="columnheader" scope="col">Nombre</th>
@@ -86,8 +86,8 @@
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Optimizaciones</span>
             <span class="badge bg-primary">{{ cliente.get_total_optimizaciones }}</span>
           </td>
-          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="action-group">
-            <a href="{% url 'cutless:historial_cliente' cliente.pk %}" class="btn btn-sm btn-secondary" title="Ver historial" data-action="secondary" data-icon="chevron-right">
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="management-action-set">
+            <a href="{% url 'cutless:historial_cliente' cliente.pk %}" class="btn btn-secondary" title="Ver historial" data-action="secondary" data-icon="chevron-right">
               Historial
             </a>
             <a href="{% url 'cutless:editar_cliente' cliente.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit"> Editar</a>

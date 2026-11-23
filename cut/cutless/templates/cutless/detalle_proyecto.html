@@ -53,10 +53,10 @@
           {% endif %}
         </div>
       </div>
-      <div class="mt-3 management-actions">
-        <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="edit"> Editar Proyecto</a>
-        <a href="{% url 'cutless:agregar_optimizaciones_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="plus">Agregar Optimizaciones</a>
-        <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-sm btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
+      <div class="mt-3 management-action-set management-action-set--wide">
+        <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit"> Editar Proyecto</a>
+        <a href="{% url 'cutless:agregar_optimizaciones_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="plus">Agregar Optimizaciones</a>
+        <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
       </div>
     </div>
   </div>

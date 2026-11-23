@@ -181,7 +181,7 @@
   {% endif %}
 
   <!-- Acciones -->
-  <div class="form-action-bar fade-in">
+  <div class="form-action-bar fade-in management-action-set management-action-set--wide">
     {% if user.perfil.menu_visible.presupuestos %}<a href="{% url 'cutless:lista_presupuestos' %}" class="btn btn-secondary" data-action="secondary" data-icon="chevron-left">Volver a presupuestos</a>{% endif %}
     <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">
       Editar presupuesto

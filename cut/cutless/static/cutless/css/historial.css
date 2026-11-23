@@ -251,8 +251,6 @@ details summary::-webkit-details-marker {
 
 .btn-mas-opciones { position: relative; }
 
-.btn-mas-opciones[data-bs-toggle="dropdown"]::after { content: ''; display: inline-block; margin-left: 0.5rem; width: 0; vertical-align: middle; }
-
 .action-buttons {
     display: flex;
     gap: 0.5rem;

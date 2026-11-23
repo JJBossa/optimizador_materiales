@@ -82,7 +82,7 @@
             <p class="mb-2"><strong>Tipos de pieza:</strong> {{ plantilla.get_piezas_list|length }}</p>
             <p class="mb-0"><strong>Rotación:</strong> {% if plantilla.permitir_rotacion %}Sí{% else %}No{% endif %}</p>
           </div>
-          <div class="card-footer action-group">
+          <div class="card-footer management-action-set management-action-set--wide">
             <a href="{% url 'cutless:usar_plantilla' plantilla.pk %}" class="btn btn-primary" data-action="primary" data-icon="chevron-right">Cargar plantilla</a>
             <a href="{% url 'cutless:editar_plantilla' plantilla.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
             <a href="{% url 'cutless:eliminar_plantilla' plantilla.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash">Eliminar</a>
@@ -127,7 +127,7 @@
             <p class="mb-2"><strong>Tipos de pieza:</strong> {{ plantilla.get_piezas_list|length }}</p>
             <p class="mb-0"><strong>Rotación:</strong> {% if plantilla.permitir_rotacion %}Sí{% else %}No{% endif %}</p>
           </div>
-          <div class="card-footer action-group">
+          <div class="card-footer management-action-set management-action-set--wide">
             <a href="{% url 'cutless:usar_plantilla' plantilla.pk %}" class="btn btn-primary" data-action="primary" data-icon="chevron-right">Cargar plantilla</a>
             <a href="{% url 'cutless:editar_plantilla' plantilla.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="copy">Crear copia personal</a>
           </div>

@@ -63,7 +63,7 @@
   <!-- Lista de Proyectos -->
   {% if proyectos %}
   <div class="table-responsive fade-in">
-    <table role="table" class="table table-hover mobile-table-cards proyectos-tabla">
+    <table role="table" class="table table-hover mobile-table-cards proyectos-tabla management-action-table">
       <thead role="rowgroup">
         <tr role="row">
           <th role="columnheader" scope="col">Nombre</th>
@@ -101,8 +101,8 @@
             {% endif %}
           </td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de creación</span>{{ proyecto.fecha_creacion|date:"d/m/Y" }}</td>
-          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="action-group">
-            <a href="{% url 'cutless:detalle_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver detalle</a>
+          <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="management-action-set">
+            <a href="{% url 'cutless:detalle_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver detalle</a>
             <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
             <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash">Eliminar</a>
           </div></td>

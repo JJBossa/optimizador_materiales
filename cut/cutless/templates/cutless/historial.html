@@ -4,7 +4,7 @@
 {% block body_class %}review-page history-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'cutless/css/historial.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/historial.css' %}?v=management-actions-2">
 <link rel="stylesheet" href="{% static 'cutless/css/history-result-refinement.css' %}?v=history-selection-4">
 <link rel="stylesheet" href="{% static 'cutless/css/board-landscape.css' %}?v=4">
 {% endblock %}
@@ -195,28 +195,28 @@
               {% endif %}
 
               <a href="{% url 'cutless:resultado' optimizacion.id %}" class="btn w-100 mt-3 btn-secondary" data-action="secondary" data-icon="eye">{% button_icon 'eye' %}Ver resultado</a>
-              <div class="action-buttons mt-3 d-flex gap-2 align-items-center">
+              <div class="action-buttons mt-3 management-action-set">
                 <!-- Botones principales: Editar y Duplicar -->
                 <a href="{% url 'cutless:editar_optimizacion' optimizacion.id %}"
-                   class="btn btn-action btn-edit flex-fill btn-secondary"
+                   class="btn btn-action btn-edit btn-secondary"
                    title="Editar esta optimización" data-action="secondary" data-icon="edit">{% button_icon 'edit' %}
                    Editar
                 </a>
                 <a href="{% url 'cutless:duplicar_optimizacion' optimizacion.id %}?ordenar_por={{ ordenar_por }}{% if solo_favoritos == 'true' %}&solo_favoritos=true{% endif %}{% if nombre_pieza %}&nombre_pieza={{ nombre_pieza|urlencode }}{% endif %}"
-                   class="btn btn-action btn-duplicar flex-fill btn-secondary"
+                   class="btn btn-action btn-duplicar btn-secondary"
                    title="Duplicar esta optimización" data-action="secondary" data-icon="copy">{% button_icon 'copy' %}
-                  <span class="icon"></span> Duplicar
+                  Duplicar
                 </a>
 
                 <!-- Menú desplegable para acciones secundarias -->
-                <div class="dropdown">
-                  <button class="btn btn-action btn-mas-opciones flex-fill btn-secondary"
+                <div class="dropdown management-action-menu">
+                  <button class="btn btn-action btn-mas-opciones btn-secondary"
                           type="button"
                           id="dropdownMenuButton{{ optimizacion.id }}"
                           data-bs-toggle="dropdown"
                           aria-expanded="false"
                           title="Más opciones" data-action="secondary" data-icon="more">{% button_icon 'more' %}
-                    <span class="icon"></span> Más opciones
+                    Más opciones
                   </button>
                   <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton{{ optimizacion.id }}">
                     <li><a class="dropdown-item" href="{% url 'cutless:renombrar_optimizacion' optimizacion.id %}?volver=historial">Cambiar nombre</a></li>

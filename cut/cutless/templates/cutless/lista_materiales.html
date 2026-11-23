@@ -56,7 +56,7 @@
     <p class="management-note">Las medidas de esta biblioteca se muestran en centímetros. Al editar se utiliza la unidad elegida para el material.</p>
     {% if materiales_usuario %}
     <div class="table-responsive">
-      <table role="table" class="table table-hover mobile-table-cards">
+      <table role="table" class="table table-hover mobile-table-cards management-action-table">
         <thead role="rowgroup">
           <tr role="row">
             <th role="columnheader" scope="col">Nombre</th>
@@ -86,8 +86,8 @@
               {% endif %}
             </td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Área</span>{{ material.get_area|floatformat:2 }} cm²</td>
-            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="action-group">
-              <a href="{% url 'cutless:editar_material' material.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="edit"> Editar</a>
+            <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="management-action-set">
+              <a href="{% url 'cutless:editar_material' material.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit"> Editar</a>
               {% if not material.es_predefinido %}
               <a href="{% url 'cutless:eliminar_material' material.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
               {% else %}
@@ -119,7 +119,7 @@
     <h4 class="mb-3">Materiales del sistema</h4>
     <p class="management-note">Están disponibles para preparar cortes. Solo los administradores pueden modificarlos.</p>
     <div class="table-responsive">
-      <table role="table" class="table table-hover mobile-table-cards">
+      <table role="table" class="table table-hover mobile-table-cards management-action-table">
         <thead role="rowgroup">
           <tr role="row">
             <th role="columnheader" scope="col">Nombre</th>
@@ -151,7 +151,7 @@
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Área</span>{{ material.get_area|floatformat:2 }} cm²</td>
             <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
               {% if user.is_superuser or user.perfil.rol == "admin" %}
-              <a href="{% url 'cutless:editar_material' material.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="edit"> Editar</a>
+              <div class="management-action-set"><a href="{% url 'cutless:editar_material' material.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit"> Editar</a></div>
               {% endif %}
               <span class="badge bg-info">Sistema</span>
             </td>

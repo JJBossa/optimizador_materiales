@@ -12,6 +12,37 @@
 .form-action-bar > [data-action="secondary"]:first-child { margin-inline-end: auto; }
 .form-action-bar > [data-action="delete"] { margin-inline-start: auto; }
 .btn[data-action]:disabled, .btn[data-action][aria-disabled="true"] { cursor: not-allowed; }
+
+.management-action-set {
+  --management-action-width: 10rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: .75rem;
+}
+.management-action-set--wide { --management-action-width: 14rem; }
+.management-action-set > .management-action-menu,
+:root body .management-action-set > .btn {
+  flex: none;
+  inline-size: min(100%, var(--management-action-width));
+}
+:root body .management-action-set > .btn,
+:root body .management-action-menu > .btn {
+  min-inline-size: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.management-action-menu > .btn { inline-size: 100%; }
+
+@media (min-width: 576px) {
+  .management-page .management-action-table :is(th, td) {
+    padding-inline: clamp(.5rem, 1.2vw, 1rem);
+    overflow-wrap: anywhere;
+  }
+  .management-page .management-action-table td:last-child { min-width: 0; }
+  .management-action-table .management-action-set { inline-size: var(--management-action-width); }
+  .management-action-table .presupuesto-estado { overflow-wrap: normal; }
+}
 @media (max-width: 600px) {
   .action-group > [data-action="delete"], .action-group > .action-delete-holder { margin-inline-start: auto; }
   .form-action-bar > .btn { flex: 0 1 auto; }
