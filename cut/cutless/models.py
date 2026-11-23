@@ -7,6 +7,7 @@ from django.contrib.auth.models import User
 from decimal import Decimal
 from types import SimpleNamespace
 from django.utils.functional import cached_property
+from .direcciones import NOMBRES_PAISES
 from .units import UNIDADES_CHOICES as OPCIONES_UNIDAD
 
 class Material(models.Model):
@@ -303,12 +304,27 @@ class Cliente(models.Model):
     """
     Modelo para gestionar clientes del usuario.
     """
+    class ModoDireccion(models.TextChoices):
+        LEGADO = 'legado', 'Legado'
+        ESTRUCTURADA = 'estructurada', 'Estructurada'
+        SIN_DATO = 'sin_dato', 'Sin dirección activa'
+
     usuario = models.ForeignKey(User, on_delete=models.CASCADE, help_text="Usuario propietario del cliente")
     nombre = models.CharField(max_length=200, help_text="Nombre completo o razón social")
     rut = models.CharField(max_length=20, blank=True, help_text="RUT o identificación fiscal")
     email = models.EmailField(blank=True, help_text="Correo electrónico")
     telefono = models.CharField(max_length=20, blank=True, help_text="Teléfono de contacto")
     direccion = models.TextField(blank=True, help_text="Dirección completa")
+    direccion_legada_editada = models.TextField(null=True, blank=True)
+    direccion_modo = models.CharField(max_length=12, choices=ModoDireccion.choices, null=True, blank=True)
+    direccion_pais = models.CharField(max_length=2, null=True, blank=True)
+    direccion_calle = models.CharField(max_length=160, null=True, blank=True)
+    direccion_numero = models.CharField(max_length=32, null=True, blank=True)
+    direccion_unidad = models.CharField(max_length=64, null=True, blank=True)
+    direccion_region = models.CharField(max_length=120, null=True, blank=True)
+    direccion_comuna = models.CharField(max_length=120, null=True, blank=True)
+    direccion_localidad = models.CharField(max_length=120, null=True, blank=True)
+    direccion_referencia = models.CharField(max_length=240, null=True, blank=True)
     notas = models.TextField(blank=True, help_text="Notas adicionales sobre el cliente")
     fecha_creacion = models.DateTimeField(auto_now_add=True)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
@@ -322,6 +338,27 @@ class Cliente(models.Model):
     def __str__(self):
         return self.nombre
     
+    @property
+    def direccion_legada(self):
+        if self.direccion_legada_editada is not None:
+            return self.direccion_legada_editada
+        return self.direccion
+
+    @property
+    def direccion_activa(self):
+        if self.direccion_modo == self.ModoDireccion.SIN_DATO:
+            return ''
+        if self.direccion_modo != self.ModoDireccion.ESTRUCTURADA:
+            return self.direccion_legada
+
+        calle = ' '.join(filter(None, (self.direccion_calle, self.direccion_numero)))
+        localidad = self.direccion_localidad
+        if localidad and self.direccion_comuna and localidad.casefold() == self.direccion_comuna.casefold():
+            localidad = None
+        ubicacion = ', '.join(filter(None, (localidad, self.direccion_comuna, self.direccion_region)))
+        pais = NOMBRES_PAISES.get(self.direccion_pais) if self.direccion_pais != 'CL' else None
+        return ', '.join(filter(None, (calle, self.direccion_unidad, ubicacion, pais)))
+
     def get_total_optimizaciones(self):
         """Retorna el número total de optimizaciones para este cliente"""
         return self.optimizacion_set.count()
@@ -494,6 +531,17 @@ class Presupuesto(models.Model):
         return self.estado != 'borrador' and self.detalle_emitido is None
 
     @property
+    def direccion_cotizada(self):
+        cliente = self.cliente_cotizado
+        if cliente is None:
+            return ''
+        if self.detalle_emitido is not None:
+            return getattr(cliente, 'direccion', '')
+        if self.es_historico:
+            return cliente.direccion_legada
+        return cliente.direccion_activa
+
+    @property
     def total_vigente(self):
         return self.calcular_costo_total_multiple() if self.estado == 'borrador' else self.costo_total
 
@@ -508,6 +556,8 @@ class Presupuesto(models.Model):
 
     def cerrar_detalle(self):
         """Conserva el cálculo y los datos de presentación al emitir el presupuesto."""
+        if self.detalle_emitido is not None:
+            return
         cliente = self.cliente
         campos = ('pk', 'codigo', 'etiqueta', 'ancho_tablero', 'alto_tablero',
                   'unidad_medida', 'aprovechamiento_total', 'num_tableros', 'piezas')
@@ -518,8 +568,13 @@ class Presupuesto(models.Model):
         ]
         self.detalle_emitido = {
             'optimizaciones': lineas,
-            'cliente': ({campo: getattr(cliente, campo) for campo in
-                         ('nombre', 'rut', 'email', 'telefono', 'direccion')} if cliente else None),
+            'cliente': ({
+                'nombre': cliente.nombre,
+                'rut': cliente.rut,
+                'email': cliente.email,
+                'telefono': cliente.telefono,
+                'direccion': cliente.direccion_activa,
+            } if cliente else None),
         }
 
     @staticmethod

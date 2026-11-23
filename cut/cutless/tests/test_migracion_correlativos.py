@@ -13,7 +13,6 @@ from cutless.models import ContadorOptimizacion, Optimizacion, Presupuesto, Tabl
 
 class MigracionCorrelativosTests(TransactionTestCase):
     origen = [('cutless', '0006_alter_material_unidad_medida_and_more')]
-    destino = [('cutless', '0008_restricciones_correlativo_optimizacion')]
 
     def test_backfill_historico_en_orden_y_reporte_sin_alterar_relaciones_o_documentos(self):
         ejecutor = MigrationExecutor(connection)
@@ -47,7 +46,8 @@ class MigracionCorrelativosTests(TransactionTestCase):
             previsto = io.StringIO()
             call_command('informe_correlativos_optimizaciones', stdout=previsto)
         finally:
-            MigrationExecutor(connection).migrate(self.destino)
+            ejecutor = MigrationExecutor(connection)
+            ejecutor.migrate(ejecutor.loader.graph.leaf_nodes())
 
         self.assertEqual(dict(Optimizacion.objects.values_list('pk', 'correlativo')), {49: 1, 24: 2, 31: 3, 15: 1})
         self.assertEqual(dict(ContadorOptimizacion.objects.values_list('usuario_id', 'siguiente')),

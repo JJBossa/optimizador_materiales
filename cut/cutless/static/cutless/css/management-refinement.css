@@ -182,3 +182,8 @@ body.admin-users-page .admin-create-form :is(input, select, button):focus-visibl
   body.admin-users-page .admin-pagination { gap: 8px; }
   body.admin-users-page .admin-pagination .btn { padding-right: 10px !important; padding-left: 10px !important; }
 }
+
+.cliente-direccion-texto {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

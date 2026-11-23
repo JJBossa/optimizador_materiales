@@ -76,8 +76,8 @@
         <tr role="row">
           <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Nombre</span>
             <strong>{{ cliente.nombre }}</strong>
-            {% if cliente.direccion %}
-              <br><small class="text-muted">{{ cliente.direccion|truncatewords:5 }}</small>
+            {% if cliente.direccion_activa %}
+              <br><small class="text-muted text-break">{{ cliente.direccion_activa|truncatewords:5 }}</small>
             {% endif %}
           </td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">RUT</span>{{ cliente.rut|default:"—" }}</td>
