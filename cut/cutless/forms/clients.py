@@ -6,6 +6,7 @@ from ..direcciones import DPA_CHILE, NOMBRES_PAISES, REGIONES_CHILE, codigo_por_
 from ..models import Cliente
 from ..validacion_contacto import (
     PAISES_TELEFONICOS,
+    clave_rut_cliente,
     normalizar_rut,
     normalizar_telefono,
     pais_para_telefono_guardado,
@@ -238,7 +239,26 @@ class ClienteForm(forms.ModelForm):
     def clean_rut(self):
         if self._dato_guardado_sin_cambios('rut'):
             return self.instance.rut
-        return normalizar_rut(self.cleaned_data['rut'])
+        rut = normalizar_rut(self.cleaned_data['rut'])
+        propietario = self.user.pk if self.user else self.instance.usuario_id
+        if not rut or propietario is None:
+            return rut
+
+        clave = clave_rut_cliente(rut)
+        otros = (Cliente.objects.filter(usuario_id=propietario)
+                 .exclude(pk=self.instance.pk).exclude(rut='').values_list('rut', flat=True))
+        for guardado in otros.iterator():
+            try:
+                clave_guardada = clave_rut_cliente(guardado)
+            except forms.ValidationError:
+                # Las identificaciones históricas ajenas al formato chileno no compiten por un RUT válido.
+                continue
+            if clave_guardada == clave:
+                raise forms.ValidationError(
+                    'Ya tienes un cliente registrado con este RUT. Revisa la ficha existente antes de crear otro.',
+                    code='duplicado',
+                )
+        return rut
 
     def clean_telefono(self):
         pais_inicial = self.initial['telefono_pais']

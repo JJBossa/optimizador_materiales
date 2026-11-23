@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib import messages
+from django.contrib.auth import get_user_model
 from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import render, redirect, get_object_or_404
@@ -73,6 +74,7 @@ def editar_cliente(request, pk):
     """
     clientes = Cliente.objects.filter(usuario=request.user)
     if request.method == 'POST':
+        bloquear_propietario_para_rut(request)
         clientes = clientes.select_for_update()
     try:
         cliente = clientes.get(pk=pk)
@@ -101,8 +103,17 @@ def formulario_cliente(request, **kwargs):
     return ClienteForm(datos, user=request.user, **kwargs)
 
 
+def bloquear_propietario_para_rut(request):
+    # El propietario existe antes del primer cliente y se bloquea antes de leer o validar la ficha.
+    if 'rut' in request.POST and 'actualizar_ubicacion' not in request.POST:
+        get_user_model().objects.select_for_update().values_list('pk', flat=True).get(pk=request.user.pk)
+
+
+@transaction.atomic
 def crear_cliente(request):
     """Crea un cliente con su dirección opcional."""
+    if request.method == 'POST':
+        bloquear_propietario_para_rut(request)
     form = formulario_cliente(request)
     if form.is_bound and form.is_valid():
         cliente = form.save(commit=False)

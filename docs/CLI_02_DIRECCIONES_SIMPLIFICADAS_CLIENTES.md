@@ -92,6 +92,72 @@ node --test cloudflare/recuperacion/worker.test.mjs
 
 Para Chromium usar una SQLite vacía, migrarla y definir `CUTLESS_TEST_FIXTURE` con la ruta de un archivo temporal nuevo. Cargar los fixtures mediante `python cut/manage.py shell < cut/cutless/tests/browser/fixtures-direcciones-clientes.py`. Levantar `python cut/manage.py runserver 127.0.0.1:8791 --noreload` sobre esa misma base. Configurar `CUTLESS_TEST_ORIGIN=http://127.0.0.1:8791` y `CUTLESS_TEST_BOOTSTRAP` con el CSS de Bootstrap 5.3.0 local. Ejecutar `node cut/cutless/tests/browser/direcciones-clientes.cjs` con Playwright disponible. El archivo de fixtures contiene una sesión sintética temporal. Eliminarlo junto con la base de pruebas al terminar.
 
+## Ampliación de CLI-02 · RUT único por propietario
+
+En la revisión del 23/11/2026 se confirmó que el formulario normalizaba el RUT chileno y permitía dos altas de un mismo propietario con el mismo identificador. `Cliente` tiene unicidad de nombre por usuario. La revisión de formularios, modelos y rutas de registro y perfil no encontró un RUT en las cuentas de CutLess. Los presupuestos pueden dar de alta un cliente solo por nombre, dejando el RUT vacío.
+
+### Regla aplicada
+
+Un RUT chileno válido nuevo o modificado se compara con los RUT de las demás fichas del propietario. La comparación usa el validador módulo 11 existente, reconoce puntos, guion opcional y K/k, y considera equivalentes los ceros a la izquierda del número. El formato de guardado y la admisión de RUT vacío se mantienen. Los valores históricos que no pasan la validación chilena se conservan como estaban y quedan fuera de la comparación. Un RUT de otra cuenta nunca provoca el error.
+
+Si la ficha actual conserva su RUT, el formulario sigue permitiendo editar otros datos, incluso cuando ya existía un grupo duplicado. Esto incluye la actualización de una dirección legada bajo las reglas de CLI-02. Un cambio que lleve el RUT a uno registrado en otra ficha propia se rechaza como error del campo. El formulario retiene los datos y no guarda cambios de contacto o dirección con errores. Las relaciones y las instantáneas emitidas permanecen intactas.
+
+### Auditoría, concurrencia y estrategia de base de datos
+
+Sobre el commit publicado `99f3b180dc8ceb80fb89713e55811a0e966d46b3`, se comprobaron dos respuestas HTTP 302 al crear fichas equivalentes. Con fixtures sintéticos en SQLite y PostgreSQL se localizaron tres grupos de duplicados del mismo propietario, de tamaños 2, 2 y 3. Los casos cubrieron valores idénticos, puntos, K/k, ceros iniciales y espacios exteriores. También hubo dos valores vacíos, dos históricos inválidos y un RUT igual entre dos cuentas independientes. La creación experimental de un índice textual único, excluyendo vacíos, falló en los dos motores por duplicados exactos. Aun en ausencia de duplicados exactos, ese índice permitiría grafías distintas del mismo RUT.
+
+La comprobación evalúa únicamente los RUT de las fichas del mismo propietario. En PostgreSQL, las altas y ediciones que envían el RUT bloquean la fila del propietario con `SELECT ... FOR UPDATE` antes de validar y conservan el bloqueo hasta concluir la transacción. Ambos flujos usan el mismo orden de bloqueo. Las pruebas compiten con dos sesiones independientes en alta/alta y alta/edición. En SQLite se comprueba la validación y atomicidad del formulario, mientras que el bloqueo por fila y sus pruebas corresponden a PostgreSQL.
+
+**Sin migración adicional.** Un índice sobre el texto original no reproduce la normalización. Un índice sobre una clave canónica requeriría diagnosticar primero las colisiones reales y resolverlas de forma autorizada. La protección actual se aplica a los flujos de Clientes que pasan por `ClienteForm` y sus vistas transaccionales. Importaciones futuras, SQL directo y escrituras ORM que omitan esos flujos podrían introducir duplicados. SQLite no ofrece la garantía del bloqueo de fila de PostgreSQL, y escrituras concurrentes podrían sufrir contención del motor. Las migraciones `0009` y `0010` siguen siendo las únicas de esta entrega.
+
+### Diagnóstico y resolución futura
+
+El siguiente diagnóstico de solo lectura agrupa fichas por propietario y clave válida. La salida contiene identificadores internos de ficha y propietario. Ejecutarlo únicamente en un entorno autorizado y mantener la salida privada. Devolver por separado los totales de vacíos e inválidos permite revisar esos casos sin interpretar sus valores como RUT válidos.
+
+```python
+from collections import defaultdict
+from django.core.exceptions import ValidationError
+from cutless.models import Cliente
+from cutless.validacion_contacto import clave_rut_cliente
+
+grupos = defaultdict(list)
+vacios = invalidos = 0
+for propietario, ficha, rut in Cliente.objects.values_list("usuario_id", "pk", "rut").iterator():
+    try:
+        clave = clave_rut_cliente(rut)
+    except ValidationError:
+        invalidos += 1
+        continue
+    if clave:
+        grupos[propietario, clave].append(ficha)
+    else:
+        vacios += 1
+
+for (propietario, _), fichas in grupos.items():
+    if len(fichas) > 1:
+        print(propietario, fichas)
+print("Vacíos", vacios, "Inválidos", invalidos)
+```
+
+Antes de proponer una restricción, revisar cada grupo de forma privada con el responsable de los datos y el propietario autorizado. Verificar asociaciones y documentos y determinar si el RUT está mal asignado o si corresponde conservar dos fichas con identificaciones corregidas. Una posible fusión de fichas exigiría un cambio independiente, un plan para cada asociación y aprobación explícita. Repetir el diagnóstico hasta aclarar todas las colisiones. Si se aprueba reforzar la base, añadir primero una clave normalizada nullable sin reescribir `rut`. Definir cómo la completarán todas las vías de escritura, probar ambos motores y añadir la restricción condicional por propietario solo después de verificar que los datos permiten activarla. El respaldo y la coordinación de `0010` descritos en CLI-02 siguen siendo condiciones para fusionar. Esta corrección de RUT no introduce otro paso de migración.
+
+### Verificación de la ampliación
+
+- [Pruebas Django de contacto](../cut/cutless/tests/test_contacto_clientes.py) cubren altas nuevas y repetidas, grafías, K/k, dos propietarios, RUT vacío, autoexclusión al editar, conservación histórica, rechazo sin escrituras y concurrencia PostgreSQL. La prueba de asociaciones vuelve a verificar el proyecto, los planes, el presupuesto y la instantánea después de intentar una edición con RUT repetido.
+- [Pruebas Chromium](../cut/cutless/tests/browser/direcciones-clientes.cjs) comprueban a 390 px el mensaje de RUT, su asociación accesible y la conservación de la dirección y del RUT introducido, con y sin JavaScript. La misma ejecución recorre CLI-02 a 320, 390, 768 y 1280 px.
+
+| Ejecución de la ampliación | Aprobadas | Omitidas | Fallidas o errores |
+| --- | ---: | ---: | ---: |
+| Contacto, presupuestos, gestión y exportaciones · PostgreSQL | 34 | 0 | 0 |
+| Contacto, presupuestos, gestión y exportaciones · SQLite | 31 | 3 | 0 |
+| Direcciones CLI-02 · cada motor | 10 | 0 | 0 |
+| Django completa · PostgreSQL 16.2 | 467 | 0 | 0 |
+| Django completa · SQLite 3.50.4 | 459 | 8 | 0 |
+| Node y Worker simulado | 67 + 8 | 0 | 0 |
+| Chromium es-CL | 8 recorridos, con 2 comprobaciones de duplicado a 390 px | 0 | 0 |
+
+SQLite omitió las pruebas que requieren `select_for_update`. La suite de Chromium verificó la persistencia de 8 altas y 8 actualizaciones de dirección. `makemigrations --check --dry-run` no detectó cambios en ambos motores y `git diff --check` pasó.
+
 ## Archivos afectados
 
 - `cut/cutless/direcciones.py` y `dpa_chile.json` proporcionan el catálogo y el acceso a nombres territoriales.

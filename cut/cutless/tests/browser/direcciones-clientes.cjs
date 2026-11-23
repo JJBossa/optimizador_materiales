@@ -81,6 +81,22 @@ async function probar(context, ancho, modo) {
   assert.equal(await page.locator('#id_direccion_comuna').inputValue(), '08109');
   assert.equal(await bloque.locator('#id_direccion_calle').getAttribute('aria-invalid'), 'true');
   await calle.fill('Pasaje Sintético');
+  if (ancho === 390) {
+    const rut = page.getByLabel('RUT', { exact: true });
+    const repetido = js ? '1000005-K' : '1.000.005-K';
+    await rut.fill(repetido);
+    await guardar(page, fixture.crear, 'Crear cliente', 200);
+    const error = page.locator('#id_rut_error');
+    await error.waitFor();
+    assert.match(await error.textContent(), /Ya tienes un cliente registrado con este RUT/);
+    assert.equal(await rut.getAttribute('aria-invalid'), 'true');
+    assert.match(await rut.getAttribute('aria-describedby'), /\bid_rut_error\b/);
+    assert.equal(await rut.inputValue(), repetido);
+    assert.equal(await calle.inputValue(), 'Pasaje Sintético');
+    assert.equal(await page.locator('#id_direccion_comuna').inputValue(), '08109');
+    await rut.fill('');
+    console.log(`RUT duplicado rechazado en ${escenario}; dirección y entrada conservadas.`);
+  }
   await guardar(page, fixture.crear, 'Crear cliente', 302);
   await page.getByText(`CLI-02 Crear ${escenario}`, { exact: true }).waitFor();
 

@@ -21,6 +21,7 @@ usuario.perfil.puede_crear_clientes = True
 usuario.perfil.preferencias_menu = {'_inicio_completado': True}
 usuario.perfil.tutorial_completado = True
 usuario.perfil.save()
+Cliente.objects.create(usuario=usuario, nombre='Ficha sintética con RUT', rut='1.000.005-k')
 sesion = Client()
 sesion.force_login(usuario)
 direccion = '  Pasaje Chromium 12-A\r\nUnidad S/N\n  Texto <legado>  '
