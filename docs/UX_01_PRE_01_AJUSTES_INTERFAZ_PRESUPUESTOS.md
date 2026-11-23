@@ -1,4 +1,4 @@
-# UX-01 y PRE-01 en CutLess
+# UX-01, PRE-01 y VIS-01 en CutLess
 
 La rama `fix/ux01-pre01-modal-fechas` parte de `upstream/main` en `a43a5264dc3d951271b4ebe544830a9624b8f6ef`, SHA contrastado con la referencia remota antes de crear la rama. Esa revisión incorpora CLI-02. [PR #26](https://github.com/gy0kuroo/optimizador_materiales/pull/26)
 
@@ -30,7 +30,22 @@ Las ediciones con una instancia existente mantienen sus reglas. Se comprobó la 
 | Móvil, 390 × 844 | [Fecha anterior aceptada por el control](evidencia/ux01-pre01/pre-antes-390.png) | [Error del servidor y fecha conservada](evidencia/ux01-pre01/pre-despues-390.png) |
 | Escritorio, 1280 × 920 | [Fecha anterior aceptada por el control](evidencia/ux01-pre01/pre-antes-1280.png) | [Error del servidor y fecha conservada](evidencia/ux01-pre01/pre-despues-1280.png) |
 
-## Verificación local
+## VIS-01 · Etiquetas de estado de Proyectos
+
+Planificación, En Proceso, Completado y Cancelado tomaban el ancho de su texto y del relleno compartido. El listado y el detalle aplican ahora la clase `proyecto-estado` al badge existente. El ancho de `7.5em` se ajusta a la tipografía y el máximo del 100 % respeta el espacio del contenedor. Flexbox centra el texto en ambos ejes. El relleno horizontal deja espacio para «Planificación» y se conservan el alto de línea, el relleno vertical, la tipografía, el fondo y el borde de cada estado.
+
+Entre 576 y 991 px, el listado de Proyectos usa menos relleno lateral en las celdas y permite que los textos y la columna de acciones se ajusten al ancho disponible. Esto conserva la tabla en tablet y las tarjetas existentes en móvil. El cambio se limita a las etiquetas de estado y a la tabla del listado de Proyectos. [Prueba de Chromium](../cut/cutless/tests/browser/estados-proyectos.cjs)
+
+En el listado, las etiquetas medían entre 99,75 y 117,44 px de ancho. Con el ajuste, las cuatro miden 120 × 42 px en el listado y el detalle a 320, 390, 768 y 1280 px, tanto en tema claro como oscuro. A 768 px, el desbordamiento del contenedor de la tabla pasó de 134 a 0 px.
+
+| Viewport y tema | Antes | Después |
+| --- | --- | --- |
+| Móvil, 390 × 844, claro | [Cuatro estados](evidencia/ux01-pre01/vis01-antes-390.png) | [Cuatro estados alineados](evidencia/ux01-pre01/vis01-despues-390.png) |
+| Escritorio, 1280 × 920, oscuro | [Cuatro estados](evidencia/ux01-pre01/vis01-antes-1280.png) | [Cuatro estados alineados](evidencia/ux01-pre01/vis01-despues-1280.png) |
+
+Para repetir la medición, cargar `fixtures-estados-proyectos.py` en una SQLite vacía. Ejecutar `estados-proyectos.cjs` con `CUTLESS_TEST_FIXTURE`, `CUTLESS_TEST_ORIGIN` y `CUTLESS_TEST_BOOTSTRAP`. Para comparar con la revisión anterior (`32da65ce730864c7a328d1f157d0550c4904d146`), usar `CUTLESS_TEST_BASE` con un segundo servidor local y los mismos datos y clave de sesión de desarrollo.
+
+## Verificación local de UX-01 y PRE-01
 
 Python 3.13.12, Django 5.2.19, SQLite 3.50.4, PostgreSQL 16.16 local, Node.js 24.22.1 y Chromium 156.0.8078.79 con `es-CL`. Chromium usó cuentas y datos sintéticos, un servidor en loopback y una copia local de Bootstrap. Las solicitudes fuera del origen local se bloquearon o se sirvieron desde esa copia.
 

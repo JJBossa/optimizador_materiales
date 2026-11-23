@@ -4,7 +4,7 @@
 {% block body_class %}management-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=buttons-1">
+<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=proyecto-estado-1">
 {% endblock %}
 
 {% block content %}
@@ -63,7 +63,7 @@
   <!-- Lista de Proyectos -->
   {% if proyectos %}
   <div class="table-responsive fade-in">
-    <table role="table" class="table table-hover mobile-table-cards">
+    <table role="table" class="table table-hover mobile-table-cards proyectos-tabla">
       <thead role="rowgroup">
         <tr role="row">
           <th role="columnheader" scope="col">Nombre</th>
@@ -86,7 +86,7 @@
           </td>
           <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Cliente</span>{{ proyecto.cliente.nombre|default:"Sin cliente" }}</td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Estado</span>
-            <span class="badge bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
+            <span class="badge proyecto-estado bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
               {{ proyecto.get_estado_display }}
             </span>
           </td>

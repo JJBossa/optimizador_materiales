@@ -50,6 +50,20 @@
 .project-optimization-search { padding: 16px; border: 1px solid var(--cl-border); border-radius: 12px; background: var(--cl-bg-surface); }
 .project-optimization-search .form-control { background: var(--cl-bg-card); color: var(--cl-text-primary); border-color: var(--cl-border-strong); }
 .project-optimization-option[hidden] { display: none !important; }
+.proyecto-estado {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  inline-size: 7.5em;
+  max-inline-size: 100%;
+  padding-inline: .375em;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+@media (min-width: 576px) and (max-width: 991px) {
+  .management-page .proyectos-tabla :is(th, td) { padding-inline: .5rem; overflow-wrap: anywhere; }
+  .management-page .proyectos-tabla td:last-child { min-width: 0; }
+}
 
 body.admin-users-page .admin-users-header { align-items: center; margin-bottom: 24px; }
 body.admin-users-page .admin-users-header .page-header__actions { align-items: center; }
