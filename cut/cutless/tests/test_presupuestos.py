@@ -167,7 +167,7 @@ class PresupuestoVencimientoLocalTests(TestCase):
                                      original)
 
 
-class PresupuestoFechaCreacionTests(TestCase):
+class PresupuestoFechaValidezTests(TestCase):
     def setUp(self):
         self.instante = datetime(2026, 7, 15, 3, 59, tzinfo=UTC)
         self.reloj = self.enterContext(patch('django.utils.timezone.now', return_value=self.instante))
@@ -278,22 +278,157 @@ class PresupuestoFechaCreacionTests(TestCase):
                     self.assertContains(envio, f'min="{instante.date().isoformat()}"')
         self.assertFalse(Presupuesto.objects.exists())
 
-    def test_borrador_historico_con_fecha_pasada_se_puede_editar(self):
+    def crear_borrador(self, fecha, numero='PRE-BORRADOR'):
         presupuesto = Presupuesto.objects.create(
-            usuario=self.usuario, cliente=self.ficha, proyecto=self.proyecto, numero='PRE-BORRADOR',
-            precio_tablero=100, mano_obra=20, costo_total=220, fecha_validez=self.ayer,
+            usuario=self.usuario, cliente=self.ficha, proyecto=self.proyecto, numero=numero,
+            precio_tablero='150.50', mano_obra='25.25', costo_total='326.25', fecha_validez=fecha,
         )
         presupuesto.optimizaciones.add(self.plan)
-        ruta = reverse('cutless:editar_presupuesto', args=[presupuesto.pk])
-        form = self.client.get(ruta).context['form']
+        return presupuesto, reverse('cutless:editar_presupuesto', args=[presupuesto.pk])
+
+    def test_edicion_rechaza_fecha_pasada_y_muestra_el_error_junto_al_campo(self):
+        presupuesto, ruta = self.crear_borrador(self.hoy + timedelta(days=1))
+        normal = self.client.get(ruta)
+        self.assertEqual(normal.context['form']['fecha_validez'].value(), presupuesto.fecha_validez)
+        self.assertContains(normal, f'min="{self.hoy.isoformat()}"')
+        antes = Presupuesto.objects.values().get(pk=presupuesto.pk)
+
+        respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': self.ayer.isoformat()})
+
+        self.assertContains(respuesta,
+                            'La fecha de validez no puede ser anterior a hoy. Selecciona la fecha actual o una posterior.')
+        self.assertContains(respuesta, 'aria-invalid="true"')
+        self.assertContains(respuesta, 'aria-describedby="id_fecha_validez_helptext id_fecha_validez_error"')
+        self.assertContains(respuesta, 'id="id_fecha_validez_error"')
+        self.assertContains(respuesta, 'id="id_fecha_validez_helptext"')
+        form = respuesta.context['form']
+        self.assertTrue(form.has_error('fecha_validez', 'fecha_pasada'))
+        self.assertEqual(form['fecha_validez'].value(), self.ayer.isoformat())
+        self.assertEqual(form['notas'].value(), self.datos['notas'])
+        self.assertEqual(Presupuesto.objects.values().get(pk=presupuesto.pk), antes)
+
+    def test_edicion_acepta_hoy_y_una_fecha_futura(self):
+        for original in (self.ayer, self.hoy + timedelta(days=3)):
+            for fecha in (self.hoy, self.hoy + timedelta(days=1)):
+                with self.subTest(original=original, fecha=fecha):
+                    presupuesto, ruta = self.crear_borrador(original, numero=f'PRE-{original}-{fecha}')
+                    respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': fecha.isoformat()})
+                    self.assertRedirects(respuesta, reverse('cutless:detalle_presupuesto', args=[presupuesto.pk]))
+                    presupuesto.refresh_from_db()
+                    self.assertEqual(presupuesto.fecha_validez, fecha)
+                    self.assertContains(self.client.get(ruta), f'min="{self.hoy.isoformat()}"')
+
+    def test_borrador_historico_con_fecha_pasada_se_puede_editar(self):
+        presupuesto, ruta = self.crear_borrador(self.ayer)
+        apertura = self.client.get(ruta)
+        form = apertura.context['form']
         self.assertEqual(form['fecha_validez'].value(), self.ayer)
         self.assertNotIn('min', form.fields['fecha_validez'].widget.attrs)
+        self.assertContains(apertura, 'Puedes conservar la fecha vencida guardada')
         respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': self.ayer.isoformat()})
         self.assertEqual(respuesta.status_code, 302)
         presupuesto.refresh_from_db()
         self.assertEqual(presupuesto.fecha_validez, self.ayer)
         self.assertEqual(presupuesto.notas, self.datos['notas'])
         self.assertEqual(list(presupuesto.optimizaciones.all()), [self.plan])
+
+    def test_borrador_vencido_rechaza_otra_fecha_pasada_y_fecha_omitida(self):
+        anterior = self.hoy - timedelta(days=5)
+        presupuesto, ruta = self.crear_borrador(anterior)
+        for fecha in (anterior - timedelta(days=1), self.ayer):
+            with self.subTest(fecha=fecha):
+                respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': fecha.isoformat()})
+                self.assertTrue(respuesta.context['form'].has_error('fecha_validez', 'fecha_pasada'))
+        datos = {campo: valor for campo, valor in self.datos.items() if campo != 'fecha_validez'}
+        respuesta = self.client.post(ruta, datos)
+        self.assertTrue(respuesta.context['form'].has_error('fecha_validez', 'required'))
+        presupuesto.refresh_from_db()
+        self.assertEqual((presupuesto.fecha_validez, presupuesto.notas), (anterior, ''))
+
+    def test_post_manipulado_solo_considera_la_fecha_guardada_en_la_instancia(self):
+        vencido, _ = self.crear_borrador(self.ayer, numero='PRE-VENCIDO')
+        presupuesto, ruta = self.crear_borrador(self.hoy)
+        pasado = self.ayer.isoformat()
+        respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': [self.hoy.isoformat(), pasado],
+                                           'initial-fecha_validez': pasado, 'fecha_validez_original': pasado,
+                                           'hoy': pasado, 'id': vencido.pk})
+        self.assertTrue(respuesta.context['form'].has_error('fecha_validez', 'fecha_pasada'))
+        presupuesto.refresh_from_db()
+        vencido.refresh_from_db()
+        self.assertEqual((presupuesto.fecha_validez, presupuesto.notas), (self.hoy, ''))
+        self.assertEqual((vencido.fecha_validez, vencido.notas), (self.ayer, ''))
+
+    def test_post_de_formulario_obsoleto_valida_contra_la_fecha_vigente_en_base(self):
+        presupuesto, ruta = self.crear_borrador(self.ayer)
+        self.assertEqual(self.client.get(ruta).context['form']['fecha_validez'].value(), self.ayer)
+        Presupuesto.objects.filter(pk=presupuesto.pk).update(fecha_validez=self.hoy)
+        respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': self.ayer.isoformat()})
+        self.assertTrue(respuesta.context['form'].has_error('fecha_validez', 'fecha_pasada'))
+        presupuesto.refresh_from_db()
+        self.assertEqual((presupuesto.fecha_validez, presupuesto.notas), (self.hoy, ''))
+
+    def test_edicion_usa_medianoche_chilena_en_invierno_y_verano(self):
+        with timezone.override('UTC'):
+            for instante in (self.instante, datetime(2026, 1, 15, 2, 59, tzinfo=UTC)):
+                with self.subTest(instante=instante):
+                    dia_chile = instante.date() - timedelta(days=1)
+                    vigente, ruta_vigente = self.crear_borrador(instante.date(), f'PRE-VIGENTE-{instante.month}')
+                    legado, ruta_legado = self.crear_borrador(dia_chile, f'PRE-LEGADO-{instante.month}')
+                    medianoche_utc = instante.replace(hour=0, minute=0)
+                    for momento in (medianoche_utc - timedelta(minutes=1), medianoche_utc, instante):
+                        self.reloj.return_value = momento
+                        self.assertContains(self.client.get(ruta_vigente), f'min="{dia_chile.isoformat()}"')
+                    datos = {**self.datos, 'fecha_validez': dia_chile.isoformat()}
+                    self.assertEqual(self.client.post(ruta_vigente, datos).status_code, 302)
+                    Presupuesto.objects.filter(pk=vigente.pk).update(fecha_validez=instante.date())
+                    self.reloj.return_value = instante + timedelta(minutes=1)
+                    respuesta = self.client.post(ruta_vigente, datos)
+                    self.assertTrue(respuesta.context['form'].has_error('fecha_validez', 'fecha_pasada'))
+                    self.assertContains(respuesta, f'min="{instante.date().isoformat()}"')
+                    self.assertEqual(self.client.post(ruta_legado, datos).status_code, 302)
+                    legado.refresh_from_db()
+                    self.assertEqual(legado.fecha_validez, dia_chile)
+
+    def test_edicion_respeta_propietario_y_permiso_incluso_con_fecha_historica(self):
+        otra_cuenta = User.objects.create_user('pre02-ajeno')
+        ajeno = Presupuesto.objects.create(usuario=otra_cuenta, numero='PRE-AJENO', precio_tablero=100,
+                                          costo_total=0, fecha_validez=self.ayer)
+        ruta_ajena = reverse('cutless:editar_presupuesto', args=[ajeno.pk])
+        datos = {**self.datos, 'fecha_validez': self.ayer.isoformat(), 'usuario': self.usuario.pk}
+        for respuesta in (self.client.get(ruta_ajena), self.client.post(ruta_ajena, datos)):
+            self.assertRedirects(respuesta, reverse('cutless:lista_presupuestos'), fetch_redirect_response=False)
+        ajeno.refresh_from_db()
+        self.assertEqual((ajeno.usuario, ajeno.fecha_validez, ajeno.notas), (otra_cuenta, self.ayer, ''))
+
+        propio, ruta_propia = self.crear_borrador(self.ayer)
+        self.usuario.perfil.puede_crear_presupuestos = False
+        self.usuario.perfil.save(update_fields=['puede_crear_presupuestos'])
+        self.assertRedirects(self.client.post(ruta_propia, datos), reverse('cutless:index'))
+        propio.refresh_from_db()
+        self.assertEqual((propio.fecha_validez, propio.notas), (self.ayer, ''))
+
+    def test_post_en_emitidos_solo_puede_cambiar_estado_y_conserva_snapshot_y_pdf(self):
+        with TemporaryDirectory() as media, self.settings(MEDIA_ROOT=media):
+            for estado, detalle in (('enviado', {'cliente': None, 'optimizaciones': []}), ('vencido', None)):
+                with self.subTest(estado=estado):
+                    presupuesto, ruta = self.crear_borrador(self.ayer, f'PRE-{estado}')
+                    archivo = Path(media) / f'{estado}.pdf'
+                    contenido = b'%PDF-1.4\nArchivo sintetico de PRE-02\n%%EOF\n'
+                    archivo.write_bytes(contenido)
+                    presupuesto.estado = estado
+                    presupuesto.detalle_emitido = detalle
+                    presupuesto.pdf = archivo.name
+                    presupuesto.save(update_fields=['estado', 'detalle_emitido', 'pdf'])
+                    antes = Presupuesto.objects.values().get(pk=presupuesto.pk)
+                    datos = {**self.datos, 'fecha_validez': self.hoy.isoformat(), 'estado': 'borrador'}
+                    self.assertNotContains(self.client.get(ruta), 'name="fecha_validez"')
+                    self.assertTrue(self.client.post(ruta, datos).context['form'].has_error('estado', 'invalid_choice'))
+                    self.assertEqual(Presupuesto.objects.values().get(pk=presupuesto.pk), antes)
+                    self.assertEqual(self.client.post(ruta, {**datos, 'estado': 'aceptado'}).status_code, 302)
+                    despues = Presupuesto.objects.values().get(pk=presupuesto.pk)
+                    self.assertEqual(despues, {**antes, 'estado': 'aceptado',
+                                              'fecha_actualizacion': self.reloj.return_value})
+                    self.assertEqual(archivo.read_bytes(), contenido)
 
     def test_vencido_historico_consultable_y_pdf_guardado_intacto(self):
         with TemporaryDirectory() as media, self.settings(MEDIA_ROOT=media):

@@ -38,10 +38,9 @@ class PresupuestoForm(forms.ModelForm):
                 'step': '0.01',
                 'min': '0'
             }),
-            'fecha_validez': forms.DateInput(attrs={
+            'fecha_validez': forms.DateInput(format='%Y-%m-%d', attrs={
                 'class': 'form-control',
-                'type': 'date',
-                'format': '%Y-%m-%d'
+                'type': 'date'
             }),
             'notas': forms.Textarea(attrs={
                 'class': 'form-control',
@@ -70,16 +69,22 @@ class PresupuestoForm(forms.ModelForm):
         user = kwargs.pop('user', None)
         instance = kwargs.get('instance', None)
         super().__init__(*args, **kwargs)
-        self.es_creacion = instance is None
-        
-        # Hacer el campo cliente opcional
+        self._hoy = timezone.localdate(timezone=timezone.get_default_timezone())
+        es_creacion = self.instance._state.adding
+        self._fecha_guardada = None
+        if (not es_creacion and self.instance.estado == 'borrador'
+                and user is not None and self.instance.usuario_id == user.pk):
+            self._fecha_guardada = self.instance.fecha_validez
+
+        campo_fecha = self.fields['fecha_validez']
+        if self._fecha_guardada is not None and self._fecha_guardada < self._hoy:
+            campo_fecha.help_text = 'Puedes conservar la fecha vencida guardada o elegir hoy o una fecha posterior.'
+        else:
+            campo_fecha.widget.attrs['min'] = self._hoy.isoformat()
+        if es_creacion and not self.is_bound:
+            self.initial.setdefault('fecha_validez', self._hoy)
+
         self.fields['cliente'].required = False
-        self.fields['fecha_validez'].widget.format = '%Y-%m-%d'
-        if self.es_creacion:
-            hoy = timezone.localdate(timezone=timezone.get_default_timezone())
-            self.fields['fecha_validez'].widget.attrs['min'] = hoy.isoformat()
-            if not self.is_bound:
-                self.initial.setdefault('fecha_validez', hoy)
         
         for campo in ('cliente', 'optimizaciones', 'proyecto'):
             self.fields[campo].queryset = self.fields[campo].queryset.none()
@@ -99,17 +104,12 @@ class PresupuestoForm(forms.ModelForm):
             # Filtrar proyectos del usuario
             self.fields['proyecto'].queryset = Proyecto.objects.filter(usuario=user).order_by('-fecha_creacion')
         
-        # Si es edición, asegurar que la fecha_validez se muestre correctamente
-        if instance and instance.fecha_validez:
-            # Convertir la fecha a formato ISO (YYYY-MM-DD) para el campo type='date'
-            self.fields['fecha_validez'].initial = instance.fecha_validez.strftime('%Y-%m-%d')
-        
         # No duplicar el cliente seleccionado en la alternativa de creación.
         self.fields['nombre_cliente_nuevo'].initial = ''
 
     def clean_fecha_validez(self):
         fecha = self.cleaned_data['fecha_validez']
-        if self.es_creacion and fecha < timezone.localdate(timezone=timezone.get_default_timezone()):
+        if fecha < self._hoy and fecha != self._fecha_guardada:
             raise forms.ValidationError(
                 'La fecha de validez no puede ser anterior a hoy. Selecciona la fecha actual o una posterior.',
                 code='fecha_pasada',

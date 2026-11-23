@@ -11,7 +11,7 @@ from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
-from cutless.models import Cliente, Optimizacion, Proyecto
+from cutless.models import Cliente, Optimizacion, Presupuesto, Proyecto
 
 
 if settings.CUTLESS_ENV != 'development' or settings.DATABASES['default']['ENGINE'] != 'django.db.backends.sqlite3':
@@ -32,7 +32,19 @@ plan = Optimizacion.objects.create(
 )
 sesion = Client()
 sesion.force_login(usuario)
-hoy = timezone.localdate()
+hoy = timezone.localdate(timezone=timezone.get_default_timezone())
+vencida = hoy - timedelta(days=5)
+edicion = []
+for indice in range(4):
+    borradores = {}
+    for tipo, fecha in (('vigente', hoy + timedelta(days=3)), ('vencido', vencida)):
+        presupuesto = Presupuesto.objects.create(
+            usuario=usuario, cliente=cliente, proyecto=proyecto, numero=f'PRE-02-{indice + 1}-{tipo.upper()}',
+            precio_tablero='150.50', mano_obra='25.25', costo_total='326.25', fecha_validez=fecha,
+        )
+        presupuesto.optimizaciones.add(plan)
+        borradores[tipo] = reverse('cutless:editar_presupuesto', args=[presupuesto.pk])
+    edicion.append(borradores)
 
 with Path(os.environ['CUTLESS_TEST_FIXTURE']).open('x', encoding='utf-8') as salida:
     json.dump({
@@ -40,6 +52,9 @@ with Path(os.environ['CUTLESS_TEST_FIXTURE']).open('x', encoding='utf-8') as sal
         'crear': reverse('cutless:crear_presupuesto'),
         'hoy': hoy.isoformat(),
         'ayer': (hoy - timedelta(days=1)).isoformat(),
+        'manana': (hoy + timedelta(days=1)).isoformat(),
+        'vencida': vencida.isoformat(),
+        'edicion': edicion,
         'cliente': cliente.pk,
         'proyecto': proyecto.pk,
         'plan': plan.pk,
