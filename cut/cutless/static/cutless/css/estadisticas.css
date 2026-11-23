@@ -28,11 +28,10 @@
 .statistics-page .table { --bs-table-bg: var(--cl-bg-card); --bs-table-color: var(--cl-text-primary); --bs-table-striped-bg: var(--cl-bg-surface); --bs-table-striped-color: var(--cl-text-primary); --bs-table-hover-bg: var(--cl-bg-surface); --bs-table-hover-color: var(--cl-text-primary); --bs-table-border-color: var(--cl-border); }
 .statistics-page .table th, .statistics-page .table td { padding: 16px; vertical-align: middle; }
 .statistics-page .table thead { background: var(--cl-bg-surface); }
-.statistics-page .table td:last-child { min-width: 180px; }
-.statistics-page .table .btn { margin: 4px 0; }
+.statistics-page .table :is(th, td) { overflow-wrap: anywhere; }
 .statistics-page .stats-percentage { font-weight: 700; white-space: nowrap; }
 .statistics-page summary { cursor: pointer; min-height: 48px; padding: 10px 0; color: var(--cl-text-primary); text-decoration: underline; text-underline-offset: 3px; }
-.statistics-page details .mt-2 { font-size: 1rem; min-width: 220px; }
+.statistics-page details .mt-2 { font-size: 1rem; }
 .statistics-page .card-empty-state { padding: 32px; }
 .statistics-page .modal-content { background: var(--cl-bg-card); color: var(--cl-text-primary); }
 .statistics-page .modal-header, .statistics-page .modal-footer { background: var(--cl-bg-surface); color: var(--cl-text-primary); border-color: var(--cl-border); gap: 12px; }
