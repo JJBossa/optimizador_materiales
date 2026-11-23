@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { chromium } = require('playwright');
+const { chromium, devices } = require('playwright');
 const { contexto, fixture, origen } = require('./estadisticas-descargas-helpers.cjs');
 
 const evidencia = process.env.CUTLESS_TEST_EVIDENCE;
@@ -202,11 +202,12 @@ async function verificarRegreso(page, context) {
   console.log('Atrás restaura la página sin espera pendiente tras interrumpir la preparación.');
 }
 
-(async () => {
+async function main() {
   const browser = await chromium.launch({ executablePath: process.env.CUTLESS_TEST_CHROMIUM });
   try {
+    const plataforma = process.env.CUTLESS_TEST_WINDOWS_UA ? devices['Desktop Chrome'].userAgent : undefined;
     const movil = await contexto(browser, origen, {
-      viewport: { width: 390, height: 844 }, colorScheme: 'light', reducedMotion: 'reduce',
+      userAgent: plataforma, viewport: { width: 390, height: 844 }, colorScheme: 'light', reducedMotion: 'reduce',
     });
     const page = await movil.newPage();
     await page.clock.install();
@@ -226,7 +227,9 @@ async function verificarRegreso(page, context) {
     await verificarErrores(page, movil);
     await movil.close();
 
-    const escritorio = await contexto(browser, origen, { viewport: { width: 1280, height: 900 }, colorScheme: 'dark' });
+    const escritorio = await contexto(browser, origen, {
+      userAgent: plataforma, viewport: { width: 1280, height: 900 }, colorScheme: 'dark',
+    });
     await verificarDescarga(await escritorio.newPage(), escritorio, ['historial', 'excel'], { captura: 'escritorio' });
     await escritorio.close();
 
@@ -240,4 +243,7 @@ async function verificarRegreso(page, context) {
   } finally {
     await browser.close();
   }
-})().catch(error => { console.error(error); process.exitCode = 1; });
+}
+
+if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { abrir, boton, casos, comprobarArchivo, nombres };

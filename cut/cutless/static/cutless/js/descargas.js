@@ -1,6 +1,23 @@
 (() => {
   'use strict';
 
+  const agente = navigator.userAgent;
+  const esIOS = /iPhone|iPad|iPod/.test(agente)
+    || (/Macintosh/.test(agente) && navigator.maxTouchPoints > 1);
+  if (esIOS) {
+    // Safari en iOS puede mostrar PDF y PNG desde una pestaña iniciada por el toque.
+    // La activación nativa también deja que el navegador se encargue de Excel.
+    const ayuda = 'cutless-download-ios-help';
+    for (const enlace of document.querySelectorAll('a[data-descarga="pdf"], a[data-descarga="png"]')) {
+      if (enlace.origin !== location.origin) continue;
+      enlace.target = '_blank';
+      enlace.relList.add('noopener');
+      const descripcion = enlace.getAttribute('aria-describedby');
+      enlace.setAttribute('aria-describedby', descripcion ? `${descripcion} ${ayuda}` : ayuda);
+    }
+    return;
+  }
+
   const mensajes = {
     pdf: 'Generando documento PDF...',
     excel: 'Preparando archivo Excel...',
