@@ -29,6 +29,19 @@ La evidencia muestra que las rutas de PDF y PNG respondieron desde una pestaña 
 
 Las 13 ubicaciones de enlace y las dos variantes archivadas abarcan ocho rutas de exportación. En Estadísticas, las imágenes de gráfico sirven a los visores. «Imprimir plan», en Historial y Resultado, abre una vista de impresión del navegador. Se verificó que esas acciones tienen flujos separados de la descarga de archivos. [Mapa de rutas](../cut/cutless/urls.py) · [Respuestas observadas por UX-04](../cut/cutless/descargas.py)
 
+## Revisión previa al PR · Enlaces y contenido dinámico
+
+En `e9fb3c1`, todos los enlaces interactivos de PDF y PNG del inventario llegan en el HTML inicial de sus páginas. El script diferido `descargas.js` los encuentra incluso si están en un menú cerrado o en un tablero oculto. La revisión permite conservar la inicialización actual.
+
+| Flujo revisado | Qué ocurre después de cargar la página |
+| --- | --- |
+| Resultado | La plantilla renderiza el PDF y el PNG de cada tablero. Cambiar de tablero alterna la visibilidad de los paneles existentes. La animación solo añade marcadores de carga. [Plantilla de Resultado](../cut/cutless/templates/cutless/resultado.html) · [Plantilla del PNG](../cut/cutless/templates/cutless/includes/board-layout.html) · [Paginación](../cut/cutless/static/cutless/js/board-deck.js) · [Animación](../cut/cutless/static/cutless/js/result-reveal.js) |
+| Visor de Resultado | Clona únicamente el dibujo, los datos y el detalle de piezas. El enlace PNG permanece en la cabecera del panel original. [Visor de Resultado](../cut/cutless/static/cutless/js/board-viewer.js) |
+| Visor de Historial | La API devuelve un fragmento con el enlace PNG en la cabecera. El visor inserta solo el dibujo o la imagen, el resumen y las piezas, también al recorrer tableros antiguos. El PNG y el PDF accesibles en Historial pertenecen al menú «Más opciones» renderizado en la página. [Respuesta de la API](../cut/cutless/views/exports.py) · [Visor de Historial](../cut/cutless/static/cutless/js/history-board-viewer.js) · [Menú de Historial](../cut/cutless/templates/cutless/historial.html) |
+| Gráfico de Estadísticas y lupa de escritorio | El visor de gráficos inserta una imagen. La lupa clona una copia visual inerte, fuera de la interacción del usuario. [Gráfico de Estadísticas](../cut/cutless/templates/cutless/estadisticas.html) · [Lupa](../cut/cutless/static/cutless/js/magnifier.js) |
+
+En Chromium 156 con perfil de iPhone 13 y un plan sintético de tres tableros, se observaron las inserciones en el DOM desde el fin del análisis del HTML. El PDF y los tres PNG de Resultado conservaron sus nodos, `href`, `target="_blank"` y `aria-describedby` durante la animación, la paginación y el visor. Se comprobó también que los cuatro `href` llegan con JavaScript desactivado. En Historial, las dos respuestas inspeccionadas de la API contenían el PNG y el visor mantuvo cero enlaces de descarga al recorrer los tableros 1 y 2. Los toques en el PDF de Resultado, el PNG del tercer tablero y el PNG del menú de Historial generaron una sola navegación al `href` original por toque y entregaron los archivos esperados. Pasaron también 19 pruebas de Django de visores, Historial, PNG y descargas.
+
 ## Pruebas locales
 
 | Entorno | Resultado |
