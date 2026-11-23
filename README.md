@@ -161,6 +161,7 @@ Todo cambio técnico, corrección de seguridad, nueva funcionalidad u optimizaci
 - [Materiales: revisión visual y claridad](docs/CAMBIOS_VISUALES_MATERIALES.md)
 - [NUM-01 · Correcciones de validación numérica](docs/NUM_01_CORRECCIONES_VALIDACION.md)
 - [NUM-02 · Validaciones de Materiales y Django Admin](docs/NUM_02_CORRECCIONES_MATERIALES_ADMIN.md)
+- [NUM-03 · Formatos y precisión en Plantillas y Optimización](docs/NUM_03_CORRECCIONES_FORMATOS_PRECISION.md)
 
 La base local y los archivos generados se excluyen del seguimiento de Git. Los commits anteriores conservan sus copias; no se reescribió el historial.
 

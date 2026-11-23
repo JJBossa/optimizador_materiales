@@ -4,8 +4,10 @@ import io
 import json
 import logging
 import math
+import re
 from collections import Counter
 
+from .formatos_numericos import FORMATO_DECIMAL, FORMATO_ENTERO, preparar_decimal
 from .units import convertir_a_cm, convertir_desde_cm, obtener_simbolo_unidad
 
 logger = logging.getLogger(__name__)
@@ -49,7 +51,8 @@ def piezas_como_csv(texto):
     salida = io.StringIO(newline='')
     escritor = csv.writer(salida)
     for pieza in parsear_piezas_desde_texto(texto, estricto=True):
-        escritor.writerow([pieza['nombre'], pieza['ancho'], pieza['alto'], pieza['cantidad']])
+        escritor.writerow([pieza['nombre'], preparar_decimal(pieza['ancho']),
+                           preparar_decimal(pieza['alto']), pieza['cantidad']])
     return salida.getvalue()
 
 
@@ -64,7 +67,15 @@ def parsear_piezas_desde_texto(texto_piezas, unidad_medida='cm', *, estricto=Fal
                     raise ValueError('Fila de piezas inválida')
                 if len(fila) == 3:
                     fila = [f'Pieza {len(piezas) + 1}', *fila]
+                if csv_editable:
+                    for medida in fila[1:3]:
+                        if isinstance(medida, str) and (',' in medida or not re.fullmatch(FORMATO_DECIMAL, medida.strip())):
+                            raise ValueError('Usa punto decimal sin separadores de miles en CSV')
+                    if not re.fullmatch(FORMATO_ENTERO, str(fila[3]).strip()):
+                        raise ValueError('Cantidad no entera en el formulario')
                 nombre, ancho, alto, cantidad = map(str, fila)
+                if csv_editable:
+                    nombre = nombre.replace('\r\n', '\n').replace('\r', '\n')
                 ancho, alto, cantidad = float(ancho), float(alto), int(cantidad)
                 if not (math.isfinite(ancho) and math.isfinite(alto) and ancho > 0 and alto > 0 and cantidad > 0):
                     raise ValueError('Las dimensiones y la cantidad deben ser positivas y finitas')

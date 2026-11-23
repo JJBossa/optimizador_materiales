@@ -1,6 +1,3 @@
-from decimal import Decimal
-
-from django.conf import settings
 from django.contrib import messages
 from django.forms import formset_factory
 from django.shortcuts import render, redirect, get_object_or_404
@@ -17,13 +14,12 @@ from ..services import (
     preparar_contexto_resultado,
 )
 from ..utils import (
-    convertir_a_cm,
-    convertir_desde_cm,
     generar_grafico,
     mensaje_advertencia_piezas_no_colocadas,
     obtener_simbolo_unidad,
     pieza_cabe_en_tablero,
 )
+from ..units import margen_en_mm, medida_editable
 from .common import _materiales_data_index, exigir_piezas_completas
 
 
@@ -84,7 +80,7 @@ def editar_optimizacion(request, pk):
     PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True, absolute_max=20)
     
     if request.method == "POST":
-        tablero_form = TableroForm(request.POST, user=request.user)
+        tablero_form = TableroForm(request.POST, user=request.user, origen_tablero=optimizacion)
         pieza_formset = PiezaFormSet(request.POST)
         
         if tablero_form.is_valid() and pieza_formset.is_valid():
@@ -96,8 +92,8 @@ def editar_optimizacion(request, pk):
             alto_usuario = tablero_form.cleaned_data["alto"]
             
             # Convertir a cm para cálculos internos
-            ancho = convertir_a_cm(ancho_usuario, unidad)
-            alto = convertir_a_cm(alto_usuario, unidad)
+            ancho = tablero_form.cleaned_data["ancho_cm"]
+            alto = tablero_form.cleaned_data["alto_cm"]
 
             permitir_rotacion = tablero_form.cleaned_data.get('permitir_rotacion', True)
             
@@ -115,8 +111,8 @@ def editar_optimizacion(request, pk):
                         if not nombre:
                             nombre = f"Pieza {len(piezas_con_nombre) + 1}"
                         
-                        pieza_ancho_cm = convertir_a_cm(pieza_ancho, unidad)
-                        pieza_alto_cm = convertir_a_cm(pieza_alto, unidad)
+                        pieza_ancho_cm = form.cleaned_data["ancho_cm"]
+                        pieza_alto_cm = form.cleaned_data["alto_cm"]
                         
                         if not pieza_cabe_en_tablero(
                             pieza_ancho_cm, pieza_alto_cm, ancho, alto,
@@ -161,10 +157,7 @@ def editar_optimizacion(request, pk):
                     "materiales_data": materiales_data,
                 })
             
-            margen_corte_mm = tablero_form.cleaned_data.get('margen_corte')
-            if margen_corte_mm is None:
-                margen_corte_mm = 3  # Valor por defecto solo si el campo está vacío
-            margen_corte_cm = margen_corte_mm / 10.0
+            margen_corte_cm = tablero_form.cleaned_data['margen_corte_cm']
             
             # Extraer nombres de piezas para colores consistentes
             nombres_piezas = [p['nombre'] for p in piezas_con_nombre]
@@ -198,7 +191,14 @@ def editar_optimizacion(request, pk):
             num_tableros = len(info_desperdicio['info_tableros'])
             
             # Actualizar la optimización
-            piezas_texto = serializar_piezas(piezas_con_nombre)
+            originales = [
+                {campo: pieza[campo] for campo in ('nombre', 'ancho', 'alto', 'cantidad')}
+                for pieza in piezas_data
+            ]
+            if unidad == optimizacion.unidad_medida and piezas_con_nombre == originales:
+                piezas_texto = optimizacion.piezas
+            else:
+                piezas_texto = serializar_piezas(piezas_con_nombre)
             
             optimizacion.nombre = tablero_form.cleaned_data['nombre_optimizacion']
             optimizacion.ancho_tablero = ancho
@@ -229,8 +229,8 @@ def editar_optimizacion(request, pk):
     else:
         # Cargar datos existentes en el formulario
         unidad_opt = getattr(optimizacion, 'unidad_medida', 'cm') or 'cm'
-        ancho_mostrar = convertir_desde_cm(optimizacion.ancho_tablero, unidad_opt)
-        alto_mostrar = convertir_desde_cm(optimizacion.alto_tablero, unidad_opt)
+        ancho_mostrar = medida_editable(optimizacion.ancho_tablero, unidad_opt)
+        alto_mostrar = medida_editable(optimizacion.alto_tablero, unidad_opt)
         
         # Crear formulario con datos iniciales
         initial_tablero = {
@@ -240,7 +240,7 @@ def editar_optimizacion(request, pk):
             'ancho': ancho_mostrar,
             'alto': alto_mostrar,
             'permitir_rotacion': getattr(optimizacion, 'permitir_rotacion', True),
-            'margen_corte': round(getattr(optimizacion, 'margen_corte', 0.3) * 10, 1),  # Convertir de cm a mm
+            'margen_corte': margen_en_mm(optimizacion.margen_corte),  # Convertir de cm a mm
             'material': getattr(optimizacion, 'material', None),
             'precio_tablero': getattr(optimizacion, 'precio_tablero', None),
             'mano_obra': getattr(optimizacion, 'mano_obra', 0),
@@ -285,8 +285,8 @@ def index(request):
             alto_usuario = tablero_form.cleaned_data["alto"]
             
             # Convertir a cm para cálculos internos (mantener decimales)
-            ancho = convertir_a_cm(ancho_usuario, unidad)
-            alto = convertir_a_cm(alto_usuario, unidad)
+            ancho = tablero_form.cleaned_data["ancho_cm"]
+            alto = tablero_form.cleaned_data["alto_cm"]
 
             permitir_rotacion = tablero_form.cleaned_data.get('permitir_rotacion', True)
 
@@ -309,8 +309,8 @@ def index(request):
                             nombre = f"Pieza {len(piezas_con_nombre) + 1}"
                         
                         # Convertir piezas a cm para validación y cálculos (mantener decimales)
-                        pieza_ancho_cm = convertir_a_cm(pieza_ancho, unidad)
-                        pieza_alto_cm = convertir_a_cm(pieza_alto, unidad)
+                        pieza_ancho_cm = form.cleaned_data["ancho_cm"]
+                        pieza_alto_cm = form.cleaned_data["alto_cm"]
                         
                         if not pieza_cabe_en_tablero(
                             pieza_ancho_cm, pieza_alto_cm, ancho, alto,
@@ -355,11 +355,7 @@ def index(request):
                     "materiales_data": _materiales_data_index(request.user)
                 })
 
-            margen_corte_mm = tablero_form.cleaned_data.get('margen_corte')
-            if margen_corte_mm is None:
-                margen_corte_mm = 3  # Valor por defecto solo si el campo está vacío
-            # Convertir margen de corte de mm a cm (el sistema trabaja en cm)
-            margen_corte_cm = margen_corte_mm / 10.0
+            margen_corte_cm = tablero_form.cleaned_data['margen_corte_cm']
 
             costos = tablero_form.datos_costos()
 
@@ -448,27 +444,6 @@ def index(request):
                     unidad = 'in'
                 initial_data['unidad_medida'] = unidad
             
-            # Margen de corte predeterminado (convertir de cm a mm)
-            # CORREGIDO: Siempre establecer el margen si existe en el perfil
-            # Asegurar conversión correcta de Decimal a float
-            if perfil.margen_corte_predeterminado is not None:
-                # Convertir Decimal a float si es necesario
-                if isinstance(perfil.margen_corte_predeterminado, Decimal):
-                    margen_cm = float(perfil.margen_corte_predeterminado)
-                else:
-                    margen_cm = float(perfil.margen_corte_predeterminado)
-                # Convertir de cm a mm y asegurar que sea un número válido
-                margen_mm = margen_cm * 10.0
-                margen_mm_redondeado = round(margen_mm, 1)
-                # Si es un entero, guardar como entero para evitar decimales innecesarios
-                if margen_mm_redondeado == int(margen_mm_redondeado):
-                    initial_data['margen_corte'] = int(margen_mm_redondeado)
-                else:
-                    initial_data['margen_corte'] = margen_mm_redondeado
-                # Debug: verificar que el valor se está estableciendo
-                if settings.DEBUG:
-                    print(f"DEBUG: Margen de corte establecido en initial_data: {initial_data['margen_corte']} mm (desde {margen_cm} cm)")
-            
             # Rotación automática predeterminada
             if perfil.rotacion_automatica_predeterminada is not None:
                 initial_data['permitir_rotacion'] = perfil.rotacion_automatica_predeterminada
@@ -522,8 +497,8 @@ def duplicar_optimizacion(request, pk):
     unidad_original = getattr(optimizacion, 'unidad_medida', 'cm')
     
     # Convertir dimensiones de cm a la unidad original para mostrar
-    ancho_mostrar = convertir_desde_cm(optimizacion.ancho_tablero, unidad_original)
-    alto_mostrar = convertir_desde_cm(optimizacion.alto_tablero, unidad_original)
+    ancho_mostrar = medida_editable(optimizacion.ancho_tablero, unidad_original)
+    alto_mostrar = medida_editable(optimizacion.alto_tablero, unidad_original)
     
     # El texto de piezas ya conserva la unidad ingresada; solo el tablero está en cm.
     
@@ -535,7 +510,8 @@ def duplicar_optimizacion(request, pk):
         'alto': alto_mostrar,
         'unidad_medida': unidad_original,
         'permitir_rotacion': optimizacion.permitir_rotacion,
-        'margen_corte': optimizacion.margen_corte * 10,
+        'margen_corte': margen_en_mm(optimizacion.margen_corte),
+        'origen_medidas': TableroForm.firmar_origen(optimizacion, request.user),
         'material': optimizacion.material_id,
         'precio_tablero': optimizacion.precio_tablero,
         'mano_obra': optimizacion.mano_obra,
@@ -552,6 +528,7 @@ def duplicar_optimizacion(request, pk):
     return render(request, "cutless/index.html", {
         "tablero_form": tablero_form,
         "pieza_formset": pieza_formset,
+        "materiales_data": _materiales_data_index(request.user),
         "duplicando": True,
         "optimizacion_original": optimizacion
     })

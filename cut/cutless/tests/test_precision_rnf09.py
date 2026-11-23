@@ -125,7 +125,10 @@ class PrecisionEdicionTests(TestCase):
                     pieza = response.context['pieza_formset'].forms[0]
                     self.assertEqual(pieza['ancho'].value(), w)
                     self.assertEqual(pieza['alto'].value(), h)
-                    self.assertEqual(pieza.fields['ancho'].widget.attrs['step'], 'any')
+                    widget = pieza.fields['ancho'].widget
+                    self.assertEqual(widget.input_type, 'text')
+                    self.assertEqual(widget.attrs['inputmode'], 'decimal')
+                    self.assertNotIn('step', widget.attrs)
 
     def test_milimetros_en_material_plantilla_y_optimizacion(self):
         from cutless.forms import MaterialForm, PlantillaForm

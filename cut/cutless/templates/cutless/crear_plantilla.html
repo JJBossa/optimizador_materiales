@@ -166,5 +166,7 @@
 
 
 {% block extra_js %}
-<script src="{% static 'cutless/js/template-piece-editor.js' %}?v=1" defer></script>
+{{ form.filas_editor|json_script:"filas-editor-plantilla" }}
+{{ form.contrato_piezas|json_script:"contrato-editor-plantilla" }}
+<script src="{% static 'cutless/js/template-piece-editor.js' %}?v=num03" defer></script>
 {% endblock %}

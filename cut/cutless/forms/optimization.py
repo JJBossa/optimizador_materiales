@@ -1,6 +1,14 @@
+from types import SimpleNamespace
+
 from django import forms
+from django.core import signing
 from django.db.models import Q
 from ..units import UNIDADES_CHOICES as OPCIONES_UNIDAD
+from ..units import (
+    CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
+    margen_en_cm, margen_en_mm, medida_tablero_en_cm,
+)
+from .numeros import CantidadEntradaField, DecimalEntradaField, MedidaEntradaField
 
 from ..materiales import precio_material_valido
 from ..models import Material, Cliente, Proyecto
@@ -18,8 +26,9 @@ class NombreOptimizacionForm(forms.Form):
 
 
 class MedidasClarasMixin:
-    minimo_cm = 10
-    maximo_cm = 300
+    minimo_cm = LADO_TABLERO_MIN_CM
+    maximo_cm = LADO_MAX_CM
+    origen_tablero = None
     objeto_medida = 'tablero'
 
     def configurar_medidas(self, unidad=None):
@@ -40,7 +49,7 @@ class MedidasClarasMixin:
 
     def ayuda_medidas(self):
         from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
-        factor = Decimal({'cm': '1', 'm': '100', 'mm': '0.1', 'in': '2.54', 'ft': '30.48'}[self.unidad_medidas])
+        factor = Decimal(str(CENTIMETROS_POR_UNIDAD[self.unidad_medidas]))
         def limite(valor, redondeo):
             numero = (Decimal(str(valor)) / factor).quantize(Decimal('0.000001'), rounding=redondeo)
             return format(numero.normalize(), 'f').replace('.', ',')
@@ -49,7 +58,6 @@ class MedidasClarasMixin:
         return f'Rango permitido: de {minimo} a {maximo} {self.unidad_medidas} por lado.'
 
     def validar_medidas(self, cleaned_data, obligatorias=True):
-        from ..units import convertir_a_cm
         for nombre in ('ancho', 'alto'):
             if nombre in self.errors:
                 continue
@@ -58,15 +66,43 @@ class MedidasClarasMixin:
                 if obligatorias:
                     self.add_error(nombre, f'Escribe el {nombre} del {self.objeto_medida} en {self.unidad_medidas}.')
                 continue
-            cm = convertir_a_cm(valor, self.unidad_medidas)
+            origen = self.origen_tablero
+            cm = medida_tablero_en_cm(
+                valor, self.unidad_medidas, getattr(origen, f'{nombre}_tablero', None),
+                getattr(origen, 'unidad_medida', None),
+            )
             if cm < self.minimo_cm - 1e-9 or cm > self.maximo_cm + 1e-9:
                 ingresado = format(valor, '.12g').replace('.', ',')
                 motivo = 'demasiado alto' if cm > self.maximo_cm else 'demasiado bajo'
                 self.add_error(nombre, f'El {nombre} del {self.objeto_medida} es {motivo}: ingresaste {ingresado} {self.unidad_medidas}. {self.ayuda_medidas()} Revisa el valor o la unidad seleccionada.')
+            else:
+                cleaned_data[f'{nombre}_cm'] = cm
         return cleaned_data
 
 
 class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
+    origen_medidas = forms.CharField(required=False, widget=forms.HiddenInput)
+    _sal_origen = 'cutless.origen_medidas'
+
+    @classmethod
+    def firmar_origen(cls, origen, usuario):
+        medidas = {campo: getattr(origen, campo) for campo in (
+            'ancho_tablero', 'alto_tablero', 'unidad_medida', 'margen_corte',
+        )}
+        return signing.dumps((usuario.pk, medidas), salt=cls._sal_origen)
+
+    def clean_origen_medidas(self):
+        token = self.cleaned_data['origen_medidas']
+        if not token or self.origen_tablero is not None:
+            return None
+        try:
+            usuario_id, medidas = signing.loads(token, salt=self._sal_origen)
+        except signing.BadSignature:
+            raise forms.ValidationError('Vuelve a cargar los datos de origen y reintenta.') from None
+        if usuario_id != getattr(self.usuario, 'pk', None):
+            raise forms.ValidationError('Vuelve a cargar los datos de origen y reintenta.')
+        return SimpleNamespace(**medidas)
+
     medida_habitual = forms.ChoiceField(required=False,
         choices=[('', 'Personalizado')] + [(clave, nombre) for clave, nombre, _, _ in CATALOGO],
         widget=forms.HiddenInput(attrs={'id': 'medida_habitual'}))
@@ -105,26 +141,24 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         help_text="Selecciona la unidad de medida"
     )
     
-    ancho = forms.FloatField(
+    ancho = MedidaEntradaField(
         label="Ancho del tablero",
         required=False,
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ej: 122',
-            'id': 'ancho_tablero',
-            'step': 'any'
+            'id': 'ancho_tablero'
         }),
         help_text="Ingresa el ancho del tablero"
     )
     
-    alto = forms.FloatField(
+    alto = MedidaEntradaField(
         label="Alto del tablero",
         required=False,
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ej: 244',
-            'id': 'alto_tablero',
-            'step': 'any'
+            'id': 'alto_tablero'
         }),
         help_text="Ingresa el alto del tablero"
     )
@@ -140,7 +174,7 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         help_text="El sistema intentará rotar piezas 90° si mejora el aprovechamiento"
     )
     
-    margen_corte = forms.FloatField(
+    margen_corte = DecimalEntradaField(
         label="Margen de corte (kerf)",
         min_value=0,
         max_value=10,  # Máximo 10 mm
@@ -151,10 +185,9 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         },
         initial=3,  # 3 mm es un valor típico
         required=False,
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '3',
-            'step': '0.1',
             'id': 'margen_corte',
             'aria-describedby': 'margen_corte_rango',
         }),
@@ -174,32 +207,30 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         help_text="Selecciona un material de tu biblioteca para calcular costos automáticamente"
     )
     
-    precio_tablero = forms.DecimalField(
+    precio_tablero = DecimalEntradaField(
         label="Precio por tablero",
         max_digits=10,
         decimal_places=2,
         required=False,
         min_value=0,
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '0',
-            'step': '0.01',
             'id': 'precio_tablero'
         }),
         help_text="Precio en pesos chilenos (se llena automáticamente si seleccionas un material)"
     )
     
-    mano_obra = forms.DecimalField(
+    mano_obra = DecimalEntradaField(
         label="Mano de obra",
         max_digits=10,
         decimal_places=2,
         required=False,
         min_value=0,
         initial=0,
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '0',
-            'step': '0.01',
             'id': 'mano_obra'
         }),
         help_text="Costo adicional de mano de obra (opcional)"
@@ -240,8 +271,10 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         datos['mano_obra'] = datos['mano_obra'] or 0
         return datos
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, origen_tablero=None, **kwargs):
+        self.origen_tablero = origen_tablero
         user = kwargs.pop('user', None)
+        self.usuario = user
         
         # Verificar si hay datos POST antes de llamar a super()
         # En Django, cuando se pasa TableroForm(request.POST), args[0] contiene los datos
@@ -298,24 +331,7 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
                             # Si no se encuentra, no establecer initial
                             pass
                     else:
-                        # Para campos numéricos, asegurar que el valor sea del tipo correcto
-                        if field_name in ['margen_corte', 'precio_tablero', 'mano_obra']:
-                            if value is not None:
-                                # CORREGIDO: Asegurar conversión correcta a float
-                                try:
-                                    valor_float = float(value)
-                                    # Para margen_corte, si es un entero, guardarlo como entero para evitar decimales
-                                    if field_name == 'margen_corte' and valor_float == int(valor_float):
-                                        self.fields[field_name].initial = int(valor_float)
-                                    else:
-                                        self.fields[field_name].initial = valor_float
-                                except (ValueError, TypeError):
-                                    # Si no se puede convertir, mantener el valor por defecto
-                                    pass
-                            else:
-                                # Si no hay valor, mantener el valor por defecto del campo
-                                pass
-                        elif field_name == 'permitir_rotacion':
+                        if field_name == 'permitir_rotacion':
                             if value is not None:
                                 self.fields[field_name].initial = bool(value)
                         else:
@@ -370,14 +386,8 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
                     # Solo aplicar si NO fue establecido explícitamente desde initial_from_kwargs
                     # Si la vista lo pasó, ya está establecido y no necesitamos hacer nada más
                     if 'margen_corte' not in campos_establecidos_explicitamente:
-                        margen_mm = float(perfil.margen_corte_predeterminado) * 10  # cm a mm
-                        margen_mm_redondeado = round(margen_mm, 1)
-                        # Si es un entero, guardar como entero para evitar decimales innecesarios
-                        if margen_mm_redondeado == int(margen_mm_redondeado):
-                            self.fields['margen_corte'].initial = int(margen_mm_redondeado)
-                        else:
-                            self.fields['margen_corte'].initial = margen_mm_redondeado
-                
+                        self.fields['margen_corte'].initial = margen_en_mm(perfil.margen_corte_predeterminado)
+
                 # Rotación automática predeterminada
                 if perfil.rotacion_automatica_predeterminada is not None and 'permitir_rotacion' not in campos_establecidos_explicitamente:
                     self.fields['permitir_rotacion'].initial = perfil.rotacion_automatica_predeterminada
@@ -398,23 +408,35 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
                 self.fields.pop(campo)
 
     def clean(self):
-        datos = self.validar_medidas(super().clean())
+        datos = super().clean()
+        if self.origen_tablero is None:
+            self.origen_tablero = datos.get('origen_medidas')
+        self.validar_medidas(datos)
+        if 'unidad_medida' in datos:
+            datos['unidad_medida'] = self.unidad_medidas
         material = datos.get('material')
         if material and 'precio_tablero' in datos and datos['precio_tablero'] is None:
             if precio_material_valido(material.precio):
                 datos['precio_tablero'] = material.precio
             else:
                 self.add_error('precio_tablero', 'El precio del material es inválido. Ingresa un precio válido o corrige el material.')
+        if 'margen_corte' in datos:
+            margen = datos['margen_corte']
+            origen = self.origen_tablero
+            if margen is None:
+                datos['margen_corte_cm'] = 0.3
+            elif origen is not None and float(margen) == margen_en_mm(origen.margen_corte):
+                datos['margen_corte_cm'] = origen.margen_corte
+            else:
+                datos['margen_corte_cm'] = margen_en_cm(margen)
         clave = datos.get('medida_habitual')
-        if clave and datos.get('ancho') is not None and datos.get('alto') is not None:
-            from ..units import convertir_a_cm
-            unidad = datos.get('unidad_medida', 'cm')
-            if not medida_valida(clave, convertir_a_cm(datos['ancho'], unidad), convertir_a_cm(datos['alto'], unidad)):
+        if clave and 'ancho_cm' in datos and 'alto_cm' in datos:
+            if not medida_valida(clave, datos['ancho_cm'], datos['alto_cm']):
                 datos['medida_habitual'] = ''
         return datos
 
 class PiezaForm(MedidasClarasMixin, forms.Form):
-    minimo_cm = 0.1
+    minimo_cm = LADO_PIEZA_MIN_CM
     objeto_medida = 'pieza'
 
     nombre = forms.CharField(
@@ -428,25 +450,23 @@ class PiezaForm(MedidasClarasMixin, forms.Form):
         }),
         help_text="Opcional: identifica esta pieza"
     )
-    ancho = forms.FloatField(
+    ancho = MedidaEntradaField(
         label="Ancho (cm)",
         required=False,  # Hacerlo opcional
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Ancho',
-            'step': 'any'
+            'placeholder': 'Ancho'
         })
     )
-    alto = forms.FloatField(
+    alto = MedidaEntradaField(
         label="Alto (cm)",
         required=False,  # Hacerlo opcional
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
-            'placeholder': 'Alto',
-            'step': 'any'
+            'placeholder': 'Alto'
         })
     )
-    cantidad = forms.IntegerField(
+    cantidad = CantidadEntradaField(
         label="Cantidad",
         min_value=1,
         max_value=100,
@@ -457,7 +477,7 @@ class PiezaForm(MedidasClarasMixin, forms.Form):
         },
         initial=1,
         required=False,  # Hacerlo opcional
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': '1'
         })

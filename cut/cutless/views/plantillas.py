@@ -6,7 +6,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from ..forms import PlantillaForm, TableroForm, PiezaForm
 from ..models import Plantilla, Optimizacion
 from ..pieces import piezas_como_csv
-from ..utils import convertir_desde_cm
+from ..units import margen_en_mm, medida_editable
 from .common import _materiales_data_index, exigir_piezas_completas, leer_id_optimizacion
 
 
@@ -58,7 +58,7 @@ def crear_plantilla(request):
         optimizacion = get_object_or_404(Optimizacion, pk=optimizacion_id, usuario=request.user)
     
     if request.method == "POST":
-        form = PlantillaForm(request.POST, user=request.user)
+        form = PlantillaForm(request.POST, user=request.user, origen_tablero=optimizacion)
         if form.is_valid():
             plantilla = form.save(commit=False)
             plantilla.usuario = request.user
@@ -71,9 +71,9 @@ def crear_plantilla(request):
         if optimizacion:
             # Prellenar datos desde la optimización
             unidad_opt = getattr(optimizacion, 'unidad_medida', 'cm') or 'cm'
-            ancho_mostrar = convertir_desde_cm(optimizacion.ancho_tablero, unidad_opt)
-            alto_mostrar = convertir_desde_cm(optimizacion.alto_tablero, unidad_opt)
-            margen_mm = round(getattr(optimizacion, 'margen_corte', 0.3) * 10, 1)
+            ancho_mostrar = medida_editable(optimizacion.ancho_tablero, unidad_opt)
+            alto_mostrar = medida_editable(optimizacion.alto_tablero, unidad_opt)
+            margen_mm = margen_en_mm(optimizacion.margen_corte)
             
             form.initial['nombre'] = f"Plantilla de {optimizacion.fecha.strftime('%d/%m/%Y')}"
             form.initial['ancho_tablero'] = ancho_mostrar
@@ -149,9 +149,9 @@ def usar_plantilla(request, pk):
     validacion = PlantillaForm({
         'nombre': plantilla.nombre, 'descripcion': plantilla.descripcion,
         'categoria': plantilla.categoria, 'unidad_medida': plantilla.unidad_medida,
-        'ancho_tablero': convertir_desde_cm(plantilla.ancho_tablero, plantilla.unidad_medida),
-        'alto_tablero': convertir_desde_cm(plantilla.alto_tablero, plantilla.unidad_medida),
-        'margen_corte': plantilla.margen_corte * 10,
+        'ancho_tablero': medida_editable(plantilla.ancho_tablero, plantilla.unidad_medida),
+        'alto_tablero': medida_editable(plantilla.alto_tablero, plantilla.unidad_medida),
+        'margen_corte': margen_en_mm(plantilla.margen_corte),
         'permitir_rotacion': plantilla.permitir_rotacion, 'piezas': piezas_como_csv(plantilla.piezas),
     }, instance=plantilla)
     if not validacion.is_valid():
@@ -160,9 +160,9 @@ def usar_plantilla(request, pk):
 
     # Convertir dimensiones a la unidad de la plantilla
     unidad = plantilla.unidad_medida
-    ancho_mostrar = convertir_desde_cm(plantilla.ancho_tablero, unidad)
-    alto_mostrar = convertir_desde_cm(plantilla.alto_tablero, unidad)
-    margen_mm = round(plantilla.margen_corte * 10, 1)
+    ancho_mostrar = medida_editable(plantilla.ancho_tablero, unidad)
+    alto_mostrar = medida_editable(plantilla.alto_tablero, unidad)
+    margen_mm = margen_en_mm(plantilla.margen_corte)
     
     # Preparar formulario con datos de la plantilla
     from django.forms import formset_factory
@@ -177,6 +177,7 @@ def usar_plantilla(request, pk):
         'unidad_medida': unidad,
         'permitir_rotacion': plantilla.permitir_rotacion,
         'margen_corte': margen_mm,
+        'origen_medidas': TableroForm.firmar_origen(plantilla, request.user),
     })
     
     messages.info(request, f'📋 Plantilla "{plantilla.nombre}" cargada. Completa los datos y genera la optimización.')

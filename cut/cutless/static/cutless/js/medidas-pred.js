@@ -20,8 +20,8 @@
         option.textContent = `${option.dataset.nombre} (${number(Number(option.dataset.anchoCm)/factor())}×${number(Number(option.dataset.altoCm)/factor())} ${unit?.value || 'cm'})`;
       }
       let option = options.find(item => item.dataset.medida === selected.value);
-      if (option && (Math.abs(Number(width.value)*factor()-Number(option.dataset.anchoCm)) > .01 ||
-                     Math.abs(Number(height.value)*factor()-Number(option.dataset.altoCm)) > .01)) {
+      if (option && (Math.abs(Number(width.value.replace(',', '.'))*factor()-Number(option.dataset.anchoCm)) > .01 ||
+                     Math.abs(Number(height.value.replace(',', '.'))*factor()-Number(option.dataset.altoCm)) > .01)) {
         selected.value = ''; option = null;
       }
       button.textContent = option ? option.textContent : 'Elegir medidas habituales';
@@ -37,25 +37,13 @@
           Math.abs(candidate.ancho-Number(option.dataset.anchoCm)) <= .01 &&
           Math.abs(candidate.alto-Number(option.dataset.altoCm)) <= .01;
       });
-      const previous = material.value;
       material.value = match ? match.value : '';
-      if (match) {
-        const price = document.getElementById('precio_tablero');
-        if (price) price.value = data[match.value].precio ?? '';
-      } else if (previous) {
-        // El precio de otra ficha no debe heredarse al cambiar de tipo estándar.
-        const price = document.getElementById('precio_tablero'); if (price) price.value = '';
-      }
       material.dispatchEvent(new Event('change', {bubbles:true}));
-      if (match) {
-        const price = document.getElementById('precio_tablero');
-        if (price) price.value = data[match.value].precio ?? '';
-      }
     }
     for (const option of options) option.addEventListener('click', event => {
       event.preventDefault(); choosing = true; window.cambioDesdeDropdown = true;
-      width.value = number(Number(option.dataset.anchoCm)/factor());
-      height.value = number(Number(option.dataset.altoCm)/factor());
+      width.value = window.CutlessUnits.entradaDesdeCm(Number(option.dataset.anchoCm), unit.value);
+      height.value = window.CutlessUnits.entradaDesdeCm(Number(option.dataset.altoCm), unit.value);
       selected.value = option.dataset.medida;
       matchLibrary(option);
       width.dispatchEvent(new Event('change', {bubbles:true}));
