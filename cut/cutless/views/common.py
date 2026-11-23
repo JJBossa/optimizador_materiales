@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 
+from ..materiales import dimension_material_valida, precio_material_valido
 from ..models import Material
 from ..pieces import FormatoPiezasInvalido
 from ..permissions import usuario_tiene_permiso
@@ -55,7 +56,7 @@ def leer_id_optimizacion(valor):
     return None
 
 
-def _materiales_data_index(user):
+def _materiales_data_index(user, *, incluir_medidas=True):
     """Datos de materiales para serializar con json_script (errores / reintentos)."""
     if not usuario_tiene_permiso(user, 'puede_ver_historial_costos'):
         return {}
@@ -64,13 +65,19 @@ def _materiales_data_index(user):
     if getattr(user, 'is_authenticated', False):
         filtro = Q(usuario=user) | Q(es_predefinido=True)
     for material in Material.objects.filter(filtro):
-        materiales_data[str(material.pk)] = {
-            'precio': float(material.precio) if material.precio is not None else None,
+        precio = material.precio
+        datos = {
+            'precio': float(precio) if precio is not None and precio_material_valido(precio) else None,
             'nombre': material.nombre,
-            'ancho': float(material.ancho) if material.ancho else None,
-            'alto': float(material.alto) if material.alto else None,
-            'unidad_medida': material.unidad_medida if material.unidad_medida else 'cm',
         }
+        if incluir_medidas:
+            medidas_validas = dimension_material_valida(material.ancho) and dimension_material_valida(material.alto)
+            datos.update(
+                ancho=material.ancho if medidas_validas else None,
+                alto=material.alto if medidas_validas else None,
+                unidad_medida=material.unidad_medida or 'cm',
+            )
+        materiales_data[str(material.pk)] = datos
     return materiales_data
 
 

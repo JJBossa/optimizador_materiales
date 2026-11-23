@@ -2,6 +2,7 @@ from django import forms
 from django.db.models import Q
 from ..units import UNIDADES_CHOICES as OPCIONES_UNIDAD
 
+from ..materiales import precio_material_valido
 from ..models import Material, Cliente, Proyecto
 from ..permissions import usuario_tiene_permiso
 from ..board_presets import CATALOGO, medida_valida
@@ -236,8 +237,6 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
         datos = {campo: self.cleaned_data.get(campo) for campo in (
             'material', 'precio_tablero', 'mano_obra', 'cliente', 'proyecto',
         )}
-        if datos['material'] and datos['precio_tablero'] is None:
-            datos['precio_tablero'] = datos['material'].precio
         datos['mano_obra'] = datos['mano_obra'] or 0
         return datos
 
@@ -400,6 +399,12 @@ class TableroForm(MedidasClarasMixin, NombreOptimizacionForm):
 
     def clean(self):
         datos = self.validar_medidas(super().clean())
+        material = datos.get('material')
+        if material and 'precio_tablero' in datos and datos['precio_tablero'] is None:
+            if precio_material_valido(material.precio):
+                datos['precio_tablero'] = material.precio
+            else:
+                self.add_error('precio_tablero', 'El precio del material es inválido. Ingresa un precio válido o corrige el material.')
         clave = datos.get('medida_habitual')
         if clave and datos.get('ancho') is not None and datos.get('alto') is not None:
             from ..units import convertir_a_cm

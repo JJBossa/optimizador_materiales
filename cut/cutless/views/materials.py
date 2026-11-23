@@ -105,11 +105,13 @@ def editar_material(request, pk):
         form = MaterialForm(request.POST, instance=material)
         if form.is_valid():
             material_actualizado = form.save(commit=False)
+            campos = form.campos_actualizacion()
             # Si es predefinido, asegurar que siga siendo predefinido
             if material.es_predefinido:
                 material_actualizado.es_predefinido = True
                 material_actualizado.usuario = None
-            material_actualizado.save()
+                campos.add('usuario')
+            material_actualizado.save(update_fields=campos)
             messages.success(request, f'✅ Material "{material_actualizado.nombre}" actualizado exitosamente.')
             return redirect('cutless:lista_materiales')
     else:
