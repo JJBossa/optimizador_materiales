@@ -10,6 +10,7 @@
   background:rgb(25 26 24 / 65%);
   backdrop-filter:blur(4px);
 }
+.cutless-loading--prepared { pointer-events:none; }
 .cutless-loading__card {
   display:flex;
   flex-direction:column;
