@@ -165,7 +165,7 @@
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de fin</span>{{ proyecto.fecha_fin|date:"d/m/Y"|default:"—" }}</td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Optimizaciones</span>{{ proyecto.get_total_optimizaciones }}</td>
             <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span>
-              <a href="#" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver resultado</a>
+              <a href="{% url 'cutless:detalle_proyecto' proyecto.pk %}" class="btn btn-sm btn-secondary" data-action="secondary" data-icon="eye">Ver proyecto</a>
             </td>
           </tr>
           {% endfor %}
