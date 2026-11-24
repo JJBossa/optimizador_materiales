@@ -77,7 +77,7 @@ async function probar(browser) {
         const page = await ctx.newPage();
         await abrir(page, fixture.create);
         assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
-        const pais = page.getByRole('combobox', { name: 'País o territorio' });
+        const pais = page.getByRole('combobox', { name: 'País o territorio', exact: true });
         assert.equal(await pais.inputValue(), 'CL');
         assert.match(await pais.locator('option:checked').textContent(), /🇨🇱 Chile \(\+56\)/u);
         assert.equal(await page.getByLabel('Número de teléfono').getAttribute('inputmode'), 'tel');
@@ -123,7 +123,7 @@ async function probar(browser) {
     const page = await ctx.newPage();
     await abrir(page, fixture.create);
     assert.equal(await page.locator('[data-busqueda-pais]').isVisible(), false);
-    const pais = page.getByLabel('País o territorio');
+    const pais = page.getByLabel('País o territorio', { exact: true });
     assert.equal(await pais.inputValue(), 'CL');
     await pais.selectOption('GB');
     await page.getByLabel('Nombre o Razón Social').fill('Cliente sin JavaScript');

@@ -199,7 +199,7 @@ class DecimalesMaterialTests(TestCase):
     def test_edicion_ajena_no_cambia_datos(self):
         ajeno = User.objects.create_superuser('num01_material_ajeno')
         self.client.force_login(ajeno)
-        self.assertRedirects(self.client.post(self.edicion, self.datos), reverse('cutless:lista_materiales'),
-                             fetch_redirect_response=False)
-        self.material.refresh_from_db()
-        self.assertEqual(self.material.precio, Decimal('20.00'))
+        datos_originales = Material.objects.values().get(pk=self.material.pk)
+        respuesta = self.client.post(self.edicion, self.datos)
+        self.assertEqual(respuesta.status_code, 404)
+        self.assertEqual(Material.objects.values().get(pk=self.material.pk), datos_originales)
