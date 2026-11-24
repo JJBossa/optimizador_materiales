@@ -1,4 +1,8 @@
+from io import StringIO
+
 from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import Client, TestCase
 from django.urls import reverse
 
@@ -37,7 +41,8 @@ class LimiteNombreUsuarioTests(TestCase):
                 self.assertTrue(User.objects.filter(username=exacto).exists())
 
     def test_cuenta_historica_inicia_sesion_y_puede_editar_el_correo(self):
-        historico = 'titular_27.' + 'ñ' * 45
+        historico = 'titular_27.' + 'ñ' * 139
+        self.assertEqual(len(historico), 150)
         usuario = User.objects.create_user(historico, password=self.clave, email=self.datos['email'])
         acceso = reverse('usuarios:login')
         self.assertContains(self.client.get(acceso), 'maxlength="150"')
@@ -104,3 +109,12 @@ class LimiteNombreUsuarioTests(TestCase):
         self.assertFalse(User.objects.filter(username='V' * 31).exists())
         self.assertEqual(self.client.post(url, {**datos, 'username': 'V' * 30}).status_code, 302)
         self.assertTrue(User.objects.filter(username='V' * 30).exists())
+
+    def test_createsuperuser_valida_el_nombre_antes_de_crear_la_cuenta(self):
+        opciones = {'interactive': False, 'email': 'admin@example.test', 'stdout': StringIO()}
+        for invalido in ('ñ' * 31, 'ñ' * 29 + 'ﬀ'):
+            with self.subTest(invalido=invalido), self.assertRaisesMessage(CommandError, 'Usa como máximo 30'):
+                call_command('createsuperuser', username=invalido, **opciones)
+        self.assertFalse(User.objects.exists())
+        call_command('createsuperuser', username='ñ' * 30, **opciones)
+        self.assertTrue(User.objects.get(username='ñ' * 30).is_superuser)

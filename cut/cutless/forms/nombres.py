@@ -2,12 +2,7 @@ from django import forms
 from django.core.validators import MaxLengthValidator
 
 
-LIMITE_TRABAJO = 50
-LIMITE_PROYECTO = 80
-LIMITE_CLIENTE = 120
-LIMITE_MATERIAL = 80
-LIMITE_PLANTILLA = 80
-LIMITE_USUARIO = 30
+LIMITE_NOMBRE = 30
 
 
 class LongitudHTMLValidator(MaxLengthValidator):
@@ -20,16 +15,16 @@ class LongitudHTMLValidator(MaxLengthValidator):
 class NombreLimitadoField(forms.CharField):
     """Aplica el máximo del formulario sin cambiar la capacidad del modelo."""
 
-    def __init__(self, *, limite, **kwargs):
+    def __init__(self, **kwargs):
         # Los ModelForm también pasan el max_length de la columna.
         kwargs.pop('max_length', None)
         super().__init__(**kwargs)
-        self.max_length = limite
+        self.max_length = LIMITE_NOMBRE
         if not self.widget.is_hidden:
-            self.widget.attrs['maxlength'] = limite
-        self.validador_longitud = LongitudHTMLValidator(limite)
+            self.widget.attrs['maxlength'] = LIMITE_NOMBRE
+        self.validador_longitud = LongitudHTMLValidator(LIMITE_NOMBRE)
         self.validators.append(self.validador_longitud)
-        self.help_text = f'{self.help_text} Máximo {limite} caracteres.'.strip()
+        self.help_text = f'{self.help_text} Máximo {LIMITE_NOMBRE} caracteres.'.strip()
         self.nombre_guardado = None
 
     def supera_limite(self, valor):

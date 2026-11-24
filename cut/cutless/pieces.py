@@ -44,7 +44,7 @@ def filas_piezas(texto, *, csv_editable=False):
     if csv_editable:
         yield from (fila for fila in csv.reader(io.StringIO(texto), strict=True) if any(fila))
     else:
-        yield from (linea.strip().rsplit(',', 3) for linea in texto.splitlines() if linea.strip())
+        yield from (linea.rsplit(',', 3) for linea in texto.splitlines() if linea.strip())
 
 
 def piezas_como_csv(texto):
@@ -74,15 +74,13 @@ def parsear_piezas_desde_texto(texto_piezas, unidad_medida='cm', *, estricto=Fal
                     if not re.fullmatch(FORMATO_ENTERO, str(fila[3]).strip()):
                         raise ValueError('Cantidad no entera en el formulario')
                 nombre, ancho, alto, cantidad = map(str, fila)
-                if csv_editable:
-                    nombre = nombre.replace('\r\n', '\n').replace('\r', '\n')
                 ancho, alto, cantidad = float(ancho), float(alto), int(cantidad)
                 if not (math.isfinite(ancho) and math.isfinite(alto) and ancho > 0 and alto > 0 and cantidad > 0):
                     raise ValueError('Las dimensiones y la cantidad deben ser positivas y finitas')
-                if csv_editable and not nombre.strip():
+                if csv_editable and not nombre:
                     raise ValueError('La pieza necesita un nombre')
                 piezas.append({
-                    'nombre': nombre.strip() or f'Pieza {len(piezas) + 1}',
+                    'nombre': nombre or f'Pieza {len(piezas) + 1}',
                     'ancho': ancho,
                     'alto': alto,
                     'cantidad': cantidad,

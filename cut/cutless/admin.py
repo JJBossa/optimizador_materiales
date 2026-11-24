@@ -1,5 +1,3 @@
-from functools import partial
-
 from django.contrib import admin
 from django import forms
 from django.db.models import Q
@@ -7,17 +5,47 @@ from django.db.models import Q
 from usuarios.views import es_admin
 
 from .forms.materials import MaterialAdminForm
-from .forms.nombres import LIMITE_TRABAJO, NombreLimitadoField, NombreModeloMixin
+from .forms.nombres import LIMITE_NOMBRE, NombreLimitadoField, NombreModeloMixin
 from .forms.numeros import ImporteDecimalField
+from .forms.piezas import texto_de_textarea, validar_nombres_piezas
 from .formato_clp import formatear_clp
 from .models import Optimizacion, Material
+from .pieces import FormatoPiezasInvalido, parsear_piezas_desde_texto, serializar_piezas
 
 
 class OptimizacionAdminForm(NombreModeloMixin, forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['piezas'].strip = False
+
+    def clean_piezas(self):
+        texto = self.cleaned_data['piezas']
+        guardadas = []
+        if not self.instance._state.adding:
+            original = self.instance.piezas
+            if texto_de_textarea(texto) == texto_de_textarea(original):
+                return original
+            try:
+                guardadas = parsear_piezas_desde_texto(original, estricto=True)
+            except FormatoPiezasInvalido:
+                pass  # Permitir reparar un listado anterior.
+        try:
+            piezas = parsear_piezas_desde_texto(texto, estricto=True)
+        except FormatoPiezasInvalido as error:
+            raise forms.ValidationError('Revisa el formato de todas las filas de piezas.') from error
+        if not piezas:
+            raise forms.ValidationError('Ingresa al menos una pieza.')
+        validar_nombres_piezas(piezas, guardadas)
+        return serializar_piezas(piezas)
+
     class Meta:
         model = Optimizacion
         fields = '__all__'
-        field_classes = {'nombre': partial(NombreLimitadoField, limite=LIMITE_TRABAJO)}
+        field_classes = {'nombre': NombreLimitadoField}
+        help_texts = {
+            'piezas': 'Una pieza por línea (nombre,ancho,alto,cantidad) o el formato interno guardado. '
+                      f'Cada nombre nuevo admite hasta {LIMITE_NOMBRE} caracteres.',
+        }
 
 
 @admin.register(Optimizacion)

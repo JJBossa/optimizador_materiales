@@ -1,6 +1,5 @@
 import math
 from decimal import Decimal
-from functools import partial
 
 from django import forms
 
@@ -8,7 +7,7 @@ from ..formatos_numericos import AYUDA_DECIMAL
 from ..materiales import dimension_material_valida, precio_material_valido, validar_precio_material
 from ..models import Material
 from ..units import convertir_a_cm, convertir_desde_cm
-from .nombres import LIMITE_MATERIAL, NombreLimitadoField, NombreModeloMixin
+from .nombres import NombreLimitadoField, NombreModeloMixin
 from .numeros import DecimalEntradaField, ImporteEntradaField
 
 _AYUDA_DECIMAL = AYUDA_DECIMAL
@@ -25,7 +24,7 @@ class MaterialBaseForm(NombreModeloMixin, forms.ModelForm):
         model = Material
         fields = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'descripcion')
         field_classes = {
-            'nombre': partial(NombreLimitadoField, limite=LIMITE_MATERIAL),
+            'nombre': NombreLimitadoField,
             'ancho': DecimalEntradaField, 'alto': DecimalEntradaField, 'precio': ImporteEntradaField,
         }
         help_texts = {

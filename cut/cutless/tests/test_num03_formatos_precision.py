@@ -160,8 +160,8 @@ class FormatosPrecisionTests(TestCase):
         self.assertEqual(self.client.get(ruta('duplicar_optimizacion', original.pk)).status_code, 404)
 
     def test_csv_reversible_con_nombre_complejo_y_punto_decimal(self):
-        nombre = 'Puerta, "norte" Ω\nNivel superior'
-        datos = {**self.datos_plantilla, 'piezas': '"Puerta, ""norte"" Ω\r\nNivel superior",12.1250,30,1'}
+        nombre = 'Puerta, "norte" Ω\nNivel 2'
+        datos = {**self.datos_plantilla, 'piezas': '"Puerta, ""norte"" Ω\r\nNivel 2",12.1250,30,1'}
         form = PlantillaForm(datos)
         self.assertTrue(form.is_valid(), form.errors)
         self.assertEqual(form.filas_editor[0][0].replace('\r\n', '\n'), nombre)

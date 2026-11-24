@@ -1,4 +1,3 @@
-from functools import partial
 from unicodedata import category
 
 from django import forms
@@ -12,7 +11,7 @@ from ..validacion_contacto import (
     normalizar_telefono,
     pais_para_telefono_guardado,
 )
-from .nombres import LIMITE_CLIENTE, NombreLimitadoField, NombreModeloMixin
+from .nombres import NombreLimitadoField, NombreModeloMixin
 
 
 PAISES_POSTALES = sorted(NOMBRES_PAISES.items(), key=lambda opcion: nombre_comparable(opcion[1]))
@@ -204,7 +203,7 @@ class ClienteForm(NombreModeloMixin, forms.ModelForm):
     class Meta:
         model = Cliente
         fields = ['nombre', 'rut', 'email', 'telefono_pais', 'telefono', 'notas']
-        field_classes = {'nombre': partial(NombreLimitadoField, limite=LIMITE_CLIENTE)}
+        field_classes = {'nombre': NombreLimitadoField}
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',

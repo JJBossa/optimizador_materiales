@@ -5,6 +5,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
 from ..forms import TableroForm, PiezaForm, NombreOptimizacionForm
+from ..forms.piezas import BasePiezasFormSet
 from ..models import Optimizacion
 from ..pieces import parsear_piezas_desde_texto, serializar_piezas
 from ..services import (
@@ -79,13 +80,15 @@ def editar_optimizacion(request, pk):
     materiales_data = _materiales_data_index(request.user)
     
     # Crear formset con solo 1 formulario extra vacío para edición
-    PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True, absolute_max=20)
+    PiezaFormSet = formset_factory(
+        PiezaForm, formset=BasePiezasFormSet, extra=1, max_num=20, validate_max=True, absolute_max=20,
+    )
     
     if request.method == "POST":
         tablero_form = TableroForm(
             request.POST, user=request.user, origen_tablero=optimizacion, nombre_guardado=optimizacion.nombre,
         )
-        pieza_formset = PiezaFormSet(request.POST)
+        pieza_formset = PiezaFormSet(request.POST, piezas_guardadas=piezas_data)
         
         if tablero_form.is_valid() and pieza_formset.is_valid():
             # Obtener unidad seleccionada
@@ -109,7 +112,7 @@ def editar_optimizacion(request, pk):
                     pieza_ancho = form.cleaned_data.get("ancho")
                     pieza_alto = form.cleaned_data.get("alto")
                     cantidad = form.cleaned_data.get("cantidad")
-                    nombre = form.cleaned_data.get("nombre", "").strip()
+                    nombre = form.cleaned_data.get("nombre", "")
                     
                     if pieza_ancho and pieza_alto and cantidad:
                         if not nombre:
@@ -257,7 +260,9 @@ def editar_optimizacion(request, pk):
         # Crear formset con datos iniciales
         # El formset ya tiene extra=1, así que solo pasamos las piezas existentes
         # El formset automáticamente agregará 1 formulario vacío adicional
-        pieza_formset = PiezaFormSet(initial=piezas_data, form_kwargs={'unidad_medida': tablero_form['unidad_medida'].value() or 'cm'})
+        pieza_formset = PiezaFormSet(
+            initial=piezas_data, piezas_guardadas=piezas_data, form_kwargs={'unidad_medida': unidad_opt},
+        )
         
     return render(request, "cutless/editar_optimizacion.html", {
         "tablero_form": tablero_form,
@@ -305,7 +310,7 @@ def index(request):
                     pieza_ancho = form.cleaned_data.get("ancho")
                     pieza_alto = form.cleaned_data.get("alto")
                     cantidad = form.cleaned_data.get("cantidad")
-                    nombre = form.cleaned_data.get("nombre", "").strip()
+                    nombre = form.cleaned_data.get("nombre", "")
                     
                     # IMPORTANTE: Solo procesar si tiene ancho Y alto
                     if pieza_ancho and pieza_alto and cantidad:

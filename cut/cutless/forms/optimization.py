@@ -8,8 +8,9 @@ from ..units import (
     CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
     margen_en_cm, margen_en_mm, medida_tablero_en_cm,
 )
-from .nombres import LIMITE_TRABAJO, NombreLimitadoField
+from .nombres import NombreLimitadoField
 from .numeros import CantidadEntradaField, DecimalEntradaField, ImporteEntradaField, MedidaEntradaField
+from .piezas import NombrePiezaField
 
 from ..materiales import precio_material_valido
 from ..models import Material, Cliente, Proyecto
@@ -18,7 +19,7 @@ from ..board_presets import CATALOGO, medida_valida
 
 class NombreOptimizacionForm(forms.Form):
     nombre_optimizacion = NombreLimitadoField(
-        limite=LIMITE_TRABAJO, label='Nombre del trabajo (opcional)', required=False,
+        label='Nombre del trabajo (opcional)', required=False,
         widget=forms.TextInput(attrs={
             'class': 'form-control', 'id': 'nombre_optimizacion',
             'placeholder': 'Ej.: Mueble de cocina',
@@ -452,9 +453,8 @@ class PiezaForm(MedidasClarasMixin, forms.Form):
     minimo_cm = LADO_PIEZA_MIN_CM
     objeto_medida = 'pieza'
 
-    nombre = forms.CharField(
+    nombre = NombrePiezaField(
         label="Nombre de la pieza",
-        max_length=50,
         required=False,
         widget=forms.Textarea(attrs={
             'rows': 1,
@@ -496,9 +496,10 @@ class PiezaForm(MedidasClarasMixin, forms.Form):
         })
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, nombre_guardado=None, **kwargs):
         unidad = kwargs.pop('unidad_medida', None)
         super().__init__(*args, **kwargs)
+        self.fields['nombre'].nombre_guardado = nombre_guardado
         self.configurar_medidas(unidad or (self.data.get('unidad_medida') if self.is_bound else 'cm') or 'cm')
         self.fields['cantidad'].widget.attrs['aria-describedby'] = f'{self.add_prefix("cantidad")}_rango'
 

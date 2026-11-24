@@ -6,7 +6,7 @@ from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal, InvalidOperation
 from .models import PerfilUsuario
-from cutless.forms.nombres import LIMITE_USUARIO, NombreLimitadoField, NombreModeloMixin
+from cutless.forms.nombres import NombreLimitadoField, NombreModeloMixin
 from cutless.units import UNIDADES_CHOICES
 
 AYUDA_USUARIO = 'Sin espacios. Usa letras, números o los símbolos @ . + - _.'
@@ -18,7 +18,7 @@ class NombreUsuarioField(NombreLimitadoField, UsernameField):
 
     def __init__(self, **kwargs):
         super().__init__(
-            limite=LIMITE_USUARIO, label='Nombre de usuario', help_text=AYUDA_USUARIO, **kwargs,
+            label='Nombre de usuario', help_text=AYUDA_USUARIO, **kwargs,
         )
 
     def clean(self, valor):
