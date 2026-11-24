@@ -9,6 +9,7 @@ from ..units import (
     CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
     margen_en_cm, margen_en_mm, medida_editable, medida_tablero_en_cm,
 )
+from .descripciones import DescripcionLimitadaField, DescripcionModeloMixin, TextoLimitadoTextarea, supera_limite_texto
 from .nombres import LIMITE_NOMBRE, NombreLimitadoField, NombreModeloMixin
 from .numeros import DecimalEntradaField, MedidaEntradaField
 from .piezas import validar_nombres_piezas
@@ -19,7 +20,7 @@ CONTRATO_PIEZAS = {
     'maxNombre': LIMITE_NOMBRE,
 }
 
-class PlantillaForm(NombreModeloMixin, forms.ModelForm):
+class PlantillaForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar plantillas."""
 
     margen_corte = DecimalEntradaField(
@@ -29,7 +30,8 @@ class PlantillaForm(NombreModeloMixin, forms.ModelForm):
     
     def __init__(self, *args, user=None, origen_tablero=None, conservar_nombre=True, **kwargs):
         self.user = user
-        super().__init__(*args, conservar_nombre=conservar_nombre, **kwargs)
+        super().__init__(*args, conservar_nombre=conservar_nombre,
+                         conservar_descripcion=conservar_nombre, **kwargs)
         self.conservar_piezas = conservar_nombre and not self.instance._state.adding
         self.origen_tablero = origen_tablero if origen_tablero is not None else self.instance
         if self.instance.pk:
@@ -37,6 +39,8 @@ class PlantillaForm(NombreModeloMixin, forms.ModelForm):
             if (self.instance.es_predefinida and campo_nombre.nombre_guardado is None
                     and campo_nombre.supera_limite(self.instance.nombre)):
                 campo_nombre.help_text += ' Acorta el nombre original para guardar una copia.'
+            if not conservar_nombre and supera_limite_texto(self.instance.descripcion):
+                self.fields['descripcion'].help_text += ' Acorta la descripción original para guardar una copia.'
             unidad = self.instance.unidad_medida or 'cm'
             self.initial['ancho_tablero'] = medida_editable(self.instance.ancho_tablero, unidad)
             self.initial['alto_tablero'] = medida_editable(self.instance.alto_tablero, unidad)
@@ -107,7 +111,7 @@ class PlantillaForm(NombreModeloMixin, forms.ModelForm):
         model = Plantilla
         fields = ['nombre', 'descripcion', 'categoria', 'ancho_tablero', 'alto_tablero', 'unidad_medida', 'piezas', 'permitir_rotacion', 'margen_corte']
         field_classes = {
-            'nombre': NombreLimitadoField,
+            'nombre': NombreLimitadoField, 'descripcion': DescripcionLimitadaField,
             'ancho_tablero': MedidaEntradaField, 'alto_tablero': MedidaEntradaField,
         }
         widgets = {
@@ -115,7 +119,7 @@ class PlantillaForm(NombreModeloMixin, forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'Ej: Cocina Estándar, Mueble de TV'
             }),
-            'descripcion': forms.Textarea(attrs={
+            'descripcion': TextoLimitadoTextarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
                 'placeholder': 'Descripción de la plantilla'

@@ -2,6 +2,7 @@ from django import forms
 from django.utils import timezone
 
 from ..models import Presupuesto, Optimizacion, Cliente, Proyecto
+from .descripciones import DescripcionLimitadaField, TextoLimitadoTextarea
 from .nombres import NombreLimitadoField
 from .numeros import ImporteDecimalField
 
@@ -22,7 +23,10 @@ class PresupuestoForm(forms.ModelForm):
     class Meta:
         model = Presupuesto
         fields = ['cliente', 'optimizaciones', 'precio_tablero', 'mano_obra', 'fecha_validez', 'notas', 'estado', 'proyecto']
-        field_classes = dict.fromkeys(('precio_tablero', 'mano_obra'), ImporteDecimalField)
+        field_classes = {
+            'precio_tablero': ImporteDecimalField, 'mano_obra': ImporteDecimalField,
+            'notas': DescripcionLimitadaField,
+        }
         widgets = {
             'cliente': forms.Select(attrs={
                 'class': 'form-select'
@@ -44,7 +48,7 @@ class PresupuestoForm(forms.ModelForm):
                 'class': 'form-control',
                 'type': 'date'
             }),
-            'notas': forms.Textarea(attrs={
+            'notas': TextoLimitadoTextarea(attrs={
                 'class': 'form-control',
                 'rows': 4,
                 'placeholder': 'Notas adicionales para el cliente'
@@ -80,6 +84,7 @@ class PresupuestoForm(forms.ModelForm):
         if (not es_creacion and self.instance.estado == 'borrador'
                 and user is not None and self.instance.usuario_id == user.pk):
             self._fecha_guardada = self.instance.fecha_validez
+            self.fields['notas'].conservar(self.instance.notas)
 
         campo_fecha = self.fields['fecha_validez']
         if self._fecha_guardada is not None and self._fecha_guardada < self._hoy:
