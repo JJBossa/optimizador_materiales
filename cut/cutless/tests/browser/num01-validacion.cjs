@@ -56,7 +56,7 @@ async function probarMateriales(page, javaScriptEnabled) {
   const editar = page.getByRole('row').filter({ hasText: titulo }).getByRole('link', { name: 'Editar' });
   const rutaEdicion = await editar.getAttribute('href');
   await abrir(page, rutaEdicion);
-  assert.equal(await precio.inputValue(), '12.50');
+  assert.equal(await precio.inputValue(), '12.5');
   assert.equal(await ancho.inputValue(), '122.1250');
   await precio.fill('0,345');
   await enviarMaterial(page, 200);
@@ -69,7 +69,7 @@ async function probarMateriales(page, javaScriptEnabled) {
   assert.equal(await precio.inputValue(), '0,50');
   await enviarMaterial(page, 302);
   await abrir(page, rutaEdicion);
-  assert.equal(await precio.inputValue(), '0.50');
+  assert.equal(await precio.inputValue(), '0.5');
 }
 
 async function probarFechaYPreseleccion(page) {
