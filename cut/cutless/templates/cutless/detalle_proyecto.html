@@ -4,7 +4,7 @@
 {% block body_class %}management-page{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=proyecto-estado-1">
+<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=vis07-1">
 {% endblock %}
 
 {% block content %}
@@ -119,7 +119,7 @@
             <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Optimización y fecha</span><strong>{{ opt.etiqueta }}</strong><br>{{ opt.fecha|date:"d/m/Y H:i" }}</td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Tablero</span>{{ opt.ancho_tablero }} × {{ opt.alto_tablero }} cm</td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Aprovechamiento</span>
-              <span class="badge bg-{% if opt.aprovechamiento_total >= 80 %}success{% elif opt.aprovechamiento_total >= 60 %}warning{% else %}danger{% endif %}">
+              <span class="badge badge-aprovechamiento bg-{% if opt.aprovechamiento_total >= 80 %}success{% elif opt.aprovechamiento_total >= 60 %}warning{% else %}danger{% endif %}">
                 {{ opt.aprovechamiento_total|floatformat:1 }}%
               </span>
             </td>
