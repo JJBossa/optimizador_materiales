@@ -32,9 +32,11 @@
       <h4 class="mb-0">Información del presupuesto</h4>
     </div>
     <div class="card-body">
+      <p class="form-text">Este borrador sigue editable hasta que lo emitas.</p>
       <form method="post">
         <p class="management-note">Completa los datos y guarda los cambios. Los campos con * son obligatorios.</p>
         {% csrf_token %}
+        {{ form.revision }}
 
         {% if form.errors %}
           <div class="alert alert-danger">
@@ -117,15 +119,6 @@
             {% endif %}
             <small class="form-text text-muted" id="{{ form.fecha_validez.auto_id }}_helptext">{{ form.fecha_validez.help_text }}</small>
           </div>
-          <div class="col-md-6">
-            <label for="{{ form.estado.id_for_label }}" class="form-label">
-              {{ form.estado.label }}
-            </label>
-            {{ form.estado }}
-            {% if form.estado.errors %}
-              <div class="text-danger small">{{ form.estado.errors }}</div>
-            {% endif %}
-          </div>
         </div>
 
         <div class="row mb-3">
@@ -140,8 +133,10 @@
 
         <div class="form-action-bar">
           <a href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="chevron-left">Cancelar</a>
-          <button type="submit" class="btn btn-success" data-action="success" data-icon="check">Guardar cambios</button>
+          <button type="submit" name="accion" value="guardar_borrador" class="btn btn-success"
+                  data-action="success" data-icon="check">Guardar cambios</button>
         </div>
+        {% include 'cutless/includes/emitir_presupuesto.html' %}
       </form>
     </div>
   </div>

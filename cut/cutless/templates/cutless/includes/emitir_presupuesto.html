@@ -1,0 +1,7 @@
+<details class="mt-3"{% if form.is_bound and form.accion == 'emitir' %} open{% endif %}>
+  <summary class="fw-semibold">Emitir presupuesto</summary>
+  <p class="form-text mt-2" id="aviso-emision">Al emitir, quedarán cerrados los precios, los datos del cliente, las notas, la fecha de validez y las optimizaciones cotizadas. Podrás descargar el PDF y registrar un envío o una respuesta después.</p>
+  <button type="submit" name="accion" value="emitir" class="btn btn-primary" aria-describedby="aviso-emision">
+    Confirmar emisión
+  </button>
+</details>

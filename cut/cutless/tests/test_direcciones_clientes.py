@@ -74,7 +74,7 @@ class DireccionesClientesTests(TestCase):
             'cliente': self.ficha.pk, 'proyecto': proyecto.pk, 'optimizaciones': [plan.pk],
             'precio_tablero': '1500.50', 'mano_obra': '43.20',
             'fecha_validez': (timezone.localdate() + timedelta(days=1)).isoformat(),
-            'estado': estado,
+            **({'accion': 'emitir'} if estado == 'enviado' else {}),
         })
         self.assertEqual(respuesta.status_code, 302)
         return Presupuesto.objects.filter(usuario=self.propietario).latest('pk')
@@ -247,7 +247,7 @@ class DireccionesClientesTests(TestCase):
         res = self.client.post(reverse('cutless:editar_presupuesto', args=[borrador.pk]), {
             'cliente': self.ficha.pk, 'proyecto': proyecto.pk, 'optimizaciones': [plan.pk],
             'precio_tablero': '1500.50', 'mano_obra': '43.20', 'fecha_validez': date.today().isoformat(),
-            'estado': 'enviado',
+            'accion': 'emitir', 'revision': borrador.fecha_actualizacion.isoformat(),
         })
         self.assertEqual(res.status_code, 302)
         borrador.refresh_from_db()

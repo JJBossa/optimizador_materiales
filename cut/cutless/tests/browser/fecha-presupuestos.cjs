@@ -18,17 +18,17 @@ async function probar(page, ancho, js) {
   const alta = origen.origin + fixture.crear;
   assert.equal((await page.goto(alta, { waitUntil: 'domcontentloaded' })).status(), 200);
   const fecha = page.getByLabel('Válido Hasta');
-  const guardar = page.getByRole('button', { name: 'Crear presupuesto', exact: true });
+  const guardar = page.getByRole('button', { name: 'Guardar borrador', exact: true });
   const valores = {
     cliente: String(fixture.cliente), proyecto: String(fixture.proyecto),
-    precio_tablero: '150.50', mano_obra: '25.25', estado: 'enviado', notas: 'Notas sintéticas PRE-01',
+    precio_tablero: '150.50', mano_obra: '25.25', notas: 'Notas sintéticas PRE-01',
   };
   const plan = page.locator(`#opt_${fixture.plan}`);
   assert.equal(await fecha.getAttribute('type'), 'date');
   assert.equal(await fecha.getAttribute('min'), fixture.hoy);
   assert.equal(await fecha.inputValue(), fixture.hoy);
   assert.equal(await fecha.evaluate(e => e.required), true);
-  for (const campo of ['cliente', 'estado', 'proyecto']) {
+  for (const campo of ['cliente', 'proyecto']) {
     await page.locator(`#id_${campo}`).selectOption(valores[campo]);
   }
   for (const campo of ['precio_tablero', 'mano_obra', 'notas']) {

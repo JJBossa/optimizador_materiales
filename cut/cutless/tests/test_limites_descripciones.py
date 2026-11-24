@@ -171,13 +171,14 @@ class LimitesDescripcionesTests(TestCase):
         presupuesto = Presupuesto.objects.get()
         Presupuesto.objects.filter(pk=presupuesto.pk).update(notas=HISTORICO)
         editar = reverse('cutless:editar_presupuesto', args=[presupuesto.pk])
-        datos = {**self.datos_presupuesto, 'estado': 'enviado'}
+        datos = {campo: valor for campo, valor in self.datos_presupuesto.items() if campo != 'estado'}
+        datos.update(accion='emitir', revision=presupuesto.fecha_actualizacion.isoformat())
         self.assertEqual(self.client.post(editar, {**datos, 'notas': texto_de_textarea(HISTORICO)}).status_code, 302)
         presupuesto.refresh_from_db()
         antes = (presupuesto.numero, presupuesto.detalle_emitido, presupuesto.costo_total,
                  list(presupuesto.optimizaciones.values_list('pk', flat=True)))
         self.assertTrue(presupuesto.detalle_emitido)
-        self.assertEqual(self.client.post(editar, {'estado': 'aceptado', 'notas': 'a' * 400}).status_code, 302)
+        self.assertEqual(self.client.post(editar, {'estado': 'aceptado', 'estado_origen': 'emitido', 'notas': 'a' * 400}).status_code, 302)
         presupuesto.refresh_from_db()
         self.assertEqual((presupuesto.estado, presupuesto.notas), ('aceptado', HISTORICO))
         self.assertEqual((presupuesto.numero, presupuesto.detalle_emitido, presupuesto.costo_total,

@@ -2,7 +2,6 @@ from django.db import transaction
 from decimal import Decimal
 
 
-from django import forms
 from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import Q
@@ -13,31 +12,27 @@ from django.views.decorators.http import require_GET
 
 from ..exports.pdf import generar_pdf_presupuesto as construir_pdf_presupuesto
 from ..formato_clp import formatear_clp
-from ..forms import PresupuestoForm
+from ..forms.budgets import ACCION_EMITIR, EstadoPresupuestoEmitidoForm, PresupuestoForm
 from ..pieces import parsear_piezas_desde_texto
 from ..models import Presupuesto, Optimizacion, Cliente
 from ..services import enviar_notificacion
 from ..services.indicadores import obtener_indicadores
+from ..services.presupuestos import (
+    estado_efectivo, fecha_comercial, registrar_transicion, sincronizar_vencimientos,
+)
 from .common import exigir_piezas_completas, leer_id_optimizacion
 from .media import media_privada
 
 
-class EstadoPresupuestoEmitidoForm(forms.ModelForm):
-    estado = forms.ChoiceField(
-        choices=[(valor, etiqueta) for valor, etiqueta in Presupuesto.ESTADOS_CHOICES if valor != 'borrador'],
-        label='Estado',
+def guardar_detalle_presupuesto(presupuesto, optimizaciones, *, emitir):
+    # Usar los mismos planes que el formulario validó para el total y el detalle cotizado.
+    presupuesto.costo_total = (
+        presupuesto.precio_tablero * sum(opt.num_tableros or 0 for opt in optimizaciones) + presupuesto.mano_obra
     )
-
-    class Meta:
-        model = Presupuesto
-        fields = ('estado',)
-
-
-def guardar_detalle_presupuesto(presupuesto):
-    presupuesto.costo_total = presupuesto.calcular_costo_total_multiple()
-    if presupuesto.estado != 'borrador':
-        presupuesto.cerrar_detalle()
-    presupuesto.save(update_fields=['costo_total', 'detalle_emitido', 'fecha_actualizacion'])
+    if emitir:
+        presupuesto.estado = 'emitido'
+        presupuesto.cerrar_detalle(optimizaciones=optimizaciones)
+    presupuesto.save(update_fields=['estado', 'costo_total', 'detalle_emitido', 'fecha_actualizacion'])
 
 
 @never_cache
@@ -50,10 +45,9 @@ def lista_presupuestos(request):
     """
     Lista todos los presupuestos del usuario.
     """
-    # Filtrar presupuestos del usuario
-    presupuestos = Presupuesto.objects.filter(
-        usuario=request.user
-    ).prefetch_related('optimizaciones__material').select_related('cliente', 'proyecto').order_by('-fecha_creacion')
+    propios = Presupuesto.objects.filter(usuario=request.user)
+    sincronizar_vencimientos(propios)
+    presupuestos = propios.prefetch_related('optimizaciones__material').select_related('cliente', 'proyecto').order_by('-fecha_creacion')
     
     # Filtros
     estado_filtro = request.GET.get('estado', '')
@@ -71,6 +65,7 @@ def lista_presupuestos(request):
     return render(request, 'cutless/lista_presupuestos.html', {
         'presupuestos': presupuestos,
         'estado_filtro': estado_filtro,
+        'estados': Presupuesto.ESTADOS_CHOICES,
         'busqueda': busqueda,
     })
 
@@ -89,11 +84,11 @@ def crear_presupuesto(request):
                                           content_type='text/plain; charset=utf-8')
         optimizacion = get_object_or_404(Optimizacion, pk=optimizacion_id, usuario=request.user)
     
-    if request.method == "POST":
+    if request.method == 'POST':
+        # Serializar la numeración y validar la fecha después de tomar el bloqueo.
+        get_user_model().objects.select_for_update().get(pk=request.user.pk)
         form = PresupuestoForm(request.POST, user=request.user)
         if form.is_valid():
-            # El usuario existe antes de su primer presupuesto y serializa todas sus altas.
-            get_user_model().objects.select_for_update().get(pk=request.user.pk)
             presupuesto = form.save(commit=False)
             presupuesto.usuario = request.user
             
@@ -111,7 +106,7 @@ def crear_presupuesto(request):
                     messages.info(request, f'✅ Cliente "{nombre_cliente_nuevo}" creado automáticamente.')
             elif not presupuesto.cliente:
                 # Si no hay cliente seleccionado ni nombre nuevo, usar el de la optimización si existe
-                if optimizacion and optimizacion.cliente:
+                if optimizacion and optimizacion.cliente and optimizacion.cliente.usuario_id == request.user.pk:
                     presupuesto.cliente = optimizacion.cliente
             
             # Generar número único
@@ -130,7 +125,9 @@ def crear_presupuesto(request):
             presupuesto.optimizaciones.set(optimizaciones_seleccionadas)
             
             # Recalcular costo total (por si acaso) y guardar de nuevo
-            guardar_detalle_presupuesto(presupuesto)
+            guardar_detalle_presupuesto(
+                presupuesto, optimizaciones_seleccionadas, emitir=form.accion == ACCION_EMITIR,
+            )
             
             # Enviar notificación de presupuesto creado (esto mostrará el mensaje según la configuración)
             enviar_notificacion(
@@ -219,11 +216,10 @@ def detalle_presupuesto(request, pk):
     """
     Muestra el detalle de un presupuesto y permite generar PDF.
     """
+    propio = Presupuesto.objects.filter(pk=pk, usuario=request.user)
+    sincronizar_vencimientos(propio)
     try:
-        presupuesto = Presupuesto.objects.prefetch_related('optimizaciones__material').select_related('cliente', 'proyecto').get(
-            pk=pk,
-            usuario=request.user
-        )
+        presupuesto = propio.prefetch_related('optimizaciones__material').select_related('cliente', 'proyecto').get()
     except Presupuesto.DoesNotExist:
         messages.error(request, "Presupuesto no encontrado.")
         return redirect('cutless:lista_presupuestos')
@@ -254,22 +250,34 @@ def editar_presupuesto(request, pk):
     """
     Edita un presupuesto existente.
     """
-    queryset = Presupuesto.objects.prefetch_related('optimizaciones__material')
+    propio = Presupuesto.objects.filter(pk=pk, usuario=request.user)
+    queryset = propio.prefetch_related('optimizaciones__material')
     if request.method == 'POST':
         queryset = queryset.select_for_update()
+    else:
+        sincronizar_vencimientos(propio)
     try:
-        presupuesto = queryset.get(pk=pk, usuario=request.user)
+        presupuesto = queryset.get()
     except Presupuesto.DoesNotExist:
         messages.error(request, 'Presupuesto no encontrado.')
         return redirect('cutless:lista_presupuestos')
 
     if presupuesto.estado != 'borrador':
+        hoy = fecha_comercial()
+        if request.method == 'POST' and estado_efectivo(presupuesto, hoy=hoy) == 'vencido':
+            if sincronizar_vencimientos(propio, hoy=hoy):
+                presupuesto.estado = 'vencido'
         estado_form = EstadoPresupuestoEmitidoForm(
-            request.POST if request.method == 'POST' else None, instance=presupuesto,
+            request.POST if request.method == 'POST' else None, presupuesto=presupuesto,
         )
         if request.method == 'POST' and estado_form.is_valid():
-            presupuesto.save(update_fields=['estado', 'fecha_actualizacion'])
-            messages.success(request, 'Estado del presupuesto actualizado.')
+            actualizado = registrar_transicion(
+                propio, origen=presupuesto.estado, destino=estado_form.cleaned_data['estado'], hoy=hoy,
+            )
+            if actualizado:
+                messages.success(request, 'Estado del presupuesto actualizado.')
+            else:
+                messages.error(request, 'El presupuesto cambió de estado. Revisa su estado actual.')
             return redirect('cutless:detalle_presupuesto', pk=pk)
         return render(request, 'cutless/editar_estado_presupuesto.html', {
             'presupuesto': presupuesto, 'form': estado_form,
@@ -301,10 +309,14 @@ def editar_presupuesto(request, pk):
             presupuesto.optimizaciones.set(optimizaciones_seleccionadas)
             
             # Recalcular costo total y guardar de nuevo
-            guardar_detalle_presupuesto(presupuesto)
+            guardar_detalle_presupuesto(
+                presupuesto, optimizaciones_seleccionadas, emitir=form.accion == ACCION_EMITIR,
+            )
             
-            num_optimizaciones = presupuesto.optimizaciones.count()
-            messages.success(request, f'✅ Presupuesto "{presupuesto.numero}" actualizado exitosamente con {num_optimizaciones} optimización(es).')
+            if form.accion == ACCION_EMITIR:
+                messages.success(request, f'Presupuesto "{presupuesto.numero}" emitido.')
+            else:
+                messages.success(request, f'Cambios guardados en el borrador "{presupuesto.numero}".')
             return redirect('cutless:detalle_presupuesto', pk=presupuesto.pk)
     else:
         form = PresupuestoForm(instance=presupuesto, user=request.user)

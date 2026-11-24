@@ -254,8 +254,8 @@ class ContactoClienteVistasTests(TestCase):
                    'precio_tablero': '100', 'mano_obra': '0',
                    'fecha_validez': (timezone.localdate() + timedelta(days=1)).isoformat()}
         crear_presupuesto = reverse('cutless:crear_presupuesto')
-        self.assertEqual(self.client.post(crear_presupuesto, {**entrada, 'estado': 'enviado'}).status_code, 302)
-        emitido = Presupuesto.objects.get(usuario=self.usuario, estado='enviado')
+        self.assertEqual(self.client.post(crear_presupuesto, {**entrada, 'accion': 'emitir'}).status_code, 302)
+        emitido = Presupuesto.objects.get(usuario=self.usuario, estado='emitido')
         instantanea = emitido.detalle_emitido
         self.assertEqual(instantanea['cliente']['telefono'], 'Tel de prueba')
         self.assertEqual(instantanea['cliente']['rut'], 'FISCAL-ANTERIOR')
