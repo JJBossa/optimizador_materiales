@@ -100,7 +100,7 @@
             {% if presupuesto.estado == 'borrador' %}
               <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
             {% elif presupuesto.puede_registrar_estado %}
-              <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="check">Registrar estado</a>
+              <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="check" aria-label="Registrar estado">Estado</a>
             {% endif %}
             <a href="{% url 'cutless:generar_pdf_presupuesto' presupuesto.pk %}" class="btn btn-primary" target="_blank" rel="noopener" data-action="primary" data-icon="pdf" data-descarga="pdf">PDF</a>
           </div></td>

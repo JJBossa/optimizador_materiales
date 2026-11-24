@@ -17,7 +17,7 @@ async function abrir(page, url) {
 async function enviar(page, url, codigo) {
   const [respuesta] = await Promise.all([
     page.waitForResponse(r => r.url() === url && r.request().method() === 'POST'),
-    page.getByRole('button', { name: 'Guardar cambios', exact: true }).click(),
+    page.getByRole('button', { name: 'Guardar cambios', exact: true }).press('Enter'),
   ]);
   assert.equal(respuesta.status(), codigo);
   if (codigo === 302) await page.waitForURL(new URL(respuesta.headers().location, url).href);

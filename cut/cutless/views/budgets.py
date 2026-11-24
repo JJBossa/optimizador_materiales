@@ -32,7 +32,8 @@ def guardar_detalle_presupuesto(presupuesto, optimizaciones, *, emitir):
     if emitir:
         presupuesto.estado = 'emitido'
         presupuesto.cerrar_detalle(optimizaciones=optimizaciones)
-    presupuesto.save(update_fields=['estado', 'costo_total', 'detalle_emitido', 'fecha_actualizacion'])
+    presupuesto.save()
+    presupuesto.optimizaciones.set(optimizaciones)
 
 
 @never_cache
@@ -112,23 +113,10 @@ def crear_presupuesto(request):
             # Generar número único
             presupuesto.numero = Presupuesto.generar_numero_presupuesto(usuario=request.user)
             
-            optimizaciones_seleccionadas = form.cleaned_data['optimizaciones']
-            presupuesto.costo_total = (
-                presupuesto.precio_tablero * sum(opt.num_tableros or 0 for opt in optimizaciones_seleccionadas)
-                + presupuesto.mano_obra
-            )
-            
-            # Guardar primero para poder asignar las optimizaciones ManyToMany
-            presupuesto.save()
-            
-            # Asignar optimizaciones (ManyToMany)
-            presupuesto.optimizaciones.set(optimizaciones_seleccionadas)
-            
-            # Recalcular costo total (por si acaso) y guardar de nuevo
             guardar_detalle_presupuesto(
-                presupuesto, optimizaciones_seleccionadas, emitir=form.accion == ACCION_EMITIR,
+                presupuesto, form.cleaned_data['optimizaciones'], emitir=form.accion == ACCION_EMITIR,
             )
-            
+
             # Enviar notificación de presupuesto creado (esto mostrará el mensaje según la configuración)
             enviar_notificacion(
                 request,
@@ -301,18 +289,10 @@ def editar_presupuesto(request, pk):
                 if created:
                     messages.info(request, f'✅ Cliente "{nombre_cliente_nuevo}" creado automáticamente.')
             
-            # Guardar primero para poder asignar las optimizaciones ManyToMany
-            presupuesto.save()
-            
-            # Asignar optimizaciones (ManyToMany)
-            optimizaciones_seleccionadas = form.cleaned_data['optimizaciones']
-            presupuesto.optimizaciones.set(optimizaciones_seleccionadas)
-            
-            # Recalcular costo total y guardar de nuevo
             guardar_detalle_presupuesto(
-                presupuesto, optimizaciones_seleccionadas, emitir=form.accion == ACCION_EMITIR,
+                presupuesto, form.cleaned_data['optimizaciones'], emitir=form.accion == ACCION_EMITIR,
             )
-            
+
             if form.accion == ACCION_EMITIR:
                 messages.success(request, f'Presupuesto "{presupuesto.numero}" emitido.')
             else:

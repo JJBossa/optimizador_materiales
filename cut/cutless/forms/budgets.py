@@ -147,8 +147,8 @@ class PresupuestoForm(forms.ModelForm):
         if 'revision' in self.fields:
             revisiones = valores_post(self.data, 'revision')
             if (revisiones or self.accion == ACCION_EMITIR) and revisiones != [self.initial['revision']]:
+                # El formulario ligado conserva la revisión antigua para evitar sobrescrituras al reenviar.
                 self.add_error(None, 'Este borrador cambió. Vuelve a abrirlo antes de guardar o emitir.')
-                # Presentar la revisión antigua impide que reenviar el mismo formulario sobrescriba el cambio.
         if datos.get('cliente') and datos.get('nombre_cliente_nuevo'):
             self.add_error('nombre_cliente_nuevo', 'Selecciona un cliente o escribe uno nuevo, no ambos.')
         for campo in ('precio_tablero', 'mano_obra'):

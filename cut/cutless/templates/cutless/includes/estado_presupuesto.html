@@ -1,4 +1,4 @@
-<span data-presupuesto-estado="{{ presupuesto.estado }}" class="badge presupuesto-estado bg-{% if presupuesto.estado == 'aceptado' %}success{% elif presupuesto.estado == 'emitido' or presupuesto.estado == 'enviado' %}primary{% elif presupuesto.estado == 'rechazado' or presupuesto.estado == 'vencido' %}danger{% else %}secondary{% endif %}">
+<span data-presupuesto-estado="{{ presupuesto.estado }}" class="badge presupuesto-estado text-nowrap bg-{% if presupuesto.estado == 'aceptado' %}success{% elif presupuesto.estado == 'emitido' or presupuesto.estado == 'enviado' %}primary{% elif presupuesto.estado == 'rechazado' or presupuesto.estado == 'vencido' %}danger{% else %}secondary{% endif %}">
   <span aria-hidden="true">{% if presupuesto.estado == 'aceptado' %}✓{% elif presupuesto.estado == 'emitido' %}◆{% elif presupuesto.estado == 'enviado' %}↗{% elif presupuesto.estado == 'rechazado' %}×{% elif presupuesto.estado == 'vencido' %}⌛{% else %}✎{% endif %}</span>
   {{ presupuesto.get_estado_display }}
 </span>
