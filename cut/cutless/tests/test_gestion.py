@@ -65,3 +65,77 @@ class GestionTests(TestCase):
         for nombre, pk in rutas:
             with self.subTest(ruta=nombre):
                 self.assertEqual(self.client.get(reverse('cutless:' + nombre, args=[pk])).status_code, 200)
+
+    def test_historial_de_cliente_sin_proyectos_muestra_estado_vacio(self):
+        cliente = Cliente.objects.create(usuario=self.usuario, nombre='Sin proyectos')
+        respuesta = self.client.get(reverse('cutless:historial_cliente', args=[cliente.pk]))
+
+        self.assertContains(respuesta, 'Este cliente aún no tiene optimizaciones ni proyectos asociados.')
+        self.assertNotContains(respuesta, '>Ver proyecto</a>')
+
+    def test_historial_enlaza_a_un_proyecto_sin_optimizaciones(self):
+        cliente = Cliente.objects.create(usuario=self.usuario, nombre='Cliente de prueba')
+        proyecto = Proyecto.objects.create(usuario=self.usuario, cliente=cliente, nombre='Proyecto vacío')
+        historial = reverse('cutless:historial_cliente', args=[cliente.pk])
+        detalle = reverse('cutless:detalle_proyecto', args=[proyecto.pk])
+
+        respuesta = self.client.get(historial)
+        self.assertContains(respuesta, '>Ver proyecto</a>', count=1)
+        self.assertContains(respuesta, f'href="{detalle}"', count=1)
+
+        respuesta = self.client.get(detalle)
+        self.assertContains(respuesta, 'Este proyecto aún no tiene optimizaciones asociadas.')
+        self.assertEqual(respuesta.context['proyecto'], proyecto)
+
+    def test_historial_enlaza_cada_proyecto_y_conserva_el_resultado_individual(self):
+        cliente = Cliente.objects.create(usuario=self.usuario, nombre='Cliente de prueba')
+        cocina = Proyecto.objects.create(usuario=self.usuario, cliente=cliente, nombre='Cocina')
+        oficina = Proyecto.objects.create(usuario=self.usuario, cliente=cliente, nombre='Oficina')
+        plan = Optimizacion.objects.create(
+            usuario=self.usuario, cliente=cliente, proyecto=oficina,
+            ancho_tablero=122, alto_tablero=244, piezas='Puerta,40,50,1', num_tableros=1,
+        )
+
+        respuesta = self.client.get(reverse('cutless:historial_cliente', args=[cliente.pk]))
+        self.assertContains(respuesta, '>Ver proyecto</a>', count=2)
+        for proyecto in (cocina, oficina):
+            detalle = reverse('cutless:detalle_proyecto', args=[proyecto.pk])
+            self.assertContains(respuesta, f'href="{detalle}"', count=1)
+        resultado = reverse('cutless:resultado', args=[plan.pk])
+        self.assertContains(respuesta, f'href="{resultado}"', count=1)
+        self.assertContains(respuesta, '>Ver resultado</a>', count=1)
+        self.assertNotContains(respuesta, 'href="#" class="btn btn-sm btn-secondary"')
+
+    def test_historial_y_detalle_aislan_proyectos_por_cliente_y_propietario(self):
+        ajeno = User.objects.create_user('otro_gestor')
+        ajeno.perfil.rol = 'admin'
+        ajeno.perfil.save(update_fields=['rol'])
+        cliente = Cliente.objects.create(usuario=self.usuario, nombre='Cliente propio')
+        segundo_cliente = Cliente.objects.create(usuario=self.usuario, nombre='Segundo cliente')
+        cliente_ajeno = Cliente.objects.create(usuario=ajeno, nombre='Cliente ajeno')
+        propio = Proyecto.objects.create(usuario=self.usuario, cliente=cliente, nombre='Proyecto propio')
+        otro_cliente = Proyecto.objects.create(usuario=self.usuario, cliente=segundo_cliente, nombre='Otro cliente')
+        cruzado = Proyecto.objects.create(usuario=ajeno, cliente=cliente, nombre='Relación cruzada sintética')
+        privado = Proyecto.objects.create(usuario=ajeno, cliente=cliente_ajeno, nombre='Proyecto privado')
+        historial_ajeno = reverse('cutless:historial_cliente', args=[cliente_ajeno.pk])
+
+        respuesta = self.client.get(reverse('cutless:historial_cliente', args=[cliente.pk]))
+        self.assertQuerySetEqual(respuesta.context['proyectos'], [propio])
+        self.assertContains(respuesta, '>Ver proyecto</a>', count=1)
+        for proyecto in (otro_cliente, cruzado, privado):
+            detalle = reverse('cutless:detalle_proyecto', args=[proyecto.pk])
+            self.assertNotContains(respuesta, f'href="{detalle}"')
+        self.assertEqual(self.client.get(historial_ajeno).status_code, 404)
+
+        for proyecto in (cruzado, privado):
+            detalle = reverse('cutless:detalle_proyecto', args=[proyecto.pk])
+            denegacion = self.client.get(detalle, follow=True)
+            self.assertRedirects(denegacion, reverse('cutless:lista_proyectos'))
+            self.assertContains(denegacion, 'Proyecto no encontrado.')
+            self.assertNotContains(denegacion, proyecto.nombre)
+
+        self.client.force_login(ajeno)
+        respuesta = self.client.get(historial_ajeno)
+        self.assertQuerySetEqual(respuesta.context['proyectos'], [privado])
+        detalle_propio = reverse('cutless:detalle_proyecto', args=[propio.pk])
+        self.assertNotContains(respuesta, f'href="{detalle_propio}"')
