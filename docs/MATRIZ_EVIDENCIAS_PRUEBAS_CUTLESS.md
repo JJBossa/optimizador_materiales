@@ -1,10 +1,10 @@
 # Matriz consolidada de evidencias de pruebas — CutLess
 
-**Fecha de consolidación:** 22 de noviembre de 2026.
+**Fecha de consolidación:** 22 de noviembre de 2026. **Actualización para evaluación:** 24 de noviembre de 2026, basada en `main` `dc86f008c6489bc4912c440e06331b287e1c5483` (VIS-07).
 
 **Procedencia:** archivo de `docs/matriz-evidencias-auditoria-cutless-20261122` en el fork, integrado en `main` por el [PR #18](https://github.com/gy0kuroo/optimizador_materiales/pull/18).
 
-**Alcance:** revisión documental de ejecuciones históricas y posteriores, hasta el ajuste móvil de los botones de Comparación. Las suites citadas corresponden a sus respectivas etapas. Esta revisión no volvió a ejecutarlas ni consultó producción.
+**Alcance:** revisión documental de ejecuciones históricas y posteriores, ampliada con VER-01, TEST-01, FIX-01 y VIS-07. Las suites citadas corresponden a sus respectivas etapas. Esta revisión no volvió a ejecutarlas ni consultó producción.
 
 ## 1. Cómo leer la evidencia
 
@@ -92,6 +92,28 @@ La [auditoría integral](AUDITORIA_INTEGRAL_CUTLESS.md#b-registro-de-hallazgos) 
 | Tablas móviles del PR #19 | El usuario confirmó el funcionamiento. El estado del despliegue y el commit activo en Render quedaron sin comprobar. | [Registro del PR #19](REGISTRO_CAMBIOS_NOVIEMBRE_2026.md#cambios-registrados). **C** |
 | Conexión a PostgreSQL de Supabase | Prueba histórica desde Django local contra una base limpia. El usuario confirmó migraciones iniciales, autenticación, guardado, recuperación de historial y descargas. | [Preparación PostgreSQL](CAMBIOS_PREPARACION_POSTGRESQL.md#validaciones-y-límites). **B+C** |
 | Recuperación por correo | Prueba real con Brevo desde Windows y ensayo temporal del Worker en Cloudflare, informados por el equipo. La recuperación pública quedó desactivada según ese registro. | [Evidencia operativa](REGISTRO_CAMBIOS_NOVIEMBRE_2026.md#evidencia-operativa) · [Guía de recuperación](RECUPERACION_PASSWORD_BREVO.md). **B+C** |
+
+## 3 bis. Actualización de evidencias: 23–24 de noviembre de 2026
+
+Esta sección complementa las campañas históricas de la matriz; **no sustituye ni suma sus resultados como si fueran casos nuevos**. Los registros citados provienen de ejecuciones anteriores documentadas. No se volvieron a ejecutar las suites al preparar la evaluación.
+
+| Hito | Resultado registrado | Archivo / PR y tipo de evidencia | Interpretación |
+| --- | --- | --- | --- |
+| **VER-01**, auditoría sobre `e52536b` | PostgreSQL local: 501 casos, 500 aprobados y **1 fallido**. SQLite local: 501 casos, 492 aprobados, **1 fallido y 8 omitidos**. JavaScript: 67 aprobados; Worker: 8 aprobados. Recorridos Chromium complementarios. | [Informe VER-01](VER_01_AUDITORIA_CONSOLIDACION.md) · [PR #36](https://github.com/gy0kuroo/optimizador_materiales/pull/36). **A+B** | Es una **fotografía histórica con fallos identificados**, no una suite completamente verde. |
+| **TEST-01**, corrección de pruebas obsoletas | Se corrigieron las expectativas de regresión de NUM-01 y dos guiones de Chromium (Contacto y NUM-01). Los reensayos focalizados ya habían aprobado en VER-01 tras los ajustes. | [PR #37](https://github.com/gy0kuroo/optimizador_materiales/pull/37), [VER-01](VER_01_AUDITORIA_CONSOLIDACION.md). **A+B** | El informe VER-01 conserva sus cifras originales fallidas; no se reescriben como aprobadas. |
+| **FIX-01**, enlace de proyectos | Se sustituyó el enlace sin destino funcional detectado en el historial del cliente; se registraron pruebas locales con datos sintéticos en SQLite, PostgreSQL y Chromium a 390/1280 px. | [PR #38](https://github.com/gy0kuroo/optimizador_materiales/pull/38) · [registro de noviembre](REGISTRO_CAMBIOS_NOVIEMBRE_2026.md). **A+B** | El cierre funcional está integrado en `main`. No implica comprobación de Render. |
+| **VIS-07**, badges de aprovechamiento | 24 combinaciones Chromium (4 vistas × 3 anchos × 2 temas); medidas informadas 80 × 42 px, sin desbordes. Seis accesos «Ver resultado» correctos. Se reportan 497 casos Django ejecutados en SQLite con 8 omisiones esperadas y 0 fallos; 67 pruebas JavaScript aprobadas. | [Informe VIS-07](VIS_07_BADGES_APROVECHAMIENTO.md), [recorrido Playwright](../cut/cutless/tests/browser/aprovechamiento-tablas.cjs), [PR #39 fusionado](https://github.com/gy0kuroo/optimizador_materiales/pull/39). **A+B** | Medición visual local. Los resultados no se reprodujeron nuevamente en esta actualización. |
+| **UX-05**, descargas en dispositivos físicos | El usuario confirmó el **24/11/2026** que la comprobación en Safari de iPhone físico y Chrome de Windows ya está terminada. | Confirmación directa del responsable de la evaluación; [documento de UX-05](UX_05_DESCARGAS_SAFARI_IOS.md), [PR #31](https://github.com/gy0kuroo/optimizador_materiales/pull/31). **C** | **Cerrado según confirmación del usuario.** No constan aquí la matriz de resultados por formato/panel, versiones de navegador, logs ni capturas de la ejecución física posterior a la corrección. Evitar atribuir una tasa de aprobación o casos concretos no aportados. |
+
+### Evidencia útil para demostrar en clase
+
+- **Prueba técnica reproducible:** mostrar una prueba Django/JavaScript versionada y el informe de ejecución correspondiente, indicando entorno, fecha y commit. VER-01 y VIS-07 aportan evidencia de distintas revisiones.
+- **Prueba funcional y visual:** utilizar [VIS-07](VIS_07_BADGES_APROVECHAMIENTO.md) para explicar cómo se comprobaron dimensiones, centrado, ambos temas y el enlace a «Ver resultado». Las rutas `/workspace/vis07-evidencia/` del entorno de Codex no equivalen a capturas subidas al repositorio.
+- **Prueba de seguridad:** utilizar [Medidas de seguridad implementadas](EVALUACION_MEDIDAS_SEGURIDAD_CUTLESS.md) y sus referencias a H01/H04/H06/H07, SEC-01 y SEC-08. Distinguir código, resultados locales y configuración efectiva en la nube.
+- **Persistencia remota:** utilizar los informes históricos de conexión a PostgreSQL de Supabase como pruebas desde un entorno local, sin declarar que verifican el despliegue actual.
+- **UX-05 físico:** declarar que el responsable confirmó la finalización. Si se requieren pruebas materiales ante el evaluador, acompañar esta declaración con capturas, registro de dispositivo/versión, panel y formato, después de retirar datos privados.
+
+**Estado de cierre del criterio «Evidencia de pruebas realizadas»:** documentado con referencias de pruebas y resultados históricos; faltan artefactos originales de algunas ejecuciones y una corrida consolidada reciente sobre el último `main`. El requisito «Explicación de las medidas de seguridad implementadas» cuenta con un [informe específico](EVALUACION_MEDIDAS_SEGURIDAD_CUTLESS.md) que evita afirmar controles de producción no verificados.
 
 ## 4. Evidencias históricas con disponibilidad parcial
 
