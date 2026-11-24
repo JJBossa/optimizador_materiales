@@ -5,6 +5,7 @@ from django.db.models import Q
 from django.utils import timezone
 
 from ..models import Proyecto, Cliente, Optimizacion
+from .descripciones import DescripcionLimitadaField, DescripcionModeloMixin, TextoLimitadoTextarea
 from .nombres import NombreLimitadoField, NombreModeloMixin
 
 
@@ -15,7 +16,7 @@ FECHAS_PROYECTO = {
 }
 
 
-class ProyectoForm(NombreModeloMixin, forms.ModelForm):
+class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar proyectos"""
     
     # Campo personalizado para seleccionar múltiples optimizaciones
@@ -32,13 +33,13 @@ class ProyectoForm(NombreModeloMixin, forms.ModelForm):
     class Meta:
         model = Proyecto
         fields = ['nombre', 'descripcion', 'cliente', 'fecha_inicio', 'fecha_fin', 'estado']
-        field_classes = {'nombre': NombreLimitadoField}
+        field_classes = {'nombre': NombreLimitadoField, 'descripcion': DescripcionLimitadaField}
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
                 'placeholder': 'Ej: Cocina Integral, Mueble de Sala'
             }),
-            'descripcion': forms.Textarea(attrs={
+            'descripcion': TextoLimitadoTextarea(attrs={
                 'class': 'form-control',
                 'rows': 4,
                 'placeholder': 'Descripción del proyecto'

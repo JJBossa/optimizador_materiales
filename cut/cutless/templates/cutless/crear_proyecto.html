@@ -57,13 +57,7 @@
 
         <div class="row mb-3">
           <div class="col-md-12">
-            <label for="{{ form.descripcion.id_for_label }}" class="form-label">
-              {{ form.descripcion.label }}
-            </label>
-            {{ form.descripcion }}
-            {% if form.descripcion.errors %}
-              <div class="text-danger small">{{ form.descripcion.errors }}</div>
-            {% endif %}
+            {% include "cutless/includes/texto_limitado.html" with campo=form.descripcion only %}
           </div>
         </div>
 
@@ -108,5 +102,7 @@
     </div>
   </div>
 {% endblock %}
-{% block extra_js %}<script src="{% static 'cutless/js/budget-selection.js' %}?v=3" defer></script>{% endblock %}
+{% block extra_js %}
+{{ form.media }}
+<script src="{% static 'cutless/js/budget-selection.js' %}?v=3" defer></script>{% endblock %}
 

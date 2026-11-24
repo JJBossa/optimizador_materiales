@@ -10,6 +10,7 @@ from ..validacion_contacto import (
     pais_para_telefono_guardado,
 )
 from ..validacion_direcciones import tiene_controles_direccion, validar_numero_direccion, validar_texto_direccion
+from .descripciones import DescripcionLimitadaField, DescripcionModeloMixin, TextoLimitadoTextarea
 from .nombres import NombreLimitadoField, NombreModeloMixin
 
 
@@ -178,8 +179,10 @@ class DireccionEstructuradaForm(forms.Form):
         return datos
 
 
-class ClienteForm(NombreModeloMixin, forms.ModelForm):
+class ClienteForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar clientes."""
+
+    campo_descripcion = 'notas'
 
     telefono_pais = forms.ChoiceField(
         label='País o territorio',
@@ -245,7 +248,7 @@ class ClienteForm(NombreModeloMixin, forms.ModelForm):
     class Meta:
         model = Cliente
         fields = ['nombre', 'rut', 'email', 'telefono_pais', 'telefono', 'notas']
-        field_classes = {'nombre': NombreLimitadoField}
+        field_classes = {'nombre': NombreLimitadoField, 'notas': DescripcionLimitadaField}
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -259,7 +262,7 @@ class ClienteForm(NombreModeloMixin, forms.ModelForm):
                 'class': 'form-control',
                 'placeholder': 'cliente@ejemplo.com'
             }),
-            'notas': forms.Textarea(attrs={
+            'notas': TextoLimitadoTextarea(attrs={
                 'class': 'form-control',
                 'rows': 4,
                 'placeholder': 'Notas adicionales sobre el cliente'

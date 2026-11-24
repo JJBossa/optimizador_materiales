@@ -130,14 +130,7 @@
 
         <div class="row mb-3">
           <div class="col-md-12">
-            <label for="{{ form.notas.id_for_label }}" class="form-label">
-              {{ form.notas.label }}
-            </label>
-            {{ form.notas }}
-            {% if form.notas.errors %}
-              <div class="text-danger small">{{ form.notas.errors }}</div>
-            {% endif %}
-            <small class="form-text text-muted">Notas adicionales para el cliente</small>
+            {% include "cutless/includes/texto_limitado.html" with campo=form.notas only %}
           </div>
         </div>
 
@@ -156,5 +149,7 @@
 
 
 {% block extra_js %}
+{{ form.media }}
+
 <script src="{% static 'cutless/js/budget-selection.js' %}?v=3" defer></script>
 {% endblock %}

@@ -32,7 +32,9 @@ async function elegirPais(page, codigo, js) {
     await page.locator('#id_direccion_pais').selectOption(codigo);
     return;
   }
-  const entrada = page.getByRole('combobox', { name: 'País o territorio de la dirección' });
+  // Tras un POST, esperar el buscador mejorado antes de escribir sobre el selector nativo.
+  const entrada = page.getByRole('combobox', { name: 'País o territorio de la dirección' })
+    .and(page.locator('input[role=combobox]'));
   await entrada.fill(codigo);
   await entrada.press('ArrowDown');
   await entrada.press('Enter');

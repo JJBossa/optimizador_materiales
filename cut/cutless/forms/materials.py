@@ -7,6 +7,7 @@ from ..formatos_numericos import AYUDA_DECIMAL
 from ..materiales import dimension_material_valida, precio_material_valido, validar_precio_material
 from ..models import Material
 from ..units import convertir_a_cm, convertir_desde_cm
+from .descripciones import DescripcionLimitadaField, DescripcionModeloMixin, TextoLimitadoTextarea
 from .nombres import NombreLimitadoField, NombreModeloMixin
 from .numeros import DecimalEntradaField, ImporteEntradaField
 
@@ -14,7 +15,7 @@ _AYUDA_DECIMAL = AYUDA_DECIMAL
 _AYUDA_DIMENSION = f'{_AYUDA_DECIMAL} Para tres decimales ambiguos, añade un cero final (ej.: 12,3450).'
 
 
-class MaterialBaseForm(NombreModeloMixin, forms.ModelForm):
+class MaterialBaseForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
     """Controla la entrada decimal y conserva las cantidades históricas intactas."""
 
     medidas_en_cm = False
@@ -24,7 +25,7 @@ class MaterialBaseForm(NombreModeloMixin, forms.ModelForm):
         model = Material
         fields = ('nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'descripcion')
         field_classes = {
-            'nombre': NombreLimitadoField,
+            'nombre': NombreLimitadoField, 'descripcion': DescripcionLimitadaField,
             'ancho': DecimalEntradaField, 'alto': DecimalEntradaField, 'precio': ImporteEntradaField,
         }
         help_texts = {
@@ -114,7 +115,7 @@ class MaterialForm(MaterialBaseForm):
             'precio': forms.TextInput(attrs={
                 'class': 'form-control', 'title': _AYUDA_DECIMAL, 'placeholder': 'Opcional',
             }),
-            'descripcion': forms.Textarea(attrs={
+            'descripcion': TextoLimitadoTextarea(attrs={
                 'class': 'form-control',
                 'rows': 3,
                 'placeholder': 'Descripción opcional del material'
@@ -137,6 +138,7 @@ class MaterialAdminForm(MaterialBaseForm):
 
     class Meta(MaterialBaseForm.Meta):
         fields = ('usuario', 'nombre', 'ancho', 'alto', 'unidad_medida', 'precio', 'es_predefinido', 'descripcion')
+        widgets = {'descripcion': TextoLimitadoTextarea(attrs={'class': 'vLargeTextField'})}
         labels = {'ancho': 'Ancho (cm)', 'alto': 'Alto (cm)', 'unidad_medida': 'Unidad de presentación'}
         help_texts = {
             **MaterialBaseForm.Meta.help_texts,
