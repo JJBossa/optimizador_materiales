@@ -65,3 +65,16 @@ class ParsearPiezasTests(TestCase):
         csv = piezas_como_csv(serializar_piezas(original))
         piezas = parsear_piezas_desde_texto(csv, estricto=True, csv_editable=True)
         self.assertEqual([{campo: p[campo] for campo in original[0]} for p in piezas], original)
+
+    def test_csv_y_formato_versionado_conservan_nombre_largo_literal(self):
+        from cutless.pieces import piezas_como_csv, serializar_piezas
+
+        nombre = '  Cajón, "norte" ' + 'ñ' * 26 + '\r\nFila 2\rBase '
+        original = {'nombre': nombre, 'ancho': 40, 'alto': 50, 'cantidad': 1}
+        almacenado = serializar_piezas([original])
+        for texto, editable in ((almacenado, False), (piezas_como_csv(almacenado), True)):
+            with self.subTest(editable=editable):
+                pieza, = parsear_piezas_desde_texto(texto, estricto=True, csv_editable=editable)
+                self.assertEqual(pieza['nombre'], nombre)
+        historico, = parsear_piezas_desde_texto('  Pieza ' + 'ñ' * 31 + ' ,40,50,1', estricto=True)
+        self.assertEqual(historico['nombre'], '  Pieza ' + 'ñ' * 31 + ' ')

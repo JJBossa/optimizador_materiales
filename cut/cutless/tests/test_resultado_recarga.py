@@ -130,18 +130,24 @@ class ResultadoRecargaTests(TestCase):
         from io import BytesIO
         from openpyxl import load_workbook
         from reportlab import rl_config
-        from cutless.pieces import parsear_piezas_desde_texto
+        from cutless.pieces import parsear_piezas_desde_texto, serializar_piezas
 
-        variantes = (
-            ('piezas:v1:Puerta, norte', 'Cajón sur'),
-            ('piezas:v1:Puerta, norte\nNivel superior', 'piezas:v2:Cajón sur'),
-        )
-        existente = Optimizacion.objects.create(
+        heredado = ('piezas:v1:Puerta, norte', 'Cajón sur')
+        historico = ('piezas:v1:Puerta, norte\nNivel superior', 'piezas:v2:Cajón sur')
+        nuevo = ('piezas:v1:Puerta, norte\nPiso 2', 'piezas:v2:Cajón sur')
+        opt_heredada = Optimizacion.objects.create(
             usuario=self.user, ancho_tablero=122, alto_tablero=244,
-            piezas=f'{variantes[0][0]},40,50,2\n{variantes[0][1]},20,30,3',
+            piezas=f'{heredado[0]},40,50,2\n{heredado[1]},20,30,3',
+        )
+        opt_historica = Optimizacion.objects.create(
+            usuario=self.user, ancho_tablero=122, alto_tablero=244,
+            piezas=serializar_piezas([
+                dict(nombre=historico[0], ancho=40, alto=50, cantidad=2),
+                dict(nombre=historico[1], ancho=20, alto=30, cantidad=3),
+            ]),
         )
         campos = ('nombre', 'ancho', 'alto', 'cantidad')
-        for nombres, opt in ((variantes[0], existente), (variantes[1], None)):
+        for nombres, opt in ((heredado, opt_heredada), (historico, opt_historica), (nuevo, None)):
             with self.subTest(nombres=nombres):
                 esperado = [
                     dict(nombre=nombres[0], ancho=40, alto=50, cantidad=2),
@@ -177,7 +183,7 @@ class ResultadoRecargaTests(TestCase):
                 self.assertIn(b'piezas:v1:Puerta, norte', contenido)
                 self.assertIn(rb'Caj\363n sur', contenido)
                 if '\n' in nombres[0]:
-                    self.assertIn(b'Nivel superior', contenido)
+                    self.assertIn(nombres[0].split('\n')[1].encode('ascii'), contenido)
 
     def test_ambiguedad_se_muestra_y_bloquea_edicion_duplicacion_y_exportacion(self):
         original = 'piezas:v1:Puerta,40,50,2\ntexto sin dimensiones\n20,30,3'

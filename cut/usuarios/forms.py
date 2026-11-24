@@ -1,11 +1,51 @@
 from django import forms
 from django.contrib.auth.models import User
-from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, PasswordChangeForm
+from django.contrib.auth.forms import AuthenticationForm, UserCreationForm, PasswordChangeForm, UsernameField
 from django.contrib.auth.password_validation import get_default_password_validators, MinimumLengthValidator, NumericPasswordValidator, validate_password
+from django.contrib.auth.validators import UnicodeUsernameValidator
 from django.core.exceptions import ValidationError
 from decimal import Decimal, InvalidOperation
 from .models import PerfilUsuario
+from cutless.forms.nombres import NombreLimitadoField, NombreModeloMixin
 from cutless.units import UNIDADES_CHOICES
+
+AYUDA_USUARIO = 'Sin espacios. Usa letras, números o los símbolos @ . + - _.'
+ERROR_USUARIO = 'Usa letras, números o estos símbolos: @ . + - _'
+
+
+class NombreUsuarioField(NombreLimitadoField, UsernameField):
+    default_validators = [UnicodeUsernameValidator(message=ERROR_USUARIO)]
+
+    def __init__(self, **kwargs):
+        super().__init__(
+            label='Nombre de usuario', help_text=AYUDA_USUARIO, **kwargs,
+        )
+
+    def clean(self, valor):
+        if valor is not None and not self.conserva_nombre(valor):
+            self.validador_longitud(str(valor).strip())
+        return super().clean(valor)
+
+
+class NombreUsuarioModeloMixin(NombreModeloMixin):
+    campo_nombre = 'username'
+
+    def _conserva_usuario(self):
+        return ('username' in self.cleaned_data and
+                self.fields['username'].conserva_nombre(self.cleaned_data['username']))
+
+    def _get_validation_exclusions(self):
+        excluidos = super()._get_validation_exclusions()
+        if self._conserva_usuario():
+            excluidos.add('username')
+        return excluidos
+
+    def _post_clean(self):
+        super()._post_clean()
+        if self._conserva_usuario():
+            # User.clean() normaliza incluso un campo excluido de la validación.
+            self.instance.username = self.cleaned_data['username']
+
 
 class MensajesAccesoMixin:
     """Presentación accesible de errores, conservando las validaciones de Django."""
@@ -35,7 +75,7 @@ class MensajesAccesoMixin:
                 if name == 'username' and error.code == 'unique':
                     message = 'Este nombre de usuario ya está en uso. Prueba con otro.'
                 if name == 'username' and error.code == 'invalid':
-                    message = 'Usa letras, números o estos símbolos: @ . + - _'
+                    message = ERROR_USUARIO
                     campo = self.fields[name]
                     mensaje_espacios = campo.widget.attrs.get('data-username-space-error')
                     if mensaje_espacios:
@@ -60,6 +100,7 @@ class AccesoForm(MensajesAccesoMixin, AuthenticationForm):
 
 
 class RegistroForm(MensajesAccesoMixin, UserCreationForm):
+    username = NombreUsuarioField()
     email = forms.EmailField(required=True)
 
     def __init__(self, *args, **kwargs):
@@ -87,7 +128,8 @@ class RegistroForm(MensajesAccesoMixin, UserCreationForm):
         fields = ['username', 'email', 'password1', 'password2']
 
 
-class UsuarioEdicionForm(forms.ModelForm):
+class UsuarioEdicionForm(NombreUsuarioModeloMixin, forms.ModelForm):
+    username = NombreUsuarioField(widget=forms.TextInput(attrs={'class': 'form-control'}))
     password1 = forms.CharField(
         label='Nueva contraseña',
         required=False,
@@ -104,7 +146,6 @@ class UsuarioEdicionForm(forms.ModelForm):
         model = User
         fields = ['username', 'email']
         widgets = {
-            'username': forms.TextInput(attrs={'class': 'form-control'}),
             'email': forms.EmailInput(attrs={'class': 'form-control'}),
         }
 
@@ -179,16 +220,9 @@ class PermisosUsuarioForm(forms.ModelForm):
 
 class PerfilForm(forms.ModelForm):
     """Formulario para editar información del perfil"""
-    username = forms.CharField(
-        label="Nombre de usuario",
-        max_length=15,
-        required=True,
-        help_text="Requerido. 15 caracteres o menos. Únicamente letras.",
+    username = NombreUsuarioField(
         widget=forms.TextInput(attrs={'class': 'form-control'}),
-        error_messages={
-            'required': 'El nombre de usuario es obligatorio.',
-            'max_length': 'El nombre de usuario no puede tener más de 15 caracteres.'
-        }
+        error_messages={'required': 'El nombre de usuario es obligatorio.'},
     )
     email = forms.EmailField(
         label="Correo electrónico",
@@ -342,6 +376,7 @@ class PerfilForm(forms.ModelForm):
         if self.user:
             # Inicializar campos del User
             self.fields['username'].initial = self.user.username
+            self.fields['username'].conservar(self.user.username)
             self.fields['email'].initial = self.user.email
             
             # CORREGIDO: Inicializar campos desde la instancia SIEMPRE, no solo cuando hay datos POST
@@ -417,15 +452,8 @@ class PerfilForm(forms.ModelForm):
         return cleaned_data
 
     def clean_username(self):
-        username = self.cleaned_data.get('username')
-        # Si username está vacío pero viene de la pestaña de configuración, usar el valor actual
-        if not username and self.user:
-            return self.user.username
-        # Verificar que el nuevo username no esté en uso (si se está cambiando)
-        if username and not username.isalpha():
-            raise forms.ValidationError("El nombre de usuario solo puede contener letras.")
-
-        if self.user and username and username != self.user.username:
+        username = self.cleaned_data['username']
+        if self.user and username != self.user.username:
             if User.objects.filter(username=username).exclude(pk=self.user.pk).exists():
                 raise forms.ValidationError("Este nombre de usuario ya está en uso.")
         return username
@@ -571,11 +599,15 @@ class PerfilForm(forms.ModelForm):
             if self.user:
                 username = self.cleaned_data.get('username')
                 email = self.cleaned_data.get('email')
-                if username:
+                campos_cuenta = []
+                if username and username != self.user.username:
                     self.user.username = username
-                if email:
+                    campos_cuenta.append('username')
+                if email and email != self.user.email:
                     self.user.email = email
-                self.user.save()
+                    campos_cuenta.append('email')
+                if campos_cuenta:
+                    self.user.save(update_fields=campos_cuenta)
             perfil.save()
         return perfil
 
@@ -595,11 +627,6 @@ class CuentaPerfilForm(PerfilForm):
         for name in list(self.fields):
             if name not in {'username', 'email'}:
                 del self.fields[name]
-        self.fields['username'].widget.attrs.update({
-            'pattern': r'\p{L}{1,15}',
-            'title': 'Usa únicamente letras, hasta 15 caracteres.',
-            'autocomplete': 'username',
-        })
         self.fields['email'].widget.attrs['autocomplete'] = 'email'
 
 

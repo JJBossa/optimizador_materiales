@@ -73,8 +73,8 @@ class NombresOptimizacionesTests(TestCase):
             self.assertEqual(len(response.context['optimizaciones_con_piezas']),1)
 
     def test_nombre_es_texto_escapado(self):
-        nombre='<script>alert("nombre")</script>'
-        self.client.post(self.url,{'nombre_optimizacion':nombre})
+        nombre='<script>alert(1)</script>'
+        self.assertEqual(self.client.post(self.url,{'nombre_optimizacion':nombre}).status_code,302)
         response=self.client.get(reverse('cutless:historial'))
         self.assertContains(response,escape(nombre))
         self.assertNotContains(response,nombre)

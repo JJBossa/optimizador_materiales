@@ -23,7 +23,7 @@
   const panel = document.createElement('section');
   panel.className = 'template-piece-editor';
   const note = document.createElement('p');
-  note.textContent = 'Añade hasta 20 tipos de pieza. Las medidas usan la unidad seleccionada y admiten coma o punto decimal.';
+  note.textContent = `Añade hasta 20 tipos de pieza. Cada nombre nuevo admite ${contrato.maxNombre} caracteres. Las medidas admiten coma o punto decimal.`;
   const rows = document.createElement('div');
   const add = document.createElement('button');
   add.type = 'button';
@@ -83,7 +83,7 @@
       input.value = values[index];
       if (!index) {
         input.rows = 1;
-        input.maxLength = 50;
+        input.maxLength = contrato.maxNombre;
       } else if (index === 3) {
         input.inputMode = 'numeric';
         input.pattern = contrato.entero;

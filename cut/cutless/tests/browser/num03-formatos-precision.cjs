@@ -69,7 +69,7 @@ async function run(page, js, id) {
       await teclear('ancho_tablero','12,5');
       await teclear('margen_corte','2,15');
     }
-    const pieza = id === 'P2' ? ['Puerta, "Norte" Ω\nNivel superior','400','500']
+    const pieza = id === 'P2' ? ['Puerta, "Norte" Ω\nNivel 2','400','500']
       : id === 'P3' ? ['Pieza','.2','.3'] : ['Pieza',js?'2,5':'2.5','5'];
     if (js) {
       const editor = form.locator('.template-piece-editor fieldset');

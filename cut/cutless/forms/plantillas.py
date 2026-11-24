@@ -9,14 +9,17 @@ from ..units import (
     CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
     margen_en_cm, margen_en_mm, medida_editable, medida_tablero_en_cm,
 )
+from .nombres import LIMITE_NOMBRE, NombreLimitadoField, NombreModeloMixin
 from .numeros import DecimalEntradaField, MedidaEntradaField
+from .piezas import validar_nombres_piezas
 
 CONTRATO_PIEZAS = {
     'factores': CENTIMETROS_POR_UNIDAD, 'minCm': LADO_PIEZA_MIN_CM, 'maxCm': LADO_MAX_CM,
     'decimal': FORMATO_DECIMAL, 'entero': FORMATO_ENTERO,
+    'maxNombre': LIMITE_NOMBRE,
 }
 
-class PlantillaForm(forms.ModelForm):
+class PlantillaForm(NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar plantillas."""
 
     margen_corte = DecimalEntradaField(
@@ -24,11 +27,16 @@ class PlantillaForm(forms.ModelForm):
         widget=forms.TextInput(attrs={'class': 'form-control'}),
     )
     
-    def __init__(self, *args, user=None, origen_tablero=None, **kwargs):
+    def __init__(self, *args, user=None, origen_tablero=None, conservar_nombre=True, **kwargs):
         self.user = user
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, conservar_nombre=conservar_nombre, **kwargs)
+        self.conservar_piezas = conservar_nombre and not self.instance._state.adding
         self.origen_tablero = origen_tablero if origen_tablero is not None else self.instance
         if self.instance.pk:
+            campo_nombre = self.fields['nombre']
+            if (self.instance.es_predefinida and campo_nombre.nombre_guardado is None
+                    and campo_nombre.supera_limite(self.instance.nombre)):
+                campo_nombre.help_text += ' Acorta el nombre original para guardar una copia.'
             unidad = self.instance.unidad_medida or 'cm'
             self.initial['ancho_tablero'] = medida_editable(self.instance.ancho_tablero, unidad)
             self.initial['alto_tablero'] = medida_editable(self.instance.alto_tablero, unidad)
@@ -98,7 +106,10 @@ class PlantillaForm(forms.ModelForm):
     class Meta:
         model = Plantilla
         fields = ['nombre', 'descripcion', 'categoria', 'ancho_tablero', 'alto_tablero', 'unidad_medida', 'piezas', 'permitir_rotacion', 'margen_corte']
-        field_classes = dict.fromkeys(('ancho_tablero', 'alto_tablero'), MedidaEntradaField)
+        field_classes = {
+            'nombre': NombreLimitadoField,
+            'ancho_tablero': MedidaEntradaField, 'alto_tablero': MedidaEntradaField,
+        }
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',
@@ -149,16 +160,17 @@ class PlantillaForm(forms.ModelForm):
         if not piezas:
             raise forms.ValidationError('Debes ingresar al menos una pieza.')
         for pieza in piezas:
-            if len(pieza['nombre']) > 50:
-                raise forms.ValidationError('Cada pieza necesita un nombre de hasta 50 caracteres.')
             if pieza['cantidad'] > 100:
                 raise forms.ValidationError('La cantidad debe estar entre 1 y 100 por tipo de pieza.')
-        if self.instance.pk:
+        guardadas = []
+        if self.conservar_piezas:
             try:
-                if piezas == parsear_piezas_desde_texto(self.instance.piezas, estricto=True):
-                    return self.instance.piezas
+                guardadas = parsear_piezas_desde_texto(self.instance.piezas, estricto=True)
             except FormatoPiezasInvalido:
                 pass  # El usuario puede corregir un listado histórico ilegible.
+        validar_nombres_piezas(piezas, guardadas)
+        if piezas == guardadas:
+            return self.instance.piezas
         return serializar_piezas(piezas)
 
     def clean_margen_corte(self):

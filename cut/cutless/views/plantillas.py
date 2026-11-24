@@ -22,8 +22,11 @@ def editar_plantilla(request, pk):
         return redirect('cutless:lista_plantillas')
     
     copiar_sistema = plantilla.es_predefinida
+    form = PlantillaForm(
+        request.POST if request.method == 'POST' else None,
+        instance=plantilla, user=request.user, conservar_nombre=not copiar_sistema,
+    )
     if request.method == "POST":
-        form = PlantillaForm(request.POST, instance=plantilla, user=request.user)
         if form.is_valid():
             plantilla_actualizada = form.save(commit=False)
             if copiar_sistema:
@@ -34,8 +37,6 @@ def editar_plantilla(request, pk):
             accion = 'copiada a tus plantillas' if copiar_sistema else 'actualizada'
             messages.success(request, f'Plantilla "{plantilla_actualizada.nombre}" {accion}.')
             return redirect('cutless:lista_plantillas')
-    else:
-        form = PlantillaForm(instance=plantilla, user=request.user)
     
     return render(request, 'cutless/editar_plantilla.html', {
         'form': form,

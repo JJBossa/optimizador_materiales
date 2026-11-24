@@ -44,7 +44,7 @@ class PerfilSeparadoTests(TestCase):
         self.assertFalse(response.context['cuenta_form'].is_bound)
 
     def test_usuario_con_simbolos_o_carga_sql_no_se_guarda(self):
-        for value in ["''", '\"\"', '@', "' OR 1=1 --", '<script>alert(1)</script>']:
+        for value in ["''", '\"\"', '#', "' OR 1=1 --", '<script>alert(1)</script>']:
             with self.subTest(value=value):
                 response = self.client.post(self.url, {'editar_cuenta': '1', 'username': value, 'email': 'persona@example.com'})
                 self.assertEqual(response.status_code, 200)

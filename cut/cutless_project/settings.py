@@ -27,13 +27,13 @@ globals().update(configuracion_entorno(BASE_DIR))
 
 INSTALLED_APPS = [
     'django.contrib.admin',
+    'usuarios',  # Su comando createsuperuser aplica la política de CutLess.
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'cutless.apps.CutlessConfig',
-    'usuarios',
 ]
 
 MIDDLEWARE = [
