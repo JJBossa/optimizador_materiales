@@ -38,7 +38,7 @@ Las pruebas de Django ejercitan POST directos, incluidos país inválido, combin
 | `makemigrations --check --dry-run` | Sin cambios detectados en SQLite ni PostgreSQL. |
 | `git diff --check` | Sin errores de espacios. |
 
-En una ejecución de navegador con el servidor multihilo, un POST del recorrido de direcciones falló con `database is locked` en SQLite. El recorrido completo pasó al repetirlo con un solo hilo. El recorrido de contacto pasó con la configuración multihilo y registró un tiempo de espera en una ejecución con un solo hilo. La comprobación visual se limitó a Chromium en Linux.
+En una ejecución de navegador con el servidor multihilo, un POST del recorrido de direcciones falló con `database is locked` en SQLite. El recorrido completo pasó al repetirlo con un solo hilo. El recorrido de contacto pasó en una ejecución multihilo y en otras agotó el tiempo de espera al pulsar «Crear cliente» sin JavaScript. El mismo tiempo de espera se reprodujo en `upstream/main` con otra SQLite desechable. La comprobación visual se limitó a Chromium en Linux.
 
 ### Reproducción
 
