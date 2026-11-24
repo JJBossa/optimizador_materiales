@@ -22,6 +22,11 @@ usuario.perfil.preferencias_menu = {'_inicio_completado': True}
 usuario.perfil.tutorial_completado = True
 usuario.perfil.save()
 Cliente.objects.create(usuario=usuario, nombre='Ficha sintética con RUT', rut='1.000.005-k')
+estructurada = Cliente.objects.create(
+    usuario=usuario, nombre='Estructurada histórica', direccion_modo='estructurada',
+    direccion_pais='PT', direccion_region='Lisboa', direccion_localidad='aaaaaaaaaa',
+    direccion_calle='  Rua\r\n guardada  ', direccion_numero='aaaaaaaaaa',
+)
 sesion = Client()
 sesion.force_login(usuario)
 direccion = '  Pasaje Chromium 12-A\r\nUnidad S/N\n  Texto <legado>  '
@@ -40,6 +45,7 @@ with Path(os.environ['CUTLESS_TEST_FIXTURE']).open('x', encoding='utf-8') as sal
         'session': sesion.cookies['sessionid'].value,
         'crear': reverse('cutless:crear_cliente'),
         'lista': reverse('cutless:lista_clientes'),
+        'estructurada': reverse('cutless:editar_cliente', args=[estructurada.pk]),
         'ediciones': ediciones,
         'direccion': direccion,
     }, salida)

@@ -72,6 +72,52 @@ async function comprobarPosicion(dialogo, contenidoCabe) {
   assert.equal(posicion.fondo, 'rgba(0, 0, 0, 0.55)');
 }
 
+async function probarContratoCLI03(page, js) {
+  const modo = js ? 'JS' : 'HTML';
+  await abrir(page, fixture.crear);
+  await page.locator('#id_nombre').fill(`CLI-03 Sin dirección ${modo}`);
+  await guardar(page, fixture.crear, 'Crear cliente', 302);
+
+  await abrir(page, fixture.crear);
+  const nombre = `CLI-03 Internacional ${modo}`;
+  await page.locator('#id_nombre').fill(nombre);
+  await page.locator('#id_direccion_pais').selectOption('PT');
+  if (!js) await guardar(page, fixture.crear, 'Actualizar opciones de ubicación', 200);
+  const campos = {
+    direccion_region: 'Lisboa',
+    direccion_comuna: 'São João das Lampas',
+    direccion_calle: 'Rua d’Água',
+    direccion_numero: '100A',
+  };
+  for (const campo of Object.keys(campos)) await page.locator(`#id_${campo}`).fill('aaaaaaaaaa');
+  await guardar(page, fixture.crear, 'Crear cliente', 200);
+  for (const [campo, valor] of Object.entries(campos)) {
+    const entrada = page.locator(`#id_${campo}`);
+    assert.equal(await entrada.getAttribute('aria-invalid'), 'true');
+    assert.ok((await entrada.getAttribute('aria-describedby')).includes(`id_${campo}_error`));
+    assert.equal(await entrada.inputValue(), 'aaaaaaaaaa');
+    await entrada.fill(valor);
+  }
+  await guardar(page, fixture.crear, 'Crear cliente', 302);
+  await page.getByText(nombre, { exact: true }).waitFor();
+
+  await abrir(page, fixture.estructurada);
+  const calle = page.locator('#id_direccion_calle');
+  const numero = page.locator('#id_direccion_numero');
+  const correo = `cli03-${modo.toLowerCase()}@example.test`;
+  assert.equal(await calle.inputValue(), '  Rua guardada  ');
+  await page.locator('#id_email').fill(correo);
+  await guardar(page, fixture.estructurada, 'Guardar cambios', 302);
+  await abrir(page, fixture.estructurada);
+  assert.equal(await page.locator('#id_email').inputValue(), correo);
+  assert.equal(await calle.inputValue(), '  Rua guardada  ');
+  assert.equal(await numero.inputValue(), 'aaaaaaaaaa');
+  await numero.fill('100');
+  await guardar(page, fixture.estructurada, 'Guardar cambios', 200);
+  assert.equal(await page.locator('#id_direccion_comuna').getAttribute('aria-invalid'), 'true');
+  console.log(`CLI-03 ${modo}: alta opcional, rechazo, corrección internacional y conservación histórica.`);
+}
+
 async function probar(context, ancho, modo) {
   const page = await context.newPage();
   const js = modo === 'js';
@@ -203,6 +249,7 @@ async function probar(context, ancho, modo) {
   assert.equal(await page.locator('#id_direccion_region').inputValue(), '08');
   assert.equal(await page.locator('#id_direccion_comuna').inputValue(), '08109');
   console.log(`Aprobado ${escenario}: CUT, cambio de país y región, aviso, corrección y persistencia.`);
+  if (ancho === 390) await probarContratoCLI03(page, js);
 }
 
 (async () => {
