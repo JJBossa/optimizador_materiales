@@ -1,8 +1,19 @@
+from zoneinfo import ZoneInfo
+
 from django import forms
 from django.db.models import Q
+from django.utils import timezone
 
 from ..models import Proyecto, Cliente, Optimizacion
 from .nombres import NombreLimitadoField, NombreModeloMixin
+
+
+ZONA_CHILE = ZoneInfo('America/Santiago')
+FECHAS_PROYECTO = {
+    'fecha_inicio': 'La fecha de inicio',
+    'fecha_fin': 'La fecha de finalización',
+}
+
 
 class ProyectoForm(NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar proyectos"""
@@ -35,16 +46,8 @@ class ProyectoForm(NombreModeloMixin, forms.ModelForm):
             'cliente': forms.Select(attrs={
                 'class': 'form-select'
             }),
-            'fecha_inicio': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date',
-                'format': '%Y-%m-%d'
-            }),
-            'fecha_fin': forms.DateInput(attrs={
-                'class': 'form-control',
-                'type': 'date',
-                'format': '%Y-%m-%d'
-            }),
+            'fecha_inicio': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
+            'fecha_fin': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'estado': forms.Select(attrs={
                 'class': 'form-select'
             }),
@@ -57,11 +60,35 @@ class ProyectoForm(NombreModeloMixin, forms.ModelForm):
             'fecha_fin': 'Fecha de Finalización',
             'estado': 'Estado',
         }
+        error_messages = {
+            'fecha_inicio': {'invalid': 'Ingresa una fecha de inicio válida.'},
+            'fecha_fin': {'invalid': 'Ingresa una fecha de finalización válida.'},
+        }
     
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         instance = kwargs.get('instance', None)
         super().__init__(*args, **kwargs)
+
+        self.hoy = timezone.localdate(timezone=ZONA_CHILE)
+        self.fechas_guardadas = {
+            campo: getattr(self.instance, campo) for campo in FECHAS_PROYECTO
+        } if not self.instance._state.adding else {}
+        fechas_omitidas = {}
+        for nombre in FECHAS_PROYECTO:
+            campo = self.fields[nombre]
+            guardada = self.fechas_guardadas.get(nombre)
+            clave = self.add_prefix(nombre)
+            if self.is_bound and guardada is not None and clave not in self.data:
+                fechas_omitidas[clave] = guardada.isoformat()
+            if guardada is not None and guardada < self.hoy:
+                campo.help_text = 'Puedes conservar la fecha guardada, dejar el campo vacío o elegir hoy o una fecha posterior.'
+            else:
+                campo.widget.attrs['min'] = self.hoy.isoformat()
+                campo.help_text = 'Opcional. Elige hoy o una fecha posterior.'
+        if fechas_omitidas:
+            self.data = self.data.copy()
+            self.data.update(fechas_omitidas)
         
         self.fields['cliente'].queryset = Cliente.objects.none()
         if user:
@@ -87,16 +114,20 @@ class ProyectoForm(NombreModeloMixin, forms.ModelForm):
             
             self.fields['optimizaciones'].queryset = optimizaciones_queryset
         
-        # Si es edición, asegurar que las fechas se muestren correctamente
-        if instance:
-            if instance.fecha_inicio:
-                self.fields['fecha_inicio'].initial = instance.fecha_inicio.strftime('%Y-%m-%d')
-            if instance.fecha_fin:
-                self.fields['fecha_fin'].initial = instance.fecha_fin.strftime('%Y-%m-%d')
-
     def clean(self):
         datos = super().clean()
+        for campo, etiqueta in FECHAS_PROYECTO.items():
+            fecha = datos.get(campo)
+            if fecha is not None and fecha < self.hoy and fecha != self.fechas_guardadas.get(campo):
+                self.add_error(campo, forms.ValidationError(
+                    f'{etiqueta} no puede ser anterior a hoy. Elige hoy o una fecha posterior.',
+                    code='fecha_pasada',
+                ))
         inicio, fin = datos.get('fecha_inicio'), datos.get('fecha_fin')
-        if inicio and fin and fin < inicio:
-            self.add_error('fecha_fin', 'La finalización no puede ser anterior al inicio.')
+        guardadas = (self.fechas_guardadas.get('fecha_inicio'), self.fechas_guardadas.get('fecha_fin'))
+        if inicio and fin and fin < inicio and (inicio, fin) != guardadas:
+            self.add_error('fecha_fin', forms.ValidationError(
+                'La finalización no puede ser anterior al inicio.',
+                code='fin_anterior_al_inicio',
+            ))
         return datos

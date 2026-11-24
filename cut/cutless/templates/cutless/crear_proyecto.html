@@ -90,24 +90,8 @@
         </div>
 
         <div class="row mb-3">
-          <div class="col-md-6">
-            <label for="{{ form.fecha_inicio.id_for_label }}" class="form-label">
-              {{ form.fecha_inicio.label }}
-            </label>
-            {{ form.fecha_inicio }}
-            {% if form.fecha_inicio.errors %}
-              <div class="text-danger small">{{ form.fecha_inicio.errors }}</div>
-            {% endif %}
-          </div>
-          <div class="col-md-6">
-            <label for="{{ form.fecha_fin.id_for_label }}" class="form-label">
-              {{ form.fecha_fin.label }}
-            </label>
-            {{ form.fecha_fin }}
-            {% if form.fecha_fin.errors %}
-              <div class="text-danger small">{{ form.fecha_fin.errors }}</div>
-            {% endif %}
-          </div>
+          {% include 'cutless/includes/project-date-field.html' with field=form.fecha_inicio %}
+          {% include 'cutless/includes/project-date-field.html' with field=form.fecha_fin %}
         </div>
 
         <div class="row mb-3 project-optimization-row">

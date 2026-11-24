@@ -237,7 +237,10 @@ def editar_proyecto(request, pk):
     """
     Edita un proyecto existente.
     """
-    proyecto = get_object_or_404(Proyecto, pk=pk, usuario=request.user)
+    proyectos = Proyecto.objects.filter(usuario=request.user)
+    if request.method == "POST":
+        proyectos = proyectos.select_for_update()
+    proyecto = get_object_or_404(proyectos, pk=pk)
     
     if request.method == "POST":
         form = ProyectoForm(request.POST, instance=proyecto, user=request.user)
@@ -250,17 +253,14 @@ def editar_proyecto(request, pk):
             optimizaciones_seleccionadas_ids = [opt.pk for opt in optimizaciones_seleccionadas]
             
             # Primero, quitar el proyecto de todas las optimizaciones que ya no están seleccionadas
-            optimizaciones_actuales = proyecto.optimizacion_set.all()
-            for opt in optimizaciones_actuales:
-                if opt.pk not in optimizaciones_seleccionadas_ids:
-                    opt.proyecto = None
-                    opt.save()
+            proyecto.optimizacion_set.filter(usuario=request.user).exclude(
+                pk__in=optimizaciones_seleccionadas_ids,
+            ).update(proyecto=None)
             
             # Luego, asignar el proyecto a las optimizaciones seleccionadas
             if optimizaciones_seleccionadas_ids:
-                Optimizacion.objects.filter(
+                form.fields['optimizaciones'].queryset.filter(
                     pk__in=optimizaciones_seleccionadas_ids,
-                    usuario=request.user
                 ).update(proyecto=proyecto)
             
             messages.success(request, f'✅ Proyecto "{proyecto.nombre}" actualizado exitosamente.')
