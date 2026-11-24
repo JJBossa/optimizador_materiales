@@ -1,5 +1,3 @@
-from unicodedata import category
-
 from django import forms
 
 from ..direcciones import DPA_CHILE, NOMBRES_PAISES, REGIONES_CHILE, codigo_por_nombre, nombre_comparable
@@ -11,6 +9,7 @@ from ..validacion_contacto import (
     normalizar_telefono,
     pais_para_telefono_guardado,
 )
+from ..validacion_direcciones import tiene_controles_direccion, validar_numero_direccion, validar_texto_direccion
 from .nombres import NombreLimitadoField, NombreModeloMixin
 
 
@@ -50,22 +49,35 @@ class DireccionEstructuradaForm(forms.Form):
             self.guardada['direccion_comuna'] = codigo_por_nombre(self.guardada['direccion_comuna'], comunas)
         datos = data if data is not None else actualizacion
         valores = {campo: datos.get(campo, valor) if datos is not None else valor for campo, valor in self.guardada.items()}
+        self.conserva_guardada = (
+            data is not None and estructurada and not cliente._state.adding
+            and all(self._coincide_con_guardada(campo, valor) for campo, valor in valores.items())
+        )
+        if self.conserva_guardada:
+            valores = self.guardada.copy()
         self.chile = valores['direccion_pais'] == 'CL'
         origen = datos.get('ubicacion_pais') if datos is not None else None
         self.cambio_tipo = origen is not None and origen != valores['direccion_pais']
-        if self.cambio_tipo:
+        if self.cambio_tipo and not self.conserva_guardada:
             valores.update(direccion_region='', direccion_comuna='')
         self.region = valores['direccion_region']
-        super().__init__(data=valores if data is not None else None, initial=valores)
+        self.cambios = {}
+        # Una ficha sin cambios de dirección no debe volver a validar los datos históricos.
+        super().__init__(data=valores if data is not None and not self.conserva_guardada else None, initial=valores)
 
         for nombre, (etiqueta, token) in self.campos.items():
             attrs = {'autocomplete': f'section-direccion {token}'} if token else {}
             if nombre == 'direccion_pais':
-                self.fields[nombre] = forms.ChoiceField(
+                campo = forms.ChoiceField(
                     label=etiqueta, required=False, choices=[('', 'Selecciona un país o territorio'), *PAISES_POSTALES],
                     widget=forms.Select(attrs={**attrs, 'class': 'form-select'}),
                     error_messages={'invalid_choice': 'Selecciona un país o territorio de la lista.'},
                 )
+                anterior = self.guardada[nombre]
+                if anterior and anterior not in NOMBRES_PAISES and valores[nombre] == anterior:
+                    # Mostrar el país anterior sin añadirlo a las opciones válidas para un cambio.
+                    campo.widget.choices = [*campo.choices, (anterior, f'{anterior} (guardado anteriormente)')]
+                self.fields[nombre] = campo
                 continue
             widget = forms.TextInput(attrs={**attrs, 'class': 'form-control'})
             if self.chile and nombre in ('direccion_region', 'direccion_comuna'):
@@ -85,19 +97,39 @@ class DireccionEstructuradaForm(forms.Form):
                 max_length=Cliente._meta.get_field(nombre).max_length,
                 widget=widget,
             )
-        self.fields['direccion_numero'].help_text = 'Puedes escribir 100, 12-B o S/N.'
+        self.fields['direccion_numero'].help_text = 'Puedes escribir 100, 12-B, 100A o S/N.'
+
+    def _coincide_con_guardada(self, campo, enviado):
+        valor = self.guardada[campo]
+        es_division_chilena = (
+            self.guardada['direccion_pais'] == 'CL' and campo in ('direccion_region', 'direccion_comuna')
+        )
+        if es_division_chilena and enviado and enviado == getattr(self.cliente, campo):
+            return True
+        # El navegador normaliza los saltos en opciones y los elimina en campos de texto de una línea.
+        if es_division_chilena or campo == 'direccion_pais':
+            visible = valor.replace('\r\n', '\n').replace('\r', '\n')
+        else:
+            visible = valor.replace('\r', '').replace('\n', '')
+        return enviado in (valor, visible)
+
+    def _validar_texto(self, datos, campo, *, calle=False):
+        if datos.get(campo):
+            try:
+                validar_texto_direccion(datos[campo], admite_calle_numerada=calle)
+            except forms.ValidationError as error:
+                self.add_error(campo, error)
 
     def clean(self):
         datos = super().clean()
         for nombre, valor in list(datos.items()):
-            if any(category(caracter) in {'Cc', 'Cs', 'Zl', 'Zp'} for caracter in valor):
-                self.add_error(nombre, 'Escribe este dato en una sola línea, sin caracteres de control.')
+            if tiene_controles_direccion(valor):
+                self.add_error(nombre, forms.ValidationError(
+                    'Escribe este dato en una sola línea, sin caracteres de control.', code='control_direccion',
+                ))
             else:
                 datos[nombre] = valor.strip()
-        self.cambios = {}
-        if self.errors:
-            return datos
-        if not self.requiere_actualizacion and datos == self.guardada:
+        if self.opcional and not self.errors and not any(datos.values()):
             return datos
         if self.cambio_tipo:
             self.add_error('direccion_region', 'Confirma la ubicación para el país seleccionado.')
@@ -108,8 +140,14 @@ class DireccionEstructuradaForm(forms.Form):
             'direccion_numero': 'Indica el número o escribe S/N.',
         }
         for campo, mensaje in obligatorios.items():
-            if not datos.get(campo):
+            if not datos.get(campo) and not self.has_error(campo):
                 self.add_error(campo, mensaje)
+        self._validar_texto(datos, 'direccion_calle', calle=True)
+        if datos.get('direccion_numero'):
+            try:
+                validar_numero_direccion(datos['direccion_numero'])
+            except forms.ValidationError as error:
+                self.add_error('direccion_numero', error)
         if self.chile:
             region = DPA_CHILE.get(datos.get('direccion_region'))
             if region is None and not self.has_error('direccion_region'):
@@ -119,6 +157,9 @@ class DireccionEstructuradaForm(forms.Form):
             postal = datos.get('direccion_codigo_postal')
             if postal and not (len(postal) == 7 and postal.isascii() and postal.isdigit()):
                 self.add_error('direccion_codigo_postal', 'El código postal chileno debe tener siete dígitos.')
+        else:
+            self._validar_texto(datos, 'direccion_region')
+            self._validar_texto(datos, 'direccion_comuna')
 
         if self.errors:
             return datos
@@ -174,9 +215,10 @@ class ClienteForm(NombreModeloMixin, forms.ModelForm):
 
     def clean(self):
         datos = super().clean()
-        if self.direccion_estructurada.is_valid():
-            self.cambios_direccion = self.direccion_estructurada.cambios
-        elif self.direccion_estructurada.requiere_actualizacion:
+        direccion = self.direccion_estructurada
+        if direccion.conserva_guardada or direccion.is_valid():
+            self.cambios_direccion = direccion.cambios
+        elif direccion.requiere_actualizacion:
             self.add_error(None, 'Actualiza la dirección histórica para guardar los cambios de la ficha.')
         else:
             self.add_error(None, 'Revisa los campos de la dirección.')
