@@ -26,6 +26,14 @@
 .management-page .table .btn { margin: 4px 0; }
 .management-page .badge { background: var(--cl-bg-surface) !important; color: var(--cl-text-primary) !important; border: 1px solid var(--cl-border); font-size: 1rem; font-weight: 600; line-height: 1.5; white-space: normal; }
 .management-page .badge.bg-danger { border-color: var(--cl-danger); }
+.management-page .badge.badge-aprovechamiento {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 5em;
+  max-inline-size: 100%;
+  white-space: nowrap;
+}
 .management-page .card h3 { font-size: clamp(1.8rem, 3vw, 2.4rem); color: var(--cl-text-primary) !important; overflow-wrap: anywhere; }
 .management-page .alert-info { background: var(--cl-bg-surface); color: var(--cl-text-primary); border-color: var(--cl-border); }
 .management-page .card-empty-state { padding: 32px; }
