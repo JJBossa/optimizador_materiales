@@ -64,7 +64,7 @@
             {% if form.nombre_cliente_nuevo.errors %}
               <div class="text-danger small">{{ form.nombre_cliente_nuevo.errors }}</div>
             {% endif %}
-            <small class="form-text text-muted">
+            <small class="form-text text-muted" id="{{ form.nombre_cliente_nuevo.auto_id }}_helptext">
               {{ form.nombre_cliente_nuevo.help_text }}
             </small>
           </div>

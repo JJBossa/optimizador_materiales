@@ -1,4 +1,5 @@
 import csv
+from functools import partial
 
 from django import forms
 
@@ -9,6 +10,7 @@ from ..units import (
     CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
     margen_en_cm, margen_en_mm, medida_editable, medida_tablero_en_cm,
 )
+from .nombres import LIMITE_PLANTILLA, NombreLimitadoField, NombreModeloMixin
 from .numeros import DecimalEntradaField, MedidaEntradaField
 
 CONTRATO_PIEZAS = {
@@ -16,7 +18,7 @@ CONTRATO_PIEZAS = {
     'decimal': FORMATO_DECIMAL, 'entero': FORMATO_ENTERO,
 }
 
-class PlantillaForm(forms.ModelForm):
+class PlantillaForm(NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar plantillas."""
 
     margen_corte = DecimalEntradaField(
@@ -29,6 +31,10 @@ class PlantillaForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.origen_tablero = origen_tablero if origen_tablero is not None else self.instance
         if self.instance.pk:
+            campo_nombre = self.fields['nombre']
+            if (self.instance.es_predefinida and campo_nombre.nombre_guardado is None
+                    and campo_nombre.supera_limite(self.instance.nombre)):
+                campo_nombre.help_text += ' Acorta el nombre original para guardar una copia.'
             unidad = self.instance.unidad_medida or 'cm'
             self.initial['ancho_tablero'] = medida_editable(self.instance.ancho_tablero, unidad)
             self.initial['alto_tablero'] = medida_editable(self.instance.alto_tablero, unidad)
@@ -98,7 +104,10 @@ class PlantillaForm(forms.ModelForm):
     class Meta:
         model = Plantilla
         fields = ['nombre', 'descripcion', 'categoria', 'ancho_tablero', 'alto_tablero', 'unidad_medida', 'piezas', 'permitir_rotacion', 'margen_corte']
-        field_classes = dict.fromkeys(('ancho_tablero', 'alto_tablero'), MedidaEntradaField)
+        field_classes = {
+            'nombre': partial(NombreLimitadoField, limite=LIMITE_PLANTILLA),
+            'ancho_tablero': MedidaEntradaField, 'alto_tablero': MedidaEntradaField,
+        }
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',

@@ -1,15 +1,28 @@
+from functools import partial
+
 from django.contrib import admin
+from django import forms
 from django.db.models import Q
 
 from usuarios.views import es_admin
 
 from .forms.materials import MaterialAdminForm
+from .forms.nombres import LIMITE_TRABAJO, NombreLimitadoField, NombreModeloMixin
 from .forms.numeros import ImporteDecimalField
 from .formato_clp import formatear_clp
 from .models import Optimizacion, Material
 
+
+class OptimizacionAdminForm(NombreModeloMixin, forms.ModelForm):
+    class Meta:
+        model = Optimizacion
+        fields = '__all__'
+        field_classes = {'nombre': partial(NombreLimitadoField, limite=LIMITE_TRABAJO)}
+
+
 @admin.register(Optimizacion)
 class OptimizacionAdmin(admin.ModelAdmin):
+    form = OptimizacionAdminForm
     list_display = ('codigo', 'usuario', 'fecha', 'ancho_tablero', 'alto_tablero', 'aprovechamiento_total', 'costo_total_display')
     search_fields = ('usuario__username',)
     ordering = ('-fecha',)

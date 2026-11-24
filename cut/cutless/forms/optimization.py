@@ -8,6 +8,7 @@ from ..units import (
     CENTIMETROS_POR_UNIDAD, LADO_MAX_CM, LADO_PIEZA_MIN_CM, LADO_TABLERO_MIN_CM,
     margen_en_cm, margen_en_mm, medida_tablero_en_cm,
 )
+from .nombres import LIMITE_TRABAJO, NombreLimitadoField
 from .numeros import CantidadEntradaField, DecimalEntradaField, ImporteEntradaField, MedidaEntradaField
 
 from ..materiales import precio_material_valido
@@ -16,13 +17,26 @@ from ..permissions import usuario_tiene_permiso
 from ..board_presets import CATALOGO, medida_valida
 
 class NombreOptimizacionForm(forms.Form):
-    nombre_optimizacion = forms.CharField(label='Nombre del trabajo (opcional)',
-        max_length=100, required=False,
-        widget=forms.TextInput(attrs={'class':'form-control', 'id':'nombre_optimizacion',
-            'placeholder':'Ej.: Mueble de cocina', 'aria-describedby':'nombre_optimizacion_ayuda'}))
+    nombre_optimizacion = NombreLimitadoField(
+        limite=LIMITE_TRABAJO, label='Nombre del trabajo (opcional)', required=False,
+        widget=forms.TextInput(attrs={
+            'class': 'form-control', 'id': 'nombre_optimizacion',
+            'placeholder': 'Ej.: Mueble de cocina',
+        }),
+    )
+
+    def __init__(self, *args, nombre_guardado=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        if nombre_guardado is not None:
+            campo = self.fields['nombre_optimizacion']
+            campo.conservar(nombre_guardado)
+            campo.initial = nombre_guardado
 
     def clean_nombre_optimizacion(self):
-        return ' '.join(self.cleaned_data.get('nombre_optimizacion', '').split())
+        nombre = self.cleaned_data['nombre_optimizacion']
+        if nombre == self.fields['nombre_optimizacion'].nombre_guardado:
+            return nombre
+        return ' '.join(nombre.split())
 
 
 class MedidasClarasMixin:

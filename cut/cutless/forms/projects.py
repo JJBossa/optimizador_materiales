@@ -1,9 +1,12 @@
+from functools import partial
+
 from django import forms
 from django.db.models import Q
 
 from ..models import Proyecto, Cliente, Optimizacion
+from .nombres import LIMITE_PROYECTO, NombreLimitadoField, NombreModeloMixin
 
-class ProyectoForm(forms.ModelForm):
+class ProyectoForm(NombreModeloMixin, forms.ModelForm):
     """Formulario para crear y editar proyectos"""
     
     # Campo personalizado para seleccionar múltiples optimizaciones
@@ -20,6 +23,7 @@ class ProyectoForm(forms.ModelForm):
     class Meta:
         model = Proyecto
         fields = ['nombre', 'descripcion', 'cliente', 'fecha_inicio', 'fecha_fin', 'estado']
+        field_classes = {'nombre': partial(NombreLimitadoField, limite=LIMITE_PROYECTO)}
         widgets = {
             'nombre': forms.TextInput(attrs={
                 'class': 'form-control',

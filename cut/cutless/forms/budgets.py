@@ -2,15 +2,16 @@ from django import forms
 from django.utils import timezone
 
 from ..models import Presupuesto, Optimizacion, Cliente, Proyecto
+from .nombres import LIMITE_CLIENTE, NombreLimitadoField
 from .numeros import ImporteDecimalField
 
 class PresupuestoForm(forms.ModelForm):
     """Formulario para crear y editar presupuestos con múltiples optimizaciones"""
     
     # Campo opcional para escribir el nombre del cliente directamente
-    nombre_cliente_nuevo = forms.CharField(
+    nombre_cliente_nuevo = NombreLimitadoField(
         required=False,
-        max_length=200,
+        limite=LIMITE_CLIENTE,
         widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'O escribe el nombre del cliente aquí'

@@ -49,11 +49,13 @@ def renombrar_optimizacion(request, pk):
     optimizacion = get_object_or_404(Optimizacion, pk=pk, usuario=request.user)
     volver = (reverse('cutless:historial') if request.GET.get('volver') == 'historial'
               else reverse('cutless:resultado', args=[pk]))
-    form = NombreOptimizacionForm(request.POST if request.method == 'POST' else None,
-        initial={'nombre_optimizacion':optimizacion.nombre})
+    form = NombreOptimizacionForm(
+        request.POST if request.method == 'POST' else None, nombre_guardado=optimizacion.nombre,
+    )
     if request.method == 'POST' and form.is_valid():
-        optimizacion.nombre = form.cleaned_data['nombre_optimizacion']
-        optimizacion.save(update_fields=['nombre'])
+        if form.has_changed():
+            optimizacion.nombre = form.cleaned_data['nombre_optimizacion']
+            optimizacion.save(update_fields=['nombre'])
         messages.success(request, f'Nombre actualizado para {optimizacion.codigo}.')
         return redirect(volver)
     return render(request, 'cutless/renombrar_optimizacion.html',
@@ -80,7 +82,9 @@ def editar_optimizacion(request, pk):
     PiezaFormSet = formset_factory(PiezaForm, extra=1, max_num=20, validate_max=True, absolute_max=20)
     
     if request.method == "POST":
-        tablero_form = TableroForm(request.POST, user=request.user, origen_tablero=optimizacion)
+        tablero_form = TableroForm(
+            request.POST, user=request.user, origen_tablero=optimizacion, nombre_guardado=optimizacion.nombre,
+        )
         pieza_formset = PiezaFormSet(request.POST)
         
         if tablero_form.is_valid() and pieza_formset.is_valid():
@@ -234,7 +238,6 @@ def editar_optimizacion(request, pk):
         
         # Crear formulario con datos iniciales
         initial_tablero = {
-            'nombre_optimizacion': optimizacion.nombre,
             'medida_habitual': (optimizacion.resultado_extra or {}).get('medida_habitual', ''),
             'unidad_medida': unidad_opt,
             'ancho': ancho_mostrar,
@@ -247,7 +250,9 @@ def editar_optimizacion(request, pk):
             'cliente': getattr(optimizacion, 'cliente', None),
             'proyecto': getattr(optimizacion, 'proyecto', None),
         }
-        tablero_form = TableroForm(initial=initial_tablero, user=request.user)
+        tablero_form = TableroForm(
+            initial=initial_tablero, user=request.user, nombre_guardado=optimizacion.nombre,
+        )
         
         # Crear formset con datos iniciales
         # El formset ya tiene extra=1, así que solo pasamos las piezas existentes
@@ -518,6 +523,9 @@ def duplicar_optimizacion(request, pk):
         'cliente': optimizacion.cliente_id,
         'proyecto': optimizacion.proyecto_id,
     }, user=request.user)
+    campo_nombre = tablero_form.fields['nombre_optimizacion']
+    if campo_nombre.supera_limite(optimizacion.nombre):
+        campo_nombre.help_text += ' Acorta el nombre original o déjalo vacío para guardar la copia.'
     
     pieza_formset = PiezaFormSet(initial=piezas_data, form_kwargs={'unidad_medida': tablero_form['unidad_medida'].value() or 'cm'})
     

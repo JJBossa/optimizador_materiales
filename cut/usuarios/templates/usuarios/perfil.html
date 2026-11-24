@@ -123,7 +123,7 @@
                       <div class="text-danger small mt-1">{{ cuenta_form.username.errors }}</div>
                     {% endif %}
                     {% if cuenta_form.username.help_text %}
-                      <small class="form-text text-muted">{{ cuenta_form.username.help_text }}</small>
+                      <small class="form-text text-muted" id="{{ cuenta_form.username.auto_id }}_helptext">{{ cuenta_form.username.help_text }}</small>
                     {% endif %}
                   </div>
 
