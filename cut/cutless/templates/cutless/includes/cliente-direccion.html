@@ -19,7 +19,7 @@
   <input type="hidden" name="ubicacion_pais" value="{{ form.direccion_estructurada.direccion_pais.value|default_if_none:'' }}">
   <div class="row gy-2">
     {% for campo in form.direccion_estructurada %}
-      <div class="col-12 col-md-6 cliente-direccion-campo">{{ campo.as_field_group }}</div>
+      <div class="col-12 col-md-6 cliente-direccion-campo"{% if campo.name == "direccion_pais" %} data-selector-pais="postal"{% endif %}>{{ campo.as_field_group }}</div>
     {% endfor %}
   </div>
 </fieldset>

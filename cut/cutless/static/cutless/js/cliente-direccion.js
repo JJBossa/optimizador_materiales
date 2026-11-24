@@ -52,13 +52,15 @@
   const aviso = document.querySelector('[data-aviso-direccion]');
   if (!aviso) return;
   const continuar = aviso.querySelector('[data-continuar-direccion]');
+  const controlPais = document.getElementById(`busqueda-${pais.id}`) || pais;
+  continuar.hash = controlPais.id;
   const revisar = aviso.querySelector('[data-revisar-direccion]');
   const dialogo = document.createElement('dialog');
   if (typeof dialogo.showModal !== 'function') return;
   dialogo.className = 'cliente-direccion-dialogo';
   dialogo.setAttribute('aria-labelledby', 'titulo-aviso-direccion');
   dialogo.setAttribute('aria-describedby', 'ayuda-aviso-direccion');
-  let retorno = pais;
+  let retorno = controlPais;
   function abrir(activador) {
     retorno = activador;
     revisar.hidden = true;
@@ -76,10 +78,10 @@
   continuar.addEventListener('click', event => {
     if (!dialogo.open) return;
     event.preventDefault();
-    retorno = pais;
+    retorno = controlPais;
     dialogo.close();
   });
   revisar.addEventListener('click', () => abrir(revisar));
   revisar.hidden = false;
-  if (aviso.hasAttribute('data-mostrar-aviso')) abrir(pais);
+  if (aviso.hasAttribute('data-mostrar-aviso')) abrir(controlPais);
 })();

@@ -238,3 +238,55 @@ body.admin-users-page .admin-create-form :is(input, select, button):focus-visibl
 .cliente-direccion-dialogo::backdrop {
   background: rgb(0 0 0 / 55%);
 }
+
+.selector-pais-abrir {
+  min-width: 2.75rem;
+  color: var(--cl-text-primary);
+  border-color: var(--cl-border);
+}
+
+.selector-pais-abrir::after {
+  content: "";
+  display: inline-block;
+  vertical-align: middle;
+  border: .28em solid transparent;
+  border-top-color: currentColor;
+  transform: translateY(.14em);
+}
+
+.selector-pais-lista:not([hidden]),
+.selector-pais-sin-resultados {
+  position: relative;
+  max-height: min(15rem, 40vh);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin-top: .25rem;
+  border: 1px solid var(--cl-border);
+  border-radius: .375rem;
+  color: var(--cl-text-primary);
+  background: var(--cl-bg-card, Canvas);
+}
+
+.selector-pais-lista:not([hidden]):empty {
+  display: none;
+}
+
+.selector-pais-lista [role="option"],
+.selector-pais-sin-resultados {
+  padding: .65rem .75rem;
+  overflow-wrap: anywhere;
+}
+
+.selector-pais-lista [role="option"] {
+  cursor: pointer;
+}
+
+.selector-pais-lista [role="option"]:hover,
+.selector-pais-lista [aria-selected="true"] {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+}
+
+[data-selector-pais="telefono"] > label {
+  margin-bottom: .5rem;
+}

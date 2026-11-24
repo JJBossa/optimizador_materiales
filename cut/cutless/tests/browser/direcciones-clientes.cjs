@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { chromium } = require('playwright');
+const { chromium, firefox, webkit } = require('playwright');
+const motor = process.env.CUTLESS_TEST_BROWSER || 'chromium';
 
 const origen = new URL(process.env.CUTLESS_TEST_ORIGIN);
 assert.equal(origen.protocol, 'http:');
@@ -26,17 +27,28 @@ async function guardar(page, ruta, nombreBoton, estado) {
   if (estado === 302) await page.waitForURL(url => url.origin === origen.origin && url.pathname === fixture.lista);
 }
 
+async function elegirPais(page, codigo, js) {
+  if (!js) {
+    await page.locator('#id_direccion_pais').selectOption(codigo);
+    return;
+  }
+  const entrada = page.getByRole('combobox', { name: 'País o territorio de la dirección' });
+  await entrada.fill(codigo);
+  await entrada.press('ArrowDown');
+  await entrada.press('Enter');
+}
+
 async function ubicacionChile(page, ruta, js) {
-  const pais = page.locator('#id_direccion_pais');
   const region = page.locator('#id_direccion_region');
   const comuna = page.locator('#id_direccion_comuna');
   const actualizar = 'Actualizar opciones de ubicación';
 
-  await pais.selectOption('PT');
+  await elegirPais(page, 'PT', js);
   if (!js) await guardar(page, ruta, actualizar, 200);
   assert.equal(await region.evaluate(e => e.tagName), 'INPUT');
+  assert.equal(await page.locator('[name=ubicacion_pais]').inputValue(), 'PT');
   await region.fill('Distrito sintético');
-  await pais.selectOption('CL');
+  await elegirPais(page, 'CL', js);
   if (!js) await guardar(page, ruta, actualizar, 200);
   assert.equal(await region.evaluate(e => e.tagName), 'SELECT');
   assert.equal(await region.inputValue(), '');
@@ -49,6 +61,17 @@ async function ubicacionChile(page, ruta, js) {
   assert.equal(await comuna.locator('option[value="13101"]').count(), 0);
   assert.equal(await comuna.locator('option[value="08109"]').textContent(), 'Santa Juana');
   await comuna.selectOption('08109');
+  if (js) {
+    const pais = page.locator('#busqueda-id_direccion_pais');
+    await pais.fill('Portugal');
+    assert.equal(await region.inputValue(), '08');
+    assert.equal(await comuna.inputValue(), '08109');
+    await pais.press('Escape');
+    await elegirPais(page, 'CL', true);
+    assert.equal(await region.inputValue(), '08');
+    assert.equal(await comuna.inputValue(), '08109');
+    assert.equal(await page.locator('[name=ubicacion_pais]').inputValue(), 'CL');
+  }
 }
 
 async function comprobarPosicion(dialogo, contenidoCabe) {
@@ -81,7 +104,7 @@ async function probarContratoCLI03(page, js) {
   await abrir(page, fixture.crear);
   const nombre = `CLI-03 Internacional ${modo}`;
   await page.locator('#id_nombre').fill(nombre);
-  await page.locator('#id_direccion_pais').selectOption('PT');
+  await elegirPais(page, 'PT', js);
   if (!js) await guardar(page, fixture.crear, 'Actualizar opciones de ubicación', 200);
   const campos = {
     direccion_region: 'Lisboa',
@@ -148,6 +171,7 @@ async function probar(context, ancho, modo) {
   assert.equal(await page.locator('#id_direccion_comuna').inputValue(), '08109');
   assert.equal(await bloque.locator('#id_direccion_calle').getAttribute('aria-invalid'), 'true');
   await calle.fill('Pasaje Sintético');
+  if (ancho === 390) await page.getByLabel('Número de teléfono').fill('9 8765 4321');
   if (ancho === 390) {
     const rut = page.getByLabel('RUT', { exact: true });
     const repetido = js ? '1000005-K' : '1.000.005-K';
@@ -186,7 +210,7 @@ async function probar(context, ancho, modo) {
     assert.equal(await continuar.evaluate(e => e === document.activeElement), true);
     await page.keyboard.press('Escape');
     await dialogo.waitFor({ state: 'detached' });
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
+    await page.waitForFunction(() => document.activeElement.id === 'busqueda-id_direccion_pais');
     const revisar = aviso.getByRole('button', { name: 'Revisar aviso' });
     await revisar.press('Enter');
     await dialogo.waitFor();
@@ -212,7 +236,7 @@ async function probar(context, ancho, modo) {
       assert.ok(await volver.evaluate(e => e.getBoundingClientRect().bottom <= visualViewport.height));
       await continuar.press('Enter');
       await dialogo.waitFor({ state: 'detached' });
-      assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
+      await page.waitForFunction(() => document.activeElement.id === 'busqueda-id_direccion_pais');
       await page.setViewportSize(viewport);
       await abrir(page, ruta.editar);
       await dialogo.waitFor();
@@ -228,7 +252,7 @@ async function probar(context, ancho, modo) {
   await continuar.press('Enter');
   if (js) {
     await dialogo.waitFor({ state: 'detached' });
-    assert.equal(await page.evaluate(() => document.activeElement.id), 'id_direccion_pais');
+    await page.waitForFunction(() => document.activeElement.id === 'busqueda-id_direccion_pais');
   }
 
   await page.getByLabel('Correo Electrónico').fill(`${escenario}@example.test`);
@@ -253,12 +277,12 @@ async function probar(context, ancho, modo) {
 }
 
 (async () => {
-  const browser = await chromium.launch({
+  const browser = await { chromium, firefox, webkit }[motor].launch(motor === 'chromium' ? {
     executablePath: process.env.CUTLESS_TEST_CHROMIUM || undefined,
     args: ['--no-sandbox'],
-  });
+  } : {});
   try {
-    console.log(`Chromium ${browser.version()}`);
+    console.log(`${motor} ${browser.version()}`);
     for (const ancho of [320, 390, 768, 1280]) {
       for (const js of [true, false]) {
         const context = await browser.newContext({
