@@ -2,7 +2,8 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const { chromium } = require('playwright');
+const { chromium, firefox, webkit } = require('playwright');
+const motor = process.env.CUTLESS_TEST_BROWSER || 'chromium';
 
 const origin = new URL(process.env.CUTLESS_TEST_ORIGIN || 'http://127.0.0.1:8791');
 assert.equal(origin.protocol, 'http:');
@@ -14,7 +15,7 @@ const evidence = process.env.CUTLESS_TEST_EVIDENCE;
 
 async function contexto(browser, width, colorScheme, javaScriptEnabled = true) {
   const context = await browser.newContext({
-    viewport: { width, height: 960 }, colorScheme, javaScriptEnabled,
+    viewport: { width, height: 960 }, colorScheme, javaScriptEnabled, hasTouch: width === 390,
     reducedMotion: 'reduce', serviceWorkers: 'block',
   });
   await context.addCookies([{ name: 'sessionid', value: fixture.session, url: origin.origin }]);
@@ -44,7 +45,7 @@ async function captura(page, nombre) {
 
 async function revisarDisposicion(page, width) {
   const posicion = await page.locator('[data-cliente-telefono]').evaluate(bloque => {
-    const pais = bloque.querySelector('select').getBoundingClientRect();
+    const pais = bloque.querySelector('[role=combobox]').getBoundingClientRect();
     const telefono = bloque.querySelector('[type="tel"]').getBoundingClientRect();
     return { pais: pais.toJSON(), telefono: telefono.toJSON(), ancho: document.documentElement.scrollWidth };
   });
@@ -77,11 +78,21 @@ async function probar(browser) {
         const page = await ctx.newPage();
         await abrir(page, fixture.create);
         assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
-        const pais = page.getByRole('combobox', { name: 'País o territorio', exact: true });
-        assert.equal(await pais.inputValue(), 'CL');
-        assert.match(await pais.locator('option:checked').textContent(), /🇨🇱 Chile \(\+56\)/u);
+        const pais = page.getByRole('combobox', { name: /^País o territorio:?$/ });
+        assert.match(await pais.inputValue(), /🇨🇱 Chile \(\+56\)/u);
+        assert.equal(await page.locator('#id_telefono_pais').isHidden(), true);
         assert.equal(await page.getByLabel('Número de teléfono').getAttribute('inputmode'), 'tel');
         await revisarDisposicion(page, width);
+        const selectorPostal = page.getByRole('combobox', { name: /País o territorio de la dirección/ });
+        await selectorPostal.click();
+        assert.equal(await selectorPostal.getAttribute('aria-expanded'), 'true');
+        assert.ok(await page.getByRole('listbox', { name: /País o territorio de la dirección/ }).evaluate(lista =>
+          lista.scrollHeight > lista.clientHeight && lista.scrollWidth <= lista.clientWidth));
+        if (theme === 'dark' && width === 1440) {
+          await selectorPostal.fill('antartida');
+          await captura(page, 'ux06-postal-escritorio.png');
+        }
+        await selectorPostal.press('Escape');
         if (theme === 'light' && (width === 390 || width === 1440)) await captura(page, `crear-cliente-${width}.png`);
 
         await abrir(page, fixture.edit);
@@ -92,24 +103,58 @@ async function probar(browser) {
 
         if (theme === 'light' && width === 390) {
           await abrir(page, fixture.create);
-          const busqueda = page.getByRole('searchbox', { name: 'Buscar país o prefijo' });
+          const nativo = page.locator('#id_telefono_pais');
+          const lista = page.getByRole('listbox', { name: /^País o territorio:?$/ });
           const telefono = page.getByLabel('Número de teléfono');
-          await busqueda.fill('+999');
-          assert.equal(await page.locator('[data-busqueda-pais] [role="status"]').textContent(), '0 coincidencias.');
-          assert.equal(await pais.inputValue(), 'CL');
-          await busqueda.fill('Espana');
-          assert.equal(await pais.locator('option[value="ES"]').count(), 1);
-          assert.ok((await pais.locator('option').count()) <= 3);
-          await busqueda.press('Enter');
-          assert.equal(await pais.evaluate(elemento => elemento === document.activeElement), true);
-          await page.keyboard.press('End');
-          assert.equal(await pais.inputValue(), 'ES');
-          await page.keyboard.press('Tab');
+          const postal = page.getByRole('combobox', { name: 'País o territorio de la dirección' });
+          await nativo.evaluate(select => {
+            select.parentElement.dataset.cambios = '0';
+            select.parentElement.addEventListener('change', () => select.parentElement.dataset.cambios++);
+          });
+          const cambios = () => nativo.evaluate(select => select.parentElement.dataset.cambios);
+          const cantidad = await nativo.locator('option').count();
+          await pais.click();
+          assert.equal(await lista.getByRole('option').count(), cantidad);
+          assert.ok(await lista.evaluate(e => e.scrollHeight > e.clientHeight));
+          await pais.press('ArrowUp');
+          assert.ok(await lista.evaluate(e => e.scrollTop > 0));
+          await pais.fill('chi');
+          await captura(page, 'ux06-telefono-movil.png');
+          await lista.getByRole('option', { name: /Chile/ }).click();
+          assert.equal(await cambios(), '0');
+          await pais.fill('+56');
+          assert.equal(await lista.getByRole('option').count(), 1);
+          await pais.press('ArrowDown');
+          await pais.press('Enter');
+          assert.equal(await nativo.inputValue(), 'CL');
+          await pais.fill('+999');
+          assert.equal(await page.getByText('No hay coincidencias.').isVisible(), true);
+          await pais.press('Escape');
+          assert.equal(await pais.getAttribute('aria-expanded'), 'false');
+          assert.match(await pais.inputValue(), /Chile/);
+          await pais.fill('Espana');
+          await pais.press('ArrowDown');
+          const activa = await pais.getAttribute('aria-activedescendant');
+          assert.equal(await page.locator(`#${activa}`).getAttribute('aria-selected'), 'true');
+          await pais.press('Enter');
+          assert.equal(await nativo.inputValue(), 'ES');
+          assert.equal(await cambios(), '1');
+          await pais.fill('+34');
+          assert.equal(await lista.getByRole('option').count(), 1);
+          await pais.fill('+1');
+          assert.ok(await lista.getByRole('option').count() > 1);
+          assert.equal(await nativo.inputValue(), 'ES');
+          await lista.getByRole('option', { name: /Canadá/ }).tap();
+          assert.equal(await nativo.inputValue(), 'CA');
+          assert.equal(await cambios(), '2');
+          await pais.fill('GB');
+          await pais.press('Tab');
           assert.equal(await telefono.evaluate(elemento => elemento === document.activeElement), true);
-          await busqueda.fill('+34');
-          assert.equal(await pais.inputValue(), 'ES');
-          await busqueda.fill('');
-          assert.ok((await pais.locator('option').count()) > 200);
+          assert.match(await pais.inputValue(), /Canadá/);
+          assert.equal(await cambios(), '2');
+          assert.equal(await postal.inputValue(), '');
+          assert.equal(await nativo.locator('option').count(), cantidad);
+          assert.equal(await page.locator('input[name=telefono_pais]').count(), 0);
         }
       } finally {
         await ctx.close();
@@ -122,8 +167,9 @@ async function probar(browser) {
   try {
     const page = await ctx.newPage();
     await abrir(page, fixture.create);
-    assert.equal(await page.locator('[data-busqueda-pais]').isVisible(), false);
-    const pais = page.getByLabel('País o territorio', { exact: true });
+    assert.equal(await page.locator('input[role=combobox]').count(), 0);
+    assert.equal(await page.locator('#id_direccion_pais').isVisible(), true);
+    const pais = page.getByLabel(/^País o territorio:?$/);
     assert.equal(await pais.inputValue(), 'CL');
     await pais.selectOption('GB');
     await page.getByLabel('Nombre o Razón Social').fill('Cliente sin JavaScript');
@@ -135,7 +181,7 @@ async function probar(browser) {
     assert.deepEqual(invalidos, [], 'El navegador debe permitir que Django revise estos valores.');
     const [respuesta] = await Promise.all([
       page.waitForResponse(respuesta => respuesta.request().method() === 'POST'),
-      page.getByRole('button', { name: 'Crear cliente', exact: true }).click(),
+      page.getByRole('button', { name: 'Crear cliente', exact: true }).press('Enter'),
     ]);
     assert.equal(respuesta.status(), 200);
     await page.locator('#id_telefono_error').waitFor();
@@ -166,9 +212,47 @@ async function probar(browser) {
   }
 }
 
-(async () => {
-  const browser = await chromium.launch({ executablePath: process.env.CUTLESS_TEST_CHROMIUM });
+async function probarEtiquetasEHidratacion(browser) {
+  const page = await browser.newPage();
   try {
+    await page.setContent(`
+      <div data-selector-pais="postal"><select id="incompleto"><option>Sin etiqueta</option></select></div>
+      <div data-selector-pais="postal"><label for="postal">Dirección</label>
+        <select id="postal" name="direccion_pais"><option value="">Selecciona un país o territorio</option></select>
+      </div>
+    `);
+    const etiqueta = '<img src=x> & País (guardado anteriormente)';
+    await page.locator('#postal').evaluate((selector, texto) => {
+      selector.add(new Option(texto, 'ZZ', true, true));
+      selector.dataset.cambios = '0';
+      selector.addEventListener('change', () => selector.dataset.cambios++);
+    }, etiqueta);
+    const script = path.join(__dirname, '../../static/cutless/js/selector-pais.js');
+    await page.addScriptTag({ path: script });
+    await page.addScriptTag({ path: script });
+    assert.equal(await page.locator('#incompleto').isVisible(), true);
+    assert.equal(await page.locator('input[role=combobox]').count(), 1);
+    const entrada = page.getByRole('combobox', { name: 'Dirección' });
+    assert.equal(await entrada.inputValue(), etiqueta);
+    await entrada.click();
+    assert.equal(await page.getByRole('option', { name: etiqueta }).textContent(), etiqueta);
+    assert.equal(await page.locator('img').count(), 0);
+    assert.equal(await page.locator('#postal').getAttribute('data-cambios'), '0');
+    await page.getByRole('option', { name: 'Selecciona un país o territorio' }).click();
+    assert.equal(await entrada.inputValue(), '');
+    assert.equal(await page.locator('#postal').inputValue(), '');
+    assert.equal(await page.locator('#postal').getAttribute('data-cambios'), '1');
+  } finally {
+    await page.close();
+  }
+}
+
+(async () => {
+  const browser = await { chromium, firefox, webkit }[motor].launch({
+    executablePath: motor === 'chromium' ? process.env.CUTLESS_TEST_CHROMIUM : undefined,
+  });
+  try {
+    await probarEtiquetasEHidratacion(browser);
     await probar(browser);
   } finally {
     await browser.close();

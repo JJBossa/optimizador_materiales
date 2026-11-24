@@ -1,17 +1,7 @@
 <div class="mb-3" data-cliente-telefono>
   <div class="row g-2">
-    <div class="col-12" data-busqueda-pais hidden>
-      <div class="col-md-6 pe-md-1">
-        <label for="busqueda-{{ form.telefono_pais.auto_id }}" class="form-label">Buscar país o prefijo</label>
-        <input type="search" class="form-control" id="busqueda-{{ form.telefono_pais.auto_id }}"
-               aria-controls="{{ form.telefono_pais.auto_id }}" autocomplete="off">
-        <span class="form-text" role="status"></span>
-      </div>
-    </div>
-    <div class="col-md-6">
-      <label for="{{ form.telefono_pais.id_for_label }}" class="form-label">{{ form.telefono_pais.label }}</label>
-      {{ form.telefono_pais }}
-      {% if form.telefono_pais.errors %}<div class="text-danger small">{{ form.telefono_pais.errors }}</div>{% endif %}
+    <div class="col-md-6" data-selector-pais="telefono">
+      {{ form.telefono_pais.as_field_group }}
     </div>
     <div class="col-md-6">
       <label for="{{ form.telefono.id_for_label }}" class="form-label">{{ form.telefono.label }}</label>

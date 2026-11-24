@@ -115,6 +115,27 @@ class ContactoClienteVistasTests(TestCase):
         self.assertEqual(list(listado.context['clientes']), [nuevo])
         self.assertContains(listado, nuevo.telefono)
 
+    def test_selectores_independientes_conservan_valores_y_asocian_errores(self):
+        datos = {
+            'nombre': 'Combinación sintética', 'telefono_pais': 'GB', 'telefono': '0121 234 5678',
+            'direccion_pais': 'PT', 'direccion_comuna': 'Lisboa', 'direccion_calle': 'Rua da Prata',
+            'direccion_numero': '12',
+        }
+        respuesta = self.client.post(self.alta, {**datos, 'email': 'incorrecto'})
+        self.assertEqual(respuesta.status_code, 200)
+        form = respuesta.context['form']
+        self.assertEqual(form['telefono_pais'].value(), 'GB')
+        self.assertEqual(form.direccion_estructurada['direccion_pais'].value(), 'PT')
+        for campo in ('telefono_pais', 'direccion_pais'):
+            con_error = self.client.post(self.alta, {**datos, campo: 'ZZ'})
+            self.assertEqual(con_error.status_code, 200)
+            self.assertContains(con_error, f'id="id_{campo}_error"')
+            self.assertContains(con_error, f'aria-describedby="id_{campo}_error"')
+        self.assertEqual(Cliente.objects.count(), 1)
+        self.assertEqual(self.client.post(self.alta, datos).status_code, 302)
+        nuevo = Cliente.objects.get(nombre=datos['nombre'])
+        self.assertEqual((nuevo.telefono, nuevo.direccion_pais), ('+441212345678', 'PT'))
+
     def test_rechaza_rut_repetido_en_sus_grafias_y_conserva_borrador(self):
         casos = (
             ('12345678-5', '12.345.678-5'),
