@@ -120,20 +120,22 @@ class FechasProyectoTests(TestCase):
         self.assertContains(respuesta, 'Puedes conservar la fecha guardada')
         self.assertContains(respuesta, 'maxlength="30"')
 
-        datos = {**self.datos, 'nombre': largo, 'estado': 'en_proceso', 'descripcion': 'Trabajo revisado',
+        datos = {**self.datos, 'nombre': largo, 'descripcion': 'Trabajo revisado',
+                 'revision': respuesta.context['form']['revision'].value(),
                  'cliente': cliente.pk, 'optimizaciones': [siguiente.pk],
                  'fecha_inicio': inicio, 'fecha_fin': self.ayer}
         self.assertEqual(self.client.post(editar, datos).status_code, 302)
         proyecto.refresh_from_db()
         self.assertEqual((proyecto.fecha_inicio, proyecto.fecha_fin), (inicio, self.ayer))
         self.assertEqual((proyecto.nombre, proyecto.descripcion, proyecto.estado, proyecto.cliente_id),
-                         (largo, 'Trabajo revisado', 'en_proceso', cliente.pk))
+                         (largo, 'Trabajo revisado', 'planificacion', cliente.pk))
         self.assertEqual(list(proyecto.optimizacion_set.values_list('pk', flat=True)), [siguiente.pk])
         plan.refresh_from_db()
         self.assertIsNone(plan.proyecto_id)
 
         # Omitir una fecha conserva el valor. Enviar un campo vacío lo borra explícitamente.
         del datos['fecha_fin']
+        datos['revision'] = self.client.get(editar).context['form']['revision'].value()
         self.assertEqual(self.client.post(editar, {**datos, 'fecha_inicio': ''}).status_code, 302)
         proyecto.refresh_from_db()
         self.assertEqual((proyecto.fecha_inicio, proyecto.fecha_fin), (None, self.ayer))
@@ -145,7 +147,8 @@ class FechasProyectoTests(TestCase):
         plan = self.optimizacion(proyecto=proyecto)
         libre = self.optimizacion()
         antes = Proyecto.objects.values().get(pk=proyecto.pk)
-        base = {**self.datos, 'descripcion': 'Edición pendiente', 'optimizaciones': [libre.pk]}
+        base = {**self.datos, 'descripcion': 'Edición pendiente', 'optimizaciones': [libre.pk],
+                'revision': self.client.get(editar).context['form']['revision'].value()}
         for fechas, campo, codigo in (
             ({'fecha_inicio': self.ayer, 'fecha_fin': self.ayer}, 'fecha_inicio', 'fecha_pasada'),
             ({'fecha_inicio': '', 'fecha_fin': inicio}, 'fecha_fin', 'fecha_pasada'),

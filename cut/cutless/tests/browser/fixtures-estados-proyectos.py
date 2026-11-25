@@ -38,7 +38,7 @@ with Path(os.environ['CUTLESS_TEST_FIXTURE']).open('x', encoding='utf-8') as sal
         'session': sesion.cookies['sessionid'].value,
         'lista': reverse('cutless:lista_proyectos'),
         'detalles': {
-            proyecto.get_estado_display(): reverse('cutless:detalle_proyecto', args=[proyecto.pk])
+            proyecto.get_estado_display().replace('En Proceso', 'En proceso'): reverse('cutless:detalle_proyecto', args=[proyecto.pk])
             for proyecto in proyectos
         },
     }, salida)

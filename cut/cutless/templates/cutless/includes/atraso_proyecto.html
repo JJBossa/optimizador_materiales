@@ -1,0 +1,3 @@
+{% if proyecto.estado_efectivo == 'atrasado' %}
+<p class="form-text">La fecha de finalización estimada ya pasó. Estado operativo {% if proyecto.estado == 'en_proceso' %}En proceso{% else %}{{ proyecto.get_estado_display }}{% endif %}.</p>
+{% endif %}

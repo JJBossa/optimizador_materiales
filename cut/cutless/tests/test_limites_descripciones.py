@@ -82,7 +82,7 @@ class LimitesDescripcionesTests(TestCase):
     def test_alta_edicion_y_guardado_parcial_de_los_cinco_campos(self):
         casos = (
             ('material', Material, 'descripcion', TABLERO, {'precio': '600'}),
-            ('proyecto', Proyecto, 'descripcion', {'estado': 'planificacion'}, {'estado': 'en_proceso'}),
+            ('proyecto', Proyecto, 'descripcion', {}, {'cliente': self.cliente.pk}),
             ('plantilla', Plantilla, 'descripcion', PLANTILLA, {'categoria': 'otros'}),
             ('cliente', Cliente, 'notas', {}, {'email': 'prueba@example.test'}),
             ('presupuesto', Presupuesto, 'notas', self.datos_presupuesto, {'precio_tablero': '600'}),

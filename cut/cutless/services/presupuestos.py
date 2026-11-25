@@ -1,19 +1,15 @@
 """Reglas del ciclo de vida de presupuestos y fecha comercial de Chile."""
-from zoneinfo import ZoneInfo
 
 from django.utils import timezone
 
+from .calendario import fecha_comercial
 
-ZONA_CHILE = ZoneInfo('America/Santiago')
+
 ESTADOS_VENCIBLES = ('emitido', 'enviado')
 TRANSICIONES_REGISTRO = {
     'emitido': ('enviado', 'aceptado', 'rechazado'),
     'enviado': ('aceptado', 'rechazado'),
 }
-
-
-def fecha_comercial():
-    return timezone.localdate(timezone=ZONA_CHILE)
 
 
 def fecha_vencida(fecha, *, hoy=None):

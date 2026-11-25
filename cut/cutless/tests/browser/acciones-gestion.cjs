@@ -175,7 +175,7 @@ async function probarMatriz(browser, ancho, tema) {
       await sinDesbordamiento(page, modulo);
       if (modulo === 'presupuestos' || modulo === 'proyectos') {
         const estados = await page.locator('tbody td > .badge').evaluateAll(etiquetas => etiquetas
-          .filter(etiqueta => etiqueta.hasAttribute('data-presupuesto-estado') ||
+          .filter(etiqueta => etiqueta.hasAttribute('data-presupuesto-estado') || etiqueta.hasAttribute('data-proyecto-estado') ||
             ['Enviado', 'Aceptado', 'Rechazado', 'Vencido', 'Borrador', 'Planificación',
               'En Proceso', 'Completado', 'Cancelado'].includes(etiqueta.textContent.trim()))
           .map(etiqueta => {

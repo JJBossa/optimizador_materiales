@@ -157,9 +157,7 @@
           <tr role="row">
             <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Nombre</span><strong>{{ proyecto.nombre }}</strong></td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Estado</span>
-              <span class="badge bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
-                {{ proyecto.get_estado_display }}
-              </span>
+              {% include 'cutless/includes/estado_proyecto.html' %}
             </td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de inicio</span>{{ proyecto.fecha_inicio|date:"d/m/Y"|default:"—" }}</td>
             <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de fin</span>{{ proyecto.fecha_fin|date:"d/m/Y"|default:"—" }}</td>

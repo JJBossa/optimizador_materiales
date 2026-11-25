@@ -33,7 +33,7 @@ async function medir(page, ruta, selector, tema) {
     const texto = rango.getBoundingClientRect();
     const css = getComputedStyle(etiqueta);
     return {
-      estado: etiqueta.textContent.trim(), ancho: caja.width, alto: caja.height, x: caja.left,
+      estado: etiqueta.textContent.trim().replace('En Proceso', 'En proceso'), ancho: caja.width, alto: caja.height, x: caja.left,
       margenIzquierdo: caja.left - contenedor.left, margenDerecho: contenedor.right - caja.right,
       centroVertical: (caja.top + caja.bottom - contenedor.top - contenedor.bottom) / 2,
       centroTexto: (texto.left + texto.right - caja.left - caja.right) / 2,
