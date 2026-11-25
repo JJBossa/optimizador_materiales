@@ -1,0 +1,46 @@
+{% extends 'cutless/base.html' %}
+
+{% block title %}Notificaciones · CutLess{% endblock %}
+
+{% block content %}
+  <header class="page-header">
+    <div class="page-header__text">
+      <h1 class="page-title">Notificaciones</h1>
+      <p class="page-lead">{{ total }} alerta{{ total|pluralize }} activa{{ total|pluralize }}</p>
+    </div>
+  </header>
+  <section class="card">
+    <div class="card-body">
+      <nav aria-label="Filtrar alertas" class="alertas-filtros">
+        <a class="alertas-control" href="{% url 'cutless:centro_alertas' %}"{% if not categoria %} aria-current="true"{% endif %}>Todas</a>
+        {% for codigo, nombre in categorias.items %}
+        <a class="alertas-control" href="?categoria={{ codigo }}"{% if categoria == codigo %} aria-current="true"{% endif %}>{{ nombre }}</a>
+        {% endfor %}
+      </nav>
+      {% if alertas %}
+      <ul class="alertas-lista" aria-label="Alertas activas">
+        {% for aviso in alertas %}
+        <li class="alertas-item alerta-{{ aviso.prioridad|lower }}">
+          <a href="{{ aviso.url }}">
+            <span class="alertas-icono" aria-hidden="true">{{ aviso.icono }}</span>
+            <span>
+              <span class="alertas-prioridad">Prioridad {{ aviso.prioridad|lower }}</span>
+              <strong>{{ aviso.titulo }}</strong>
+              <span class="alertas-detalle">{{ aviso.mensaje }}</span>
+            </span>
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="alertas-mensaje">No tienes alertas pendientes.</p>
+      {% endif %}
+      {% if pagina > 1 or siguiente %}
+      <nav class="alertas-filtros" aria-label="Páginas de alertas">
+        {% if pagina > 1 %}<a class="alertas-control" href="?pagina={{ pagina|add:'-1' }}&amp;categoria={{ categoria }}">Anterior</a>{% endif %}
+        {% if siguiente %}<a class="alertas-control" href="?pagina={{ siguiente }}&amp;categoria={{ categoria }}">Ver más</a>{% endif %}
+      </nav>
+      {% endif %}
+    </div>
+  </section>
+{% endblock %}
