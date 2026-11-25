@@ -35,9 +35,7 @@
   <div class="card mb-4 fade-in">
     <div class="card-header card-header-section d-flex justify-content-between align-items-center">
       <h4 class="mb-0">Información del presupuesto</h4>
-      <span class="badge bg-{% if presupuesto.estado == 'aceptado' %}success{% elif presupuesto.estado == 'enviado' %}primary{% elif presupuesto.estado == 'rechazado' or presupuesto.estado == 'vencido' %}danger{% else %}secondary{% endif %}">
-        {{ presupuesto.get_estado_display }}
-      </span>
+      {% include 'cutless/includes/estado_presupuesto.html' %}
     </div>
     <div class="card-body">
       <div class="row">
@@ -45,8 +43,8 @@
           <p><strong>Número:</strong> {{ presupuesto.numero }}</p>
           <p><strong>Fecha de creación:</strong> {{ presupuesto.fecha_creacion|date:"d/m/Y H:i" }}</p>
           <p><strong>Válido hasta:</strong> {{ presupuesto.fecha_validez|date:"d/m/Y" }}</p>
-          {% if presupuesto.esta_vencido %}
-          <p><span class="badge bg-danger">Presupuesto vencido</span></p>
+          {% if presupuesto.estado == 'borrador' and presupuesto.esta_vencido %}
+          <p class="form-text">Fecha de validez vencida. Actualízala para poder emitir.</p>
           {% endif %}
         </div>
         <div class="col-md-6">
@@ -183,9 +181,11 @@
   <!-- Acciones -->
   <div class="form-action-bar fade-in management-action-set management-action-set--wide">
     {% if user.perfil.menu_visible.presupuestos %}<a href="{% url 'cutless:lista_presupuestos' %}" class="btn btn-secondary" data-action="secondary" data-icon="chevron-left">Volver a presupuestos</a>{% endif %}
-    <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">
-      Editar presupuesto
-    </a>
+    {% if presupuesto.estado == 'borrador' %}
+      <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar presupuesto</a>
+    {% elif presupuesto.puede_registrar_estado %}
+      <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="check">Registrar estado</a>
+    {% endif %}
     <a href="{% url 'cutless:generar_pdf_presupuesto' presupuesto.pk %}" class="btn btn-primary" target="_blank" data-action="primary" data-icon="pdf" data-descarga="pdf">
       Generar PDF
     </a>

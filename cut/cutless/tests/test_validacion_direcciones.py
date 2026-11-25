@@ -173,7 +173,7 @@ class ValidacionDireccionesTests(TestCase):
                                            alto_tablero=244, piezas='Puerta,40,50,1', num_tableros=1)
         respuesta = self.client.post(reverse('cutless:crear_presupuesto'), {
             'cliente': cliente.pk, 'optimizaciones': [plan.pk], 'precio_tablero': '200', 'mano_obra': '0',
-            'fecha_validez': timezone.localdate() + timedelta(days=1), 'estado': 'enviado',
+            'fecha_validez': timezone.localdate() + timedelta(days=1), 'accion': 'emitir',
         })
         self.assertEqual(respuesta.status_code, 302)
         presupuesto = Presupuesto.objects.get()

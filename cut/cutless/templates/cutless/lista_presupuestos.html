@@ -47,11 +47,9 @@
           <label for="presupuestosEstado">Estado</label>
           <select id="presupuestosEstado" name="estado" class="form-select">
             <option value="">Todos los estados</option>
-            <option value="borrador" {% if estado_filtro == 'borrador' %}selected{% endif %}>Borrador</option>
-            <option value="enviado" {% if estado_filtro == 'enviado' %}selected{% endif %}>Enviado</option>
-            <option value="aceptado" {% if estado_filtro == 'aceptado' %}selected{% endif %}>Aceptado</option>
-            <option value="rechazado" {% if estado_filtro == 'rechazado' %}selected{% endif %}>Rechazado</option>
-            <option value="vencido" {% if estado_filtro == 'vencido' %}selected{% endif %}>Vencido</option>
+            {% for codigo, etiqueta in estados %}
+              <option value="{{ codigo }}"{% if estado_filtro == codigo %} selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="col-md-2">
@@ -89,19 +87,21 @@
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Fecha de creación</span>{{ presupuesto.fecha_creacion|date:"d/m/Y" }}</td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Válido hasta</span>
             {{ presupuesto.fecha_validez|date:"d/m/Y" }}
-            {% if presupuesto.esta_vencido %}
-              <span class="badge bg-danger">Vencido</span>
+            {% if presupuesto.estado == 'borrador' and presupuesto.esta_vencido %}
+              <span class="form-text d-block">Fecha de validez vencida</span>
             {% endif %}
           </td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Costo total</span><strong>{{ presupuesto.total_vigente|clp }}</strong></td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Estado</span>
-            <span class="badge presupuesto-estado bg-{% if presupuesto.estado == 'aceptado' %}success{% elif presupuesto.estado == 'enviado' %}primary{% elif presupuesto.estado == 'rechazado' or presupuesto.estado == 'vencido' %}danger{% else %}secondary{% endif %}">
-              {{ presupuesto.get_estado_display }}
-            </span>
+            {% include 'cutless/includes/estado_presupuesto.html' %}
           </td>
           <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Acciones</span><div class="management-action-set">
             <a href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="eye">Ver detalle</a>
-            <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
+            {% if presupuesto.estado == 'borrador' %}
+              <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit">Editar</a>
+            {% elif presupuesto.puede_registrar_estado %}
+              <a href="{% url 'cutless:editar_presupuesto' presupuesto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="check" aria-label="Registrar estado">Estado</a>
+            {% endif %}
             <a href="{% url 'cutless:generar_pdf_presupuesto' presupuesto.pk %}" class="btn btn-primary" target="_blank" rel="noopener" data-action="primary" data-icon="pdf" data-descarga="pdf">PDF</a>
           </div></td>
         </tr>

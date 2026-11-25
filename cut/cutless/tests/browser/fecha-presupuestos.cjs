@@ -18,23 +18,24 @@ async function probar(page, ancho, js) {
   const alta = origen.origin + fixture.crear;
   assert.equal((await page.goto(alta, { waitUntil: 'domcontentloaded' })).status(), 200);
   const fecha = page.getByLabel('Válido Hasta');
-  const guardar = page.getByRole('button', { name: 'Crear presupuesto', exact: true });
+  const guardar = page.getByRole('button', { name: 'Guardar borrador', exact: true });
   const valores = {
     cliente: String(fixture.cliente), proyecto: String(fixture.proyecto),
-    precio_tablero: '150.50', mano_obra: '25.25', estado: 'enviado', notas: 'Notas sintéticas PRE-01',
+    precio_tablero: '150.50', mano_obra: '25.25', notas: 'Notas sintéticas PRE-01',
   };
   const plan = page.locator(`#opt_${fixture.plan}`);
   assert.equal(await fecha.getAttribute('type'), 'date');
   assert.equal(await fecha.getAttribute('min'), fixture.hoy);
   assert.equal(await fecha.inputValue(), fixture.hoy);
   assert.equal(await fecha.evaluate(e => e.required), true);
-  for (const campo of ['cliente', 'estado', 'proyecto']) {
+  for (const campo of ['cliente', 'proyecto']) {
     await page.locator(`#id_${campo}`).selectOption(valores[campo]);
   }
   for (const campo of ['precio_tablero', 'mano_obra', 'notas']) {
     await page.locator(`#id_${campo}`).fill(valores[campo]);
   }
-  await plan.check();
+  await plan.press('Space');
+  assert.ok(await plan.isChecked());
   await fecha.fill(fixture.ayer);
   assert.equal(await fecha.evaluate(e => e.validity.rangeUnderflow), true);
 
@@ -42,7 +43,7 @@ async function probar(page, ancho, js) {
   await fecha.evaluate(e => e.removeAttribute('min'));
   const [respuesta] = await Promise.all([
     page.waitForResponse(r => r.url() === alta && r.request().method() === 'POST'),
-    guardar.click(),
+    guardar.press('Enter'),
   ]);
   assert.equal(respuesta.status(), 200);
   const error = page.locator('#id_fecha_validez_error');
@@ -66,7 +67,7 @@ async function probar(page, ancho, js) {
   await fecha.fill(fixture.hoy);
   const [valida] = await Promise.all([
     page.waitForResponse(r => r.url() === alta && r.request().method() === 'POST'),
-    guardar.click(),
+    guardar.press('Enter'),
   ]);
   assert.equal(valida.status(), 302);
   await page.waitForURL(new URL(valida.headers().location, origen.origin).href);
@@ -90,6 +91,9 @@ async function probar(page, ancho, js) {
           await context.addCookies([{ name: 'sessionid', value: fixture.session, url: origen.origin }]);
           await context.route('**/*', ruta => {
             const url = ruta.request().url();
+            if (url === origen.origin + '/cutless/presupuestos/indicadores/') {
+              return ruta.fulfill({ json: { indicadores: {} } });
+            }
             if (url.startsWith(origen.origin + '/')) return ruta.continue();
             if (url === cdn + '/css/bootstrap.min.css') return ruta.fulfill({ path: estilos, contentType: 'text/css' });
             if (scripts && url === cdn + '/js/bootstrap.bundle.min.js') {

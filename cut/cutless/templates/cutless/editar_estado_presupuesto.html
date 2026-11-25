@@ -1,13 +1,37 @@
 {% extends 'cutless/base.html' %}
+{% load static %}
+
+{% block body_class %}management-page{% endblock %}
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'cutless/css/management-refinement.css' %}?v=buttons-1">
+{% endblock %}
 
 {% block content %}
 <header class="page-header">
-  <h1>Estado de {{ presupuesto.numero }}</h1>
+  <div class="page-header__text">
+    <h1 class="page-title">Estado de {{ presupuesto.numero }}</h1>
+    <p class="page-lead">Estado actual {% include 'cutless/includes/estado_presupuesto.html' %}</p>
+  </div>
 </header>
-<form method="post">
-  {% csrf_token %}
-  {{ form.as_p }}
-  <button type="submit" class="btn btn-success">Guardar estado</button>
-  <a class="btn btn-secondary" href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}">Cancelar</a>
-</form>
+{% if form.errors %}
+<div class="alert alert-danger" role="alert">
+  {{ form.non_field_errors }}
+  {{ form.estado.errors }}
+</div>
+{% endif %}
+{% if presupuesto.puede_registrar_estado %}
+  <form method="post" class="form-action-bar">
+    {% csrf_token %}
+    {{ form.estado_origen }}
+    {% for codigo, etiqueta in form.fields.estado.choices %}
+      <button type="submit" name="estado" value="{{ codigo }}" class="btn btn-secondary">
+        {% if codigo == 'enviado' %}Registrar envío{% elif codigo == 'aceptado' %}Registrar aceptación{% else %}Registrar rechazo{% endif %}
+      </button>
+    {% endfor %}
+    <a class="btn btn-secondary" href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}">Volver al detalle</a>
+  </form>
+{% else %}
+  <p>Este presupuesto está cerrado.</p>
+  <a class="btn btn-secondary" href="{% url 'cutless:detalle_presupuesto' presupuesto.pk %}">Volver al detalle</a>
+{% endif %}
 {% endblock %}

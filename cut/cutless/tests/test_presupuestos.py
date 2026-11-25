@@ -97,7 +97,8 @@ class PresupuestoVigenciaTests(TestCase):
         from django.urls import reverse
 
         editar = reverse('cutless:editar_presupuesto', args=[self.presupuesto.pk])
-        datos = {'estado': 'enviado', 'optimizaciones': [self.opt.pk, self.otro.pk],
+        datos = {'accion': 'emitir', 'revision': self.presupuesto.fecha_actualizacion.isoformat(),
+                 'optimizaciones': [self.opt.pk, self.otro.pk],
                  'precio_tablero': 10, 'mano_obra': 7, 'fecha_validez': date.today().isoformat()}
         self.assertEqual(self.client.post(editar, datos).status_code, 302)
         self.presupuesto.refresh_from_db()
@@ -110,7 +111,7 @@ class PresupuestoVigenciaTests(TestCase):
         self.assertEqual(respuesta.context['presupuesto'].total_vigente, 57)
         self.assertEqual(respuesta.context['total_tableros'], 5)
         self.assertContains(respuesta, 'Plan adicional')
-        self.assertEqual(self.client.post(editar, {'estado': 'aceptado', 'precio_tablero': 1}).status_code, 302)
+        self.assertEqual(self.client.post(editar, {'estado': 'aceptado', 'estado_origen': 'emitido', 'precio_tablero': 1}).status_code, 302)
         self.presupuesto.refresh_from_db()
         self.assertEqual(self.presupuesto.precio_tablero, 10)
         self.assertEqual(self.presupuesto.estado, 'aceptado')
@@ -150,7 +151,7 @@ class PresupuestoVencimientoLocalTests(TestCase):
                         detalle_emitido={'cliente': None, 'optimizaciones': []},
                     )
                     detalle = reverse('cutless:detalle_presupuesto', args=[presupuesto.pk])
-                    original = (presupuesto.fecha_validez, presupuesto.estado, presupuesto.detalle_emitido)
+                    original = (presupuesto.fecha_validez, presupuesto.detalle_emitido, presupuesto.fecha_actualizacion)
                     for momento, hoy in ((instante, hoy_chile),
                                          (instante + timedelta(minutes=1), hoy_chile + timedelta(days=1))):
                         reloj.return_value = momento
@@ -159,12 +160,14 @@ class PresupuestoVencimientoLocalTests(TestCase):
                             self.assertEqual(presupuesto.esta_vencido(), vencido)
                             respuesta = self.client.get(lista, {'busqueda': numero})
                             self.assertContains(respuesta, numero)
-                            self.assertContains(respuesta, '<span class="badge bg-danger">Vencido</span>',
-                                                html=True, count=int(vencido))
-                            self.assertContains(self.client.get(detalle), 'Presupuesto vencido', count=int(vencido))
+                            estado = 'vencido' if vencido else 'enviado'
+                            etiqueta = f'data-presupuesto-estado="{estado}"'
+                            self.assertContains(respuesta, etiqueta)
+                            self.assertContains(self.client.get(detalle), etiqueta)
                     presupuesto.refresh_from_db()
-                    self.assertEqual((presupuesto.fecha_validez, presupuesto.estado, presupuesto.detalle_emitido),
-                                     original)
+                    self.assertEqual(presupuesto.estado, estado)
+                    self.assertEqual((presupuesto.fecha_validez, presupuesto.detalle_emitido,
+                                      presupuesto.fecha_actualizacion), original)
 
 
 class PresupuestoFechaValidezTests(TestCase):
@@ -191,7 +194,7 @@ class PresupuestoFechaValidezTests(TestCase):
         }
 
     def test_fecha_pasada_en_post_directo_conserva_datos_y_error_accesible(self):
-        datos = {**self.datos, 'fecha_validez': self.ayer.isoformat(), 'estado': 'enviado'}
+        datos = {**self.datos, 'fecha_validez': self.ayer.isoformat()}
         respuesta = self.client.post(self.alta, datos)
         self.assertContains(respuesta,
                             'La fecha de validez no puede ser anterior a hoy. Selecciona la fecha actual o una posterior.')
@@ -202,6 +205,8 @@ class PresupuestoFechaValidezTests(TestCase):
         form = respuesta.context['form']
         self.assertTrue(form.has_error('fecha_validez', 'fecha_pasada'))
         for campo, valor in datos.items():
+            if campo == 'estado':
+                continue
             with self.subTest(campo=campo):
                 self.assertEqual(form[campo].value(), valor)
         self.assertTrue(respuesta.context['optimizaciones_info'][0]['seleccionada'])
@@ -237,7 +242,7 @@ class PresupuestoFechaValidezTests(TestCase):
                 self.assertEqual(form['fecha_validez'].value(), fecha)
         self.assertFalse(Presupuesto.objects.exists())
 
-    def test_hoy_y_manana_desde_una_optimizacion_en_borrador_y_enviado(self):
+    def test_hoy_y_manana_desde_una_optimizacion_en_borrador_y_emitido(self):
         ruta = f'{self.alta}?optimizacion={self.plan.pk}'
         inicial = self.client.get(ruta)
         self.assertContains(inicial, 'type="date"')
@@ -246,11 +251,12 @@ class PresupuestoFechaValidezTests(TestCase):
         self.assertTrue(inicial.context['optimizaciones_info'][0]['seleccionada'])
         self.assertEqual(inicial.context['form']['proyecto'].value(), self.proyecto.pk)
 
+        datos = {campo: valor for campo, valor in self.datos.items() if campo != 'estado'}
         for fecha in (self.hoy, self.hoy + timedelta(days=1)):
-            for estado in ('borrador', 'enviado'):
+            for estado, accion in (('borrador', 'guardar_borrador'), ('emitido', 'emitir')):
                 with self.subTest(fecha=fecha, estado=estado):
-                    respuesta = self.client.post(ruta, {**self.datos, 'cliente': '',
-                                                       'fecha_validez': fecha.isoformat(), 'estado': estado})
+                    respuesta = self.client.post(ruta, {**datos, 'cliente': '',
+                                                       'fecha_validez': fecha.isoformat(), 'accion': accion})
                     presupuesto = Presupuesto.objects.get(usuario=self.usuario, fecha_validez=fecha, estado=estado)
                     self.assertRedirects(respuesta, reverse('cutless:detalle_presupuesto', args=[presupuesto.pk]),
                                          fetch_redirect_response=False)
@@ -258,7 +264,7 @@ class PresupuestoFechaValidezTests(TestCase):
                     self.assertEqual(presupuesto.proyecto, self.proyecto)
                     self.assertEqual(list(presupuesto.optimizaciones.all()), [self.plan])
                     self.assertEqual(presupuesto.costo_total, Decimal('326.25'))
-                    self.assertEqual(presupuesto.detalle_emitido is not None, estado == 'enviado')
+                    self.assertEqual(presupuesto.detalle_emitido is not None, estado == 'emitido')
 
     def test_recalcula_fecha_en_post_al_cruzar_medianoche_en_santiago(self):
         # Los dos instantes UTC corresponden a las 23:59 en Chile, con y sin horario de verano.
@@ -329,7 +335,8 @@ class PresupuestoFechaValidezTests(TestCase):
         self.assertNotIn('min', form.fields['fecha_validez'].widget.attrs)
         self.assertContains(apertura, 'aria-describedby="id_fecha_validez_helptext"')
         self.assertContains(apertura, '<small class="form-text text-muted" id="id_fecha_validez_helptext">'
-                                      'Puedes conservar la fecha vencida guardada o elegir hoy o una fecha posterior'
+                                      'Puedes conservar la fecha vencida guardada al guardar el borrador. '
+                                      'Para emitir, elige hoy o una fecha posterior.'
                                       '</small>', html=True)
         respuesta = self.client.post(ruta, {**self.datos, 'fecha_validez': self.ayer.isoformat()})
         self.assertEqual(respuesta.status_code, 302)
@@ -417,7 +424,7 @@ class PresupuestoFechaValidezTests(TestCase):
         with TemporaryDirectory() as media, self.settings(MEDIA_ROOT=media):
             for estado, detalle in (('enviado', {'cliente': None, 'optimizaciones': []}), ('vencido', None)):
                 with self.subTest(estado=estado):
-                    presupuesto, ruta = self.crear_borrador(self.ayer, f'PRE-{estado}')
+                    presupuesto, ruta = self.crear_borrador(self.hoy, f'PRE-{estado}')
                     archivo = Path(media) / f'{estado}.pdf'
                     contenido = b'%PDF-1.4\nArchivo sintetico de PRE-02\n%%EOF\n'
                     archivo.write_bytes(contenido)
@@ -426,14 +433,20 @@ class PresupuestoFechaValidezTests(TestCase):
                     presupuesto.pdf = archivo.name
                     presupuesto.save(update_fields=['estado', 'detalle_emitido', 'pdf'])
                     antes = Presupuesto.objects.values().get(pk=presupuesto.pk)
-                    datos = {**self.datos, 'fecha_validez': self.hoy.isoformat(), 'estado': 'borrador'}
+                    datos = {**self.datos, 'fecha_validez': self.ayer.isoformat(),
+                             'estado': 'borrador', 'estado_origen': estado}
                     self.assertNotContains(self.client.get(ruta), 'name="fecha_validez"')
                     self.assertTrue(self.client.post(ruta, datos).context['form'].has_error('estado', 'invalid_choice'))
                     self.assertEqual(Presupuesto.objects.values().get(pk=presupuesto.pk), antes)
-                    self.assertEqual(self.client.post(ruta, {**datos, 'estado': 'aceptado'}).status_code, 302)
+                    respuesta = self.client.post(ruta, {**datos, 'estado': 'aceptado'})
                     despues = Presupuesto.objects.values().get(pk=presupuesto.pk)
-                    self.assertEqual(despues, {**antes, 'estado': 'aceptado',
-                                              'fecha_actualizacion': self.reloj.return_value})
+                    if estado == 'vencido':
+                        self.assertTrue(respuesta.context['form'].has_error('estado', 'invalid_choice'))
+                        self.assertEqual(despues, antes)
+                    else:
+                        self.assertEqual(respuesta.status_code, 302)
+                        self.assertEqual(despues, {**antes, 'estado': 'aceptado',
+                                                  'fecha_actualizacion': self.reloj.return_value})
                     self.assertEqual(archivo.read_bytes(), contenido)
 
     def test_vencido_historico_consultable_y_pdf_guardado_intacto(self):

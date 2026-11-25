@@ -275,7 +275,7 @@ class LimitesNombresTests(TestCase):
         plan = Optimizacion.objects.create(usuario=self.usuario, nombre=largo, ancho_tablero=122,
                                            alto_tablero=244, piezas=piezas, num_tableros=1)
         datos = {'optimizaciones': [plan.pk], 'cliente': cliente.pk, 'precio_tablero': '100',
-                 'mano_obra': '0', 'fecha_validez': timezone.localdate(), 'estado': 'enviado'}
+                 'mano_obra': '0', 'fecha_validez': timezone.localdate(), 'accion': 'emitir'}
         self.assertEqual(self.client.post(reverse('cutless:crear_presupuesto'), datos).status_code, 302)
         presupuesto = Presupuesto.objects.get()
         detalle = presupuesto.detalle_emitido
@@ -285,7 +285,7 @@ class LimitesNombresTests(TestCase):
         Cliente.objects.filter(pk=cliente.pk).update(nombre='Cliente nuevo')
         Optimizacion.objects.filter(pk=plan.pk).update(nombre='Trabajo nuevo', piezas='Puerta,40,50,1')
         editar = reverse('cutless:editar_presupuesto', args=[presupuesto.pk])
-        self.assertEqual(self.client.post(editar, {'estado': 'aceptado', 'nombre_cliente_nuevo': largo}).status_code, 302)
+        self.assertEqual(self.client.post(editar, {'estado': 'aceptado', 'estado_origen': 'emitido', 'nombre_cliente_nuevo': largo}).status_code, 302)
         presupuesto.refresh_from_db()
         self.assertEqual(presupuesto.detalle_emitido, detalle)
         self.assertEqual(Cliente.objects.count(), 1)

@@ -13,6 +13,7 @@ from django.conf import settings
 from ..packing import normalizar_info_desperdicio
 from ..render import _info_desperdicio_desde_optimizacion
 from ..pieces import parsear_piezas_desde_texto
+from ..services.presupuestos import estado_efectivo
 from ..units import convertir_desde_cm, obtener_factor_area_desde_cm2, obtener_simbolo_area, obtener_simbolo_unidad
 
 def generar_pdf(optimizacion, imagenes_base64, numero_lista=None, info_desperdicio=None, archivo_salida=None):
@@ -336,7 +337,8 @@ def generar_pdf_presupuesto(presupuesto, archivo_salida=None):
 
     parrafo(f'Fecha de creación: {presupuesto.fecha_creacion:%d/%m/%Y %H:%M}')
     parrafo(f'Válido hasta: {presupuesto.fecha_validez:%d/%m/%Y}')
-    parrafo(f'Estado: {presupuesto.get_estado_display()}')
+    estado = estado_efectivo(presupuesto)
+    parrafo(f'Estado: {dict(presupuesto.ESTADOS_CHOICES).get(estado, estado)}')
     if presupuesto.es_historico:
         parrafo('Cotización histórica. Se conserva el total emitido y los planes se muestran con sus datos actuales.')
 

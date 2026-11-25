@@ -435,6 +435,7 @@ class Presupuesto(models.Model):
     """
     ESTADOS_CHOICES = [
         ('borrador', 'Borrador'),
+        ('emitido', 'Emitido'),
         ('enviado', 'Enviado'),
         ('aceptado', 'Aceptado'),
         ('rechazado', 'Rechazado'),
@@ -508,10 +509,15 @@ class Presupuesto(models.Model):
         return f"Presupuesto {self.numero} - {self.cliente.nombre if self.cliente else 'Sin cliente'}"
     
     def esta_vencido(self):
-        """Verifica si el presupuesto está vencido"""
-        from django.utils import timezone
-        return self.fecha_validez < timezone.localdate(timezone=timezone.get_default_timezone())
+        """Indica si pasó la fecha de validez, independientemente del estado."""
+        from .services.presupuestos import fecha_vencida
+        return fecha_vencida(self.fecha_validez)
     
+    @property
+    def puede_registrar_estado(self):
+        from .services.presupuestos import TRANSICIONES_REGISTRO
+        return self.estado in TRANSICIONES_REGISTRO
+
     @cached_property
     def lineas_cotizadas(self):
         if self.detalle_emitido is None:
@@ -556,17 +562,19 @@ class Presupuesto(models.Model):
     def get_total_tableros(self):
         return sum(opt.num_tableros or 0 for opt in self.lineas_cotizadas)
 
-    def cerrar_detalle(self):
+    def cerrar_detalle(self, *, optimizaciones=None):
         """Conserva el cálculo y los datos de presentación al emitir el presupuesto."""
         if self.detalle_emitido is not None:
             return
         cliente = self.cliente
+        if optimizaciones is None:
+            optimizaciones = self.lineas_cotizadas
         campos = ('pk', 'codigo', 'etiqueta', 'ancho_tablero', 'alto_tablero',
                   'unidad_medida', 'aprovechamiento_total', 'num_tableros', 'piezas')
         lineas = [
             {**{campo: getattr(opt, campo) for campo in campos},
              'material': opt.material.nombre if opt.material else None}
-            for opt in self.lineas_cotizadas
+            for opt in optimizaciones
         ]
         self.detalle_emitido = {
             'optimizaciones': lineas,
