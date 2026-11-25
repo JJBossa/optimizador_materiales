@@ -16,7 +16,10 @@
         const csrf = document.cookie.split('; ').find(item => item.startsWith('csrftoken='))?.split('=').slice(1).join('=');
         try {
             const response = await fetch('/usuarios/actividad/', {method:'POST', credentials:'same-origin', headers:{'X-CSRFToken':decodeURIComponent(csrf || '')}});
-            if (response.status === 401) window.location.assign('/usuarios/login/?next=' + encodeURIComponent(location.pathname + location.search));
+            if (response.status === 401) {
+                document.dispatchEvent(new Event('cutless:sesion-expirada'));
+                window.location.assign('/usuarios/login/?next=' + encodeURIComponent(location.pathname + location.search));
+            }
         } catch (_) { lastSync = 0; }
     }
 
@@ -221,6 +224,7 @@
         }
 
         // Redirigir a logout
+        document.dispatchEvent(new Event('cutless:sesion-expirada'));
         window.location.href = '/usuarios/logout/';
     }
 

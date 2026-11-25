@@ -1,0 +1,32 @@
+{% load static %}
+{% static 'cutless/button-icons.svg' as iconos %}
+<div data-alertas data-endpoint="{% url 'cutless:api_alertas' %}">
+  <a class="alertas-campana" data-alertas-alternativa href="{% url 'cutless:centro_alertas' %}" aria-label="Notificaciones">
+    <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><use href="{{ iconos }}?v=noti01#bell"></use></svg>
+  </a>
+  <button type="button" class="alertas-campana" data-alertas-boton hidden aria-label="Notificaciones"
+          aria-expanded="false" aria-controls="panel-alertas">
+    <svg aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6"><use href="{{ iconos }}?v=noti01#bell"></use></svg>
+    <span class="alertas-contador" data-alertas-contador aria-hidden="true" hidden></span>
+  </button>
+  <section class="alertas-panel" id="panel-alertas" aria-labelledby="titulo-alertas" hidden>
+    <div class="alertas-cabecera">
+      <div>
+        <h2 id="titulo-alertas">Notificaciones</h2>
+        <p data-alertas-total></p>
+      </div>
+      <button type="button" class="alertas-control alertas-cerrar" data-alertas-cerrar aria-label="Cerrar notificaciones">×</button>
+    </div>
+    <div class="alertas-filtros" role="group" aria-label="Filtrar alertas">
+      <button type="button" class="alertas-control" data-alertas-filtro="" aria-pressed="true">Todas</button>
+      {% for codigo, nombre in modulos_alertas.items %}
+      <button type="button" class="alertas-control" data-alertas-filtro="{{ codigo }}" aria-pressed="false">{{ nombre }}</button>
+      {% endfor %}
+    </div>
+    <p class="alertas-mensaje" data-alertas-mensaje role="status"></p>
+    <a href="{% url 'usuarios:login' %}" class="alertas-control" data-alertas-sesion hidden>Iniciar sesión</a>
+    <button type="button" class="alertas-control" data-alertas-reintentar hidden>Reintentar</button>
+    <ul class="alertas-lista" data-alertas-lista aria-label="Alertas activas"></ul>
+    <button type="button" class="alertas-control" data-alertas-mas hidden>Ver más</button>
+  </section>
+</div>

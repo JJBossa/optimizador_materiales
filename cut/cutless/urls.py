@@ -1,6 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.urls import path
 from . import views
+from .views.alerts import api_alertas, centro_alertas
 from .views.common import requiere_permiso
 
 app_name = "cutless"
@@ -63,6 +64,10 @@ urlpatterns = [
 
     # Utilidades
     path('calcular-tiempo/<int:pk>/', auth(views.calcular_tiempo_corte), name='calcular_tiempo_corte'),
+
+    # Alertas de gestión
+    path('alertas/', centro_alertas, name='centro_alertas'),
+    path('api/alertas/', api_alertas, name='api_alertas'),
 
     # API
     path('api/tableros/<int:pk>/', auth(views.api_tableros_optimizacion), name='api_tableros'),

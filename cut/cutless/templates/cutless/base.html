@@ -1,4 +1,4 @@
-{% load static initial_assets %}
+{% load static initial_assets alertas %}
 <!DOCTYPE html>
 <html lang="es" data-theme="{% if user.is_authenticated and user.perfil.tema_preferido == 'dark' %}dark{% else %}light{% endif %}">
 <head>
@@ -65,22 +65,26 @@
     <link rel="stylesheet" href="{% static 'cutless/css/mobile-navigation.css' %}?v=1">
     <link rel="stylesheet" href="{% static 'cutless/css/sidebar-navigation.css' %}?v=2">
     <link rel="stylesheet" href="{% static 'cutless/css/mobile-tables.css' %}">
+    <link rel="stylesheet" href="{% static 'cutless/css/alertas.css' %}">
 </head>
 <body data-button-icons="{% static 'cutless/button-icons.svg' %}?v=2" data-app-shell="{{ user.is_authenticated|yesno:'true,false' }}" class="{% block body_class %}{% endblock %}" {% if user.is_authenticated and user.perfil %}data-session-timeout="{{ user.perfil.get_timeout_segundos_str }}" data-perfil-theme="{% if user.perfil.tema_preferido != 'auto' %}{{ user.perfil.tema_preferido }}{% else %}auto{% endif %}" data-font-size="{{ user.perfil.tamanio_fuente }}" data-perfil-unidad="{{ user.perfil.unidad_medida_predeterminada }}" data-perfil-rotacion="{{ user.perfil.rotacion_automatica_predeterminada|yesno:'1,0' }}"{% endif %}>
+    {% categorias_disponibles user as modulos_alertas %}
     {% block navigation %}
     {% navigation_state as nav_state %}
     <!-- Navegación -->
     <nav class="navbar navbar-expand-xl navbar-custom">
         <div class="container-fluid">
-            <div class="d-flex align-items-center">
+            <div class="app-header-row">
                 <a class="navbar-brand me-3" href="{% url 'cutless:index' %}">
                     {% include 'cutless/includes/brand.html' %}
                 </a>
+                <div class="app-header-actions">
+                    {% if modulos_alertas %}{% include 'cutless/includes/campana_alertas.html' %}{% endif %}
+                    <button class="navbar-toggler navbar-toggler-custom btn btn-secondary btn-icon" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+                            aria-controls="navbarNav" aria-expanded="false" aria-label="Abrir navegación" data-action="secondary" data-icon="menu">
+                    </button>
+                </div>
             </div>
-            <button class="navbar-toggler navbar-toggler-custom btn btn-secondary btn-icon" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
-                    aria-controls="navbarNav" aria-expanded="false" aria-label="Abrir navegación" data-action="secondary" data-icon="menu">
-
-            </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 {% if user.is_authenticated %}<p class="nav-section-label">Espacio de trabajo</p>{% endif %}
                 <div class="navbar-nav ms-auto d-flex align-items-center">
@@ -186,12 +190,13 @@
     <script src="{% static 'cutless/js/confirmaciones.js' %}?v=descargas-1"></script>
     <script src="{% static 'cutless/js/descargas.js' %}?v=ux05-ios-1" defer></script>
     {% if user.is_authenticated %}
-    <script src="{% static 'cutless/js/session-timeout.js' %}?v=review-2"></script>
+    <script src="{% static 'cutless/js/session-timeout.js' %}?v=alertas-1"></script>
     {% endif %}
     {% if user.is_authenticated and not ocultar_tutorial %}
     {% include 'cutless/includes/tutorial-scripts.html' %}
     {% include 'cutless/includes/welcome-dialog.html' %}
     {% endif %}
+    {% if modulos_alertas %}<script src="{% static 'cutless/js/alertas.js' %}" defer></script>{% endif %}
     {% block extra_js %}{% endblock %}
 
     {% if user.is_authenticated %}
