@@ -29,9 +29,7 @@
   <div class="card mb-4 fade-in">
     <div class="card-header card-header-section d-flex justify-content-between align-items-center">
       <h4 class="mb-0">Información del proyecto</h4>
-      <span class="badge proyecto-estado bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
-        {{ proyecto.get_estado_display }}
-      </span>
+      {% include 'cutless/includes/estado_proyecto.html' %}
     </div>
     <div class="card-body">
       <div class="row">
@@ -53,11 +51,37 @@
           {% endif %}
         </div>
       </div>
+      {% include 'cutless/includes/atraso_proyecto.html' %}
       <div class="mt-3 management-action-set management-action-set--wide">
         <a href="{% url 'cutless:editar_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="edit"> Editar Proyecto</a>
         <a href="{% url 'cutless:agregar_optimizaciones_proyecto' proyecto.pk %}" class="btn btn-secondary" data-action="secondary" data-icon="plus">Agregar Optimizaciones</a>
         <a href="{% url 'cutless:eliminar_proyecto' proyecto.pk %}" class="btn btn-danger" data-action="delete" data-icon="trash"> Eliminar</a>
       </div>
+      {% if acciones_estado %}
+      <div class="mt-3">
+        {% for accion, etiqueta in acciones_estado %}
+        <details class="mb-2">
+          <summary class="fw-semibold">{{ etiqueta }}</summary>
+          <form method="post" action="{% url 'cutless:cambiar_estado_proyecto' proyecto.pk %}" class="mt-2">
+            {% csrf_token %}
+            <input type="hidden" name="estado_origen" value="{{ proyecto.estado }}">
+            <p id="aviso-{{ accion }}" class="form-text">
+              {% if accion == 'iniciar' %}
+                {% if inicio_futuro %}El inicio está previsto para el {{ proyecto.fecha_inicio|date:"d/m/Y" }}. Puedes iniciar el proyecto antes de esa fecha.{% else %}El proyecto pasará a En proceso.{% endif %}
+              {% elif accion == 'completar' %}
+                Se conservarán las fechas planificadas y los datos asociados.
+              {% else %}
+                El proyecto y sus optimizaciones y presupuestos seguirán disponibles. El estado quedará como Cancelado.
+              {% endif %}
+            </p>
+            <button type="submit" name="accion" value="{{ accion }}" class="btn btn-primary" aria-describedby="aviso-{{ accion }}">
+              {% if accion == 'iniciar' %}Confirmar inicio{% elif accion == 'completar' %}Confirmar finalización{% else %}Confirmar cancelación{% endif %}
+            </button>
+          </form>
+        </details>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
 

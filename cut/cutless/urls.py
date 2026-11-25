@@ -103,6 +103,8 @@ urlpatterns = [
     # Gestión de proyectos
     path('proyectos/', auth_perm('puede_crear_proyectos', views.lista_proyectos), name='lista_proyectos'),
     path('proyectos/crear/', auth_perm('puede_crear_proyectos', views.crear_proyecto), name='crear_proyecto'),
+    path('proyectos/<int:pk>/estado/', auth_perm('puede_crear_proyectos', views.cambiar_estado_proyecto),
+         name='cambiar_estado_proyecto'),
     path('proyectos/<int:pk>/', auth_perm('puede_crear_proyectos', views.detalle_proyecto), name='detalle_proyecto'),
     path('proyectos/editar/<int:pk>/', auth_perm('puede_crear_proyectos', views.editar_proyecto), name='editar_proyecto'),
     path('proyectos/eliminar/<int:pk>/', auth_perm('puede_crear_proyectos', views.eliminar_proyecto), name='eliminar_proyecto'),

@@ -42,10 +42,9 @@
           <label for="proyectosEstado">Estado</label>
           <select id="proyectosEstado" name="estado" class="form-select">
             <option value="">Todos los estados</option>
-            <option value="planificacion" {% if estado_filtro == 'planificacion' %}selected{% endif %}>Planificación</option>
-            <option value="en_proceso" {% if estado_filtro == 'en_proceso' %}selected{% endif %}>En Proceso</option>
-            <option value="completado" {% if estado_filtro == 'completado' %}selected{% endif %}>Completado</option>
-            <option value="cancelado" {% if estado_filtro == 'cancelado' %}selected{% endif %}>Cancelado</option>
+            {% for codigo, etiqueta in estados %}
+              <option value="{{ codigo }}"{% if estado_filtro == codigo %} selected{% endif %}>{{ etiqueta }}</option>
+            {% endfor %}
           </select>
         </div>
         <div class="col-md-2">
@@ -86,9 +85,7 @@
           </td>
           <td role="cell" class="mobile-table-wide"><span class="mobile-table-label" aria-hidden="true">Cliente</span>{{ proyecto.cliente.nombre|default:"Sin cliente" }}</td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Estado</span>
-            <span class="badge proyecto-estado bg-{% if proyecto.estado == 'completado' %}success{% elif proyecto.estado == 'en_proceso' %}primary{% elif proyecto.estado == 'cancelado' %}danger{% else %}secondary{% endif %}">
-              {{ proyecto.get_estado_display }}
-            </span>
+            {% include 'cutless/includes/estado_proyecto.html' %}
           </td>
           <td role="cell"><span class="mobile-table-label" aria-hidden="true">Optimizaciones</span>
             <span class="badge bg-info">{{ proyecto.get_total_optimizaciones }}</span>

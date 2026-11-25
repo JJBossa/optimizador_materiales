@@ -1,15 +1,14 @@
-from zoneinfo import ZoneInfo
+from hashlib import sha256
 
 from django import forms
 from django.db.models import Q
-from django.utils import timezone
 
 from ..models import Proyecto, Cliente, Optimizacion
+from ..services.calendario import fecha_comercial
 from .descripciones import DescripcionLimitadaField, DescripcionModeloMixin, TextoLimitadoTextarea
 from .nombres import NombreLimitadoField, NombreModeloMixin
 
 
-ZONA_CHILE = ZoneInfo('America/Santiago')
 FECHAS_PROYECTO = {
     'fecha_inicio': 'La fecha de inicio',
     'fecha_fin': 'La fecha de finalización',
@@ -32,7 +31,7 @@ class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
     
     class Meta:
         model = Proyecto
-        fields = ['nombre', 'descripcion', 'cliente', 'fecha_inicio', 'fecha_fin', 'estado']
+        fields = ['nombre', 'descripcion', 'cliente', 'fecha_inicio', 'fecha_fin']
         field_classes = {'nombre': NombreLimitadoField, 'descripcion': DescripcionLimitadaField}
         widgets = {
             'nombre': forms.TextInput(attrs={
@@ -49,9 +48,6 @@ class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
             }),
             'fecha_inicio': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
             'fecha_fin': forms.DateInput(format='%Y-%m-%d', attrs={'class': 'form-control', 'type': 'date'}),
-            'estado': forms.Select(attrs={
-                'class': 'form-select'
-            }),
         }
         labels = {
             'nombre': 'Nombre del Proyecto',
@@ -59,7 +55,6 @@ class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
             'cliente': 'Cliente',
             'fecha_inicio': 'Fecha de Inicio',
             'fecha_fin': 'Fecha de Finalización',
-            'estado': 'Estado',
         }
         error_messages = {
             'fecha_inicio': {'invalid': 'Ingresa una fecha de inicio válida.'},
@@ -71,7 +66,11 @@ class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
         instance = kwargs.get('instance', None)
         super().__init__(*args, **kwargs)
 
-        self.hoy = timezone.localdate(timezone=ZONA_CHILE)
+        self.hoy = fecha_comercial()
+        self._estado_guardado = self.instance.estado
+        self.modifica_optimizaciones = self.is_bound and any(
+            self.add_prefix(campo) in self.data for campo in ('optimizaciones', 'seleccion_optimizaciones')
+        )
         self.fechas_guardadas = {
             campo: getattr(self.instance, campo) for campo in FECHAS_PROYECTO
         } if not self.instance._state.adding else {}
@@ -105,7 +104,15 @@ class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
                     Q(proyecto__isnull=True) | Q(proyecto=instance)
                 ).order_by('-fecha')
                 # Pre-seleccionar las optimizaciones que ya están en el proyecto
-                self.fields['optimizaciones'].initial = list(instance.optimizacion_set.values_list('pk', flat=True))
+                self.optimizaciones_guardadas = list(
+                    instance.optimizacion_set.filter(usuario=user).order_by('pk').values_list('pk', flat=True)
+                )
+                self.fields['optimizaciones'].initial = self.optimizaciones_guardadas
+                # También detecta asociaciones modificadas desde el formulario del optimizador.
+                revision = ':'.join((instance.estado, instance.fecha_actualizacion.isoformat(),
+                                     ','.join(map(str, self.optimizaciones_guardadas))))
+                self.fields['revision'] = forms.CharField(required=False, widget=forms.HiddenInput)
+                self.initial['revision'] = sha256(revision.encode()).hexdigest()
             else:
                 # Si es creación, mostrar solo optimizaciones sin proyecto
                 optimizaciones_queryset = Optimizacion.objects.filter(
@@ -117,6 +124,15 @@ class ProyectoForm(DescripcionModeloMixin, NombreModeloMixin, forms.ModelForm):
         
     def clean(self):
         datos = super().clean()
+        clave = self.add_prefix('estado')
+        if clave in self.data:
+            estados = self.data.getlist(clave) if hasattr(self.data, 'getlist') else [self.data[clave]]
+            if estados != [self._estado_guardado]:
+                self.add_error(None, 'El estado se cambia con las acciones del detalle del proyecto.')
+        if 'revision' in self.fields:
+            clave = self.add_prefix('revision')
+            if (clave in self.data or self.modifica_optimizaciones) and datos.get('revision') != self.initial['revision']:
+                self.add_error(None, 'El proyecto cambió. Vuelve a abrirlo antes de guardar.')
         for campo, etiqueta in FECHAS_PROYECTO.items():
             fecha = datos.get(campo)
             if fecha is not None and fecha < self.hoy and fecha != self.fechas_guardadas.get(campo):

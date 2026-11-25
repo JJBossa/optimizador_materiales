@@ -1,12 +1,35 @@
-from django.db import transaction
+from django.db import connection, transaction
 from django.contrib import messages
 from django.db.models import Avg, Q
+from django.http import HttpResponseBadRequest
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from ..forms import ProyectoForm
 from ..pieces import parsear_piezas_desde_texto
 from ..models import Proyecto, Optimizacion
 from ..services import enviar_notificacion
+from ..services.calendario import fecha_comercial
+from ..services.proyectos import ACCIONES, ESTADOS_VISIBLES, TRANSICIONES, con_estado_efectivo, registrar_transicion
+from .common import leer_id_optimizacion
+
+
+def _ids_seleccionados(datos):
+    return {pk for valor in datos.getlist('optimizaciones') if (pk := leer_id_optimizacion(valor)) is not None}
+
+
+def _bloquear_proyectos(proyectos):
+    # Permite que otras operaciones comprueben la FK mientras se serializa la edición.
+    return proyectos.select_for_update(no_key=connection.features.has_select_for_no_key_update)
+
+
+def _bloquear_planes(usuario, seleccionadas, *, proyecto=None):
+    candidatos = Q(pk__in=seleccionadas)
+    if proyecto is not None:
+        candidatos |= Q(proyecto=proyecto)
+    planes = Optimizacion.objects.filter(usuario=usuario).filter(candidatos).order_by('pk')
+    list(planes.select_for_update().values_list('pk', flat=True))
 
 
 @transaction.atomic
@@ -15,6 +38,7 @@ def crear_proyecto(request):
     Crea un nuevo proyecto con opción de agregar optimizaciones.
     """
     if request.method == "POST":
+        _bloquear_planes(request.user, _ids_seleccionados(request.POST))
         form = ProyectoForm(request.POST, user=request.user)
         if form.is_valid():
             proyecto = form.save(commit=False)
@@ -27,12 +51,9 @@ def crear_proyecto(request):
                 # Obtener IDs de las optimizaciones seleccionadas
                 optimizaciones_ids = [opt.pk for opt in optimizaciones_seleccionadas]
                 # Verificar que las optimizaciones pertenezcan al usuario y asignarlas
-                optimizaciones_validas = Optimizacion.objects.filter(
-                    pk__in=optimizaciones_ids,
-                    usuario=request.user
-                )
-                optimizaciones_validas.update(proyecto=proyecto)
-                num_optimizaciones = optimizaciones_validas.count()
+                num_optimizaciones = Optimizacion.objects.filter(
+                    pk__in=optimizaciones_ids, usuario=request.user, proyecto__isnull=True,
+                ).update(proyecto=proyecto)
                 mensaje_proyecto = f'Se ha creado el proyecto "{proyecto.nombre}" exitosamente con {num_optimizaciones} optimización(es) asociada(s).'
             else:
                 mensaje_proyecto = f'Se ha creado el proyecto "{proyecto.nombre}" exitosamente.'
@@ -52,7 +73,7 @@ def crear_proyecto(request):
     
     # Preparar información adicional de optimizaciones para el template
     optimizaciones_info = []
-    optimizaciones_seleccionadas_ids = [int(pk) for pk in request.POST.getlist('optimizaciones') if pk.isdecimal()] if form.is_bound else []
+    optimizaciones_seleccionadas_ids = _ids_seleccionados(request.POST) if form.is_bound else set()
     
     if form.fields['optimizaciones'].queryset:
         
@@ -118,7 +139,10 @@ def agregar_optimizaciones_proyecto(request, pk):
     """Selección paginada; navegar y buscar conserva lo marcado sin guardarlo aún."""
     from django.core.paginator import Paginator
 
-    proyecto = get_object_or_404(Proyecto, pk=pk, usuario=request.user)
+    proyectos = Proyecto.objects.filter(usuario=request.user)
+    if request.method == 'POST' and request.POST.get('operacion', 'agregar') == 'agregar':
+        proyectos = _bloquear_proyectos(proyectos)
+    proyecto = get_object_or_404(proyectos, pk=pk)
     disponibles = Optimizacion.objects.filter(usuario=request.user, proyecto__isnull=True).order_by('-fecha', '-pk')
     datos = request.POST if request.method == 'POST' else request.GET
     busqueda = datos.get('busqueda', '').strip()[:100]
@@ -132,11 +156,13 @@ def agregar_optimizaciones_proyecto(request, pk):
         seleccionadas = {int(valor) for valor in valores}
         if operacion == 'agregar':
             if seleccionadas:
+                _bloquear_planes(request.user, seleccionadas)
                 elegidas = disponibles.filter(pk__in=seleccionadas)
                 if set(elegidas.values_list('pk', flat=True)) != seleccionadas:
                     messages.error(request, 'Algún plan ya no está disponible. Actualiza la lista y vuelve a elegir.')
                 else:
                     cantidad = elegidas.update(proyecto=proyecto)
+                    proyectos.filter(pk=pk).update(fecha_actualizacion=timezone.now())
                     messages.success(request, f'{cantidad} optimización(es) agregada(s) al proyecto "{proyecto.nombre}".')
                     return redirect('cutless:detalle_proyecto', pk=proyecto.pk)
             else:
@@ -173,12 +199,12 @@ def lista_proyectos(request):
     """
     Lista todos los proyectos del usuario con filtros y búsqueda.
     """
-    proyectos = Proyecto.objects.filter(usuario=request.user).select_related('cliente').order_by('-fecha_creacion')
+    proyectos = con_estado_efectivo(Proyecto.objects.filter(usuario=request.user).select_related('cliente'))
     
     # Filtros
     estado_filtro = request.GET.get('estado', '')
     if estado_filtro:
-        proyectos = proyectos.filter(estado=estado_filtro)
+        proyectos = proyectos.filter(estado_efectivo=estado_filtro)
     
     # Búsqueda
     busqueda = request.GET.get('busqueda', '').strip()
@@ -192,6 +218,7 @@ def lista_proyectos(request):
     return render(request, 'cutless/lista_proyectos.html', {
         'proyectos': proyectos,
         'estado_filtro': estado_filtro,
+        'estados': ESTADOS_VISIBLES,
         'busqueda': busqueda,
     })
 
@@ -199,10 +226,10 @@ def detalle_proyecto(request, pk):
     """
     Muestra el detalle de un proyecto con sus optimizaciones y métricas.
     """
+    hoy = fecha_comercial()
     try:
-        proyecto = Proyecto.objects.select_related('cliente').get(
-            pk=pk,
-            usuario=request.user
+        proyecto = con_estado_efectivo(Proyecto.objects.select_related('cliente'), hoy=hoy).get(
+            pk=pk, usuario=request.user,
         )
     except Proyecto.DoesNotExist:
         messages.error(request, "Proyecto no encontrado.")
@@ -225,6 +252,8 @@ def detalle_proyecto(request, pk):
     
     return render(request, 'cutless/detalle_proyecto.html', {
         'proyecto': proyecto,
+        'acciones_estado': [(accion, ACCIONES[accion]) for accion in TRANSICIONES.get(proyecto.estado, ())],
+        'inicio_futuro': proyecto.fecha_inicio is not None and proyecto.fecha_inicio > hoy,
         'optimizaciones': optimizaciones,
         'total_optimizaciones': total_optimizaciones,
         'costo_total': costo_total,
@@ -232,37 +261,53 @@ def detalle_proyecto(request, pk):
         'total_tableros': total_tableros,
     })
 
+@require_POST
+@transaction.atomic
+def cambiar_estado_proyecto(request, pk):
+    propios = Proyecto.objects.filter(usuario=request.user, pk=pk)
+    proyecto = get_object_or_404(_bloquear_proyectos(propios))
+    acciones = request.POST.getlist('accion')
+    if len(acciones) != 1 or acciones[0] not in ACCIONES:
+        return HttpResponseBadRequest('Selecciona una sola acción válida para el proyecto.')
+    origen = request.POST.getlist('estado_origen')
+    if origen != [proyecto.estado] or registrar_transicion(propios, origen=proyecto.estado, accion=acciones[0]) is None:
+        messages.error(request, 'Esa acción ya no está disponible. Revisa el estado actual del proyecto.')
+    else:
+        mensajes = {'iniciar': 'Proyecto iniciado.', 'completar': 'Proyecto completado.', 'cancelar': 'Proyecto cancelado.'}
+        messages.success(request, mensajes[acciones[0]])
+    return redirect('cutless:detalle_proyecto', pk=pk)
+
+
 @transaction.atomic
 def editar_proyecto(request, pk):
     """
     Edita un proyecto existente.
     """
     proyectos = Proyecto.objects.filter(usuario=request.user)
-    if request.method == "POST":
-        proyectos = proyectos.select_for_update()
-    proyecto = get_object_or_404(proyectos, pk=pk)
-    
-    if request.method == "POST":
+    if request.method == 'POST':
+        proyectos = _bloquear_proyectos(proyectos)
+    proyecto = get_object_or_404(con_estado_efectivo(proyectos), pk=pk)
+
+    if request.method == 'POST':
+        seleccionadas = _ids_seleccionados(request.POST)
+        if 'optimizaciones' in request.POST or 'seleccion_optimizaciones' in request.POST:
+            _bloquear_planes(request.user, seleccionadas, proyecto=proyecto)
         form = ProyectoForm(request.POST, instance=proyecto, user=request.user)
         if form.is_valid():
             proyecto = form.save(commit=False)
-            proyecto.save()
-            
-            # Actualizar optimizaciones seleccionadas
-            optimizaciones_seleccionadas = form.cleaned_data.get('optimizaciones', [])
-            optimizaciones_seleccionadas_ids = [opt.pk for opt in optimizaciones_seleccionadas]
-            
-            # Primero, quitar el proyecto de todas las optimizaciones que ya no están seleccionadas
-            proyecto.optimizacion_set.filter(usuario=request.user).exclude(
-                pk__in=optimizaciones_seleccionadas_ids,
-            ).update(proyecto=None)
-            
-            # Luego, asignar el proyecto a las optimizaciones seleccionadas
-            if optimizaciones_seleccionadas_ids:
-                form.fields['optimizaciones'].queryset.filter(
-                    pk__in=optimizaciones_seleccionadas_ids,
+            campos = ['nombre', 'descripcion', 'fecha_inicio', 'fecha_fin', 'fecha_actualizacion']
+            if 'cliente' in request.POST:
+                campos.append('cliente')
+            proyecto.save(update_fields=campos)
+
+            if form.modifica_optimizaciones:
+                elegidas = {opt.pk for opt in form.cleaned_data['optimizaciones']}
+                quitar = set(form.optimizaciones_guardadas) - elegidas
+                proyecto.optimizacion_set.filter(usuario=request.user, pk__in=quitar).update(proyecto=None)
+                Optimizacion.objects.filter(
+                    usuario=request.user, proyecto__isnull=True, pk__in=elegidas,
                 ).update(proyecto=proyecto)
-            
+
             messages.success(request, f'✅ Proyecto "{proyecto.nombre}" actualizado exitosamente.')
             return redirect('cutless:detalle_proyecto', pk=proyecto.pk)
     else:
@@ -270,7 +315,9 @@ def editar_proyecto(request, pk):
     
     # Preparar información adicional de optimizaciones para el template
     optimizaciones_info = []
-    optimizaciones_seleccionadas_ids = ([int(pk) for pk in request.POST.getlist('optimizaciones') if pk.isdecimal()] if form.is_bound else list(proyecto.optimizacion_set.values_list('pk', flat=True)))
+    optimizaciones_seleccionadas_ids = (
+        seleccionadas if form.modifica_optimizaciones else set(form.optimizaciones_guardadas)
+    )
     
     if form.fields['optimizaciones'].queryset:
         

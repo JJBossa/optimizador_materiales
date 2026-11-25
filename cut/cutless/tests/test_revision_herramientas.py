@@ -93,9 +93,10 @@ class RevisionHerramientasTests(TestCase):
             ancho_tablero=122, alto_tablero=244, piezas=f'Pieza {n},20,30,1', num_tableros=1)
             for n in range(8)]
         seleccionadas = {opt.pk, posteriores[-1].pk}
+        revision = response.context['form']['revision'].value()
         response = self.client.post(reverse('cutless:editar_proyecto', args=[proyecto.pk]), {
             'nombre': proyecto.nombre,
-            'estado': 'planificacion',
+            'revision': revision,
             'optimizaciones': list(seleccionadas),
         })
 

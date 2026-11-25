@@ -1,0 +1,5 @@
+{% with estado=proyecto.estado_efectivo %}
+<span data-proyecto-estado="{{ estado }}" class="badge proyecto-estado bg-{% if estado == 'completado' %}success{% elif estado == 'en_proceso' %}primary{% elif estado == 'cancelado' or estado == 'atrasado' %}danger{% else %}secondary{% endif %}">
+  {% if estado == 'atrasado' %}Atrasado{% elif estado == 'en_proceso' %}En proceso{% else %}{{ proyecto.get_estado_display }}{% endif %}
+</span>
+{% endwith %}

@@ -9,6 +9,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from ..direcciones import DPA_CHILE
 from ..forms import ClienteForm
 from ..models import Cliente, Optimizacion, Proyecto
+from ..services.proyectos import con_estado_efectivo
 
 
 def historial_cliente(request, pk):
@@ -21,7 +22,7 @@ def historial_cliente(request, pk):
     optimizaciones = Optimizacion.objects.filter(cliente=cliente, usuario=request.user).order_by('-fecha')
     
     # Proyectos del cliente
-    proyectos = Proyecto.objects.filter(cliente=cliente, usuario=request.user).order_by('-fecha_creacion')
+    proyectos = con_estado_efectivo(Proyecto.objects.filter(cliente=cliente, usuario=request.user))
     
     # Estadísticas
     total_optimizaciones = optimizaciones.count()
